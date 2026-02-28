@@ -1,4 +1,4 @@
-package com.example.ebookapp.ui
+package com.example.ebook_new_app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,17 +21,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
+
+enum class NavTab(val title: String) {
+    HOME("HOME"),
+    SEARCH("SEARCH"),
+    LIBRARY("LIBRARY")
+}
 
 @Composable
 fun ModernNavBar(
-    navController: NavController,
-    currentRoute: String?
+    selectedTab: NavTab,
+    onTabSelected: (NavTab) -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0F0F0F))
+            .background(Color.Black)
             .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         Row(
@@ -42,21 +46,11 @@ fun ModernNavBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            bottomNavItems.forEach { screen ->
+            NavTab.entries.forEach { tab ->
                 ModernNavItem(
-                    screen = screen,
-                    isSelected = currentRoute == screen.route,
-                    onClick = {
-                        if (currentRoute != screen.route) {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    }
+                    tab = tab,
+                    isSelected = selectedTab == tab,
+                    onClick = { onTabSelected(tab) }
                 )
             }
         }
@@ -65,7 +59,7 @@ fun ModernNavBar(
 
 @Composable
 private fun ModernNavItem(
-    screen: Screen,
+    tab: NavTab,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -75,56 +69,51 @@ private fun ModernNavItem(
         label = "TabTransition"
     )
 
+    // Interpolate color manually for better performance if needed, 
+    // but animateColorAsState is usually well-optimized.
     val textColor by animateColorAsState(
         targetValue = if (isSelected) Color.White else Color.Gray.copy(alpha = 0.6f),
         animationSpec = tween(350),
         label = "TextColor"
     )
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFE50914) else Color.Gray.copy(alpha = 0.6f),
-        animationSpec = tween(350),
-        label = "IconColor"
-    )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(80.dp)
+            .width(110.dp) // Fixed width prevents font-weight changes from jittering the Row
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) { onClick() }
-            .padding(vertical = 8.dp)
+            .padding(vertical = 12.dp)
     ) {
-        screen.icon?.let {
-            Icon(
-                imageVector = it,
-                contentDescription = screen.title,
-                tint = iconColor,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = screen.title,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            text = tab.title,
+            fontSize = 16.sp,
+            // We use a slight jump in weight, but since the container is fixed-width,
+            // it won't push other elements around.
+            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Light,
             color = textColor,
+            letterSpacing = 2.sp,
             textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Performance Optimization: Using graphicsLayer for the "Pea" expansion.
+        // Instead of animating 'width' (Layout Pass), we animate 'scaleX' (GPU Pass).
         Box(
             modifier = Modifier
-                .width(28.dp)
+                .width(32.dp)
                 .height(4.dp)
                 .graphicsLayer {
-                    scaleX = transitionProgress
-                    alpha = transitionProgress
+                    // 0.2f is the "dot" size, 1.0f is the "pea" size
+                    scaleX = 0.2f + (transitionProgress * 0.8f)
+                    alpha = 0.3f + (transitionProgress * 0.7f)
                 }
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color(0xFFE50914))
+                .clip(CircleShape)
+                .background(if (isSelected) Color(0xFFE50914) else Color.Gray)
         )
     }
 }

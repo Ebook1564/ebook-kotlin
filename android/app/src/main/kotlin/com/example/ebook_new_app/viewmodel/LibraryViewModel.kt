@@ -1,23 +1,24 @@
-package com.example.ebookapp.viewmodel
+package com.example.ebook_new_app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ebookapp.models.Book
-import com.example.ebookapp.repository.BookRepository
+import com.example.ebook_new_app.models.Book
+import com.example.ebook_new_app.repository.BookRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class LibraryUiState(
-    val continueReading: List<Book> = emptyList(),
-    val myLibrary: List<Book> = emptyList(),
+    val currentlyReading: List<Book> = emptyList(),
+    val completed: List<Book> = emptyList(),
+    val wishlist: List<Book> = emptyList(),
     val isLoading: Boolean = false
 )
 
 class LibraryViewModel : ViewModel() {
     private val repository = BookRepository()
-
+    
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
@@ -28,17 +29,13 @@ class LibraryViewModel : ViewModel() {
     fun loadLibraryData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-
-            val allBooks = repository.getLibraryBooks().ifEmpty {
-                repository.getAllBooksAcrossCategories()
-            }
-
+            val allBooks = repository.getAllBooksAcrossCategories()
+            
             if (allBooks.isNotEmpty()) {
-                // Placeholder logic to separate continue reading from the rest of the library
-                val continueReadingBooks = allBooks.filter { it.readingProgress > 0 && it.readingProgress < 1 }
                 _uiState.value = LibraryUiState(
-                    continueReading = continueReadingBooks,
-                    myLibrary = allBooks,
+                    currentlyReading = allBooks.take(3),
+                    completed = allBooks.drop(3).take(5),
+                    wishlist = allBooks.drop(8).take(5),
                     isLoading = false
                 )
             } else {
@@ -47,4 +44,3 @@ class LibraryViewModel : ViewModel() {
         }
     }
 }
-
