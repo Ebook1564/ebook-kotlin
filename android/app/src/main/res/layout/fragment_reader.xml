@@ -44,6 +44,14 @@
             android:singleLine="true"
             android:ellipsize="end" />
 
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings"
+            android:contentDescription="Settings" />
+
     </LinearLayout>
 
     <!-- Bottom Bar (Search, TTS, Bookmark, List) -->
@@ -68,6 +76,15 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_search"
             android:contentDescription="Search" />
+
+        <ImageButton
+            android:id="@+id/btn_highlight"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_highlight"
+            android:contentDescription="Highlight Selection" />
 
         <ImageButton
             android:id="@+id/btn_tts"
@@ -143,5 +160,19 @@
             app:tint="@android:color/white" />
 
     </LinearLayout>
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/settings_compose_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:elevation="20dp" />
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/selection_compose_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:elevation="30dp" />
 
 </FrameLayout>

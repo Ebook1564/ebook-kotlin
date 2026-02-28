@@ -70,8 +70,26 @@ class ReaderActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        Log.d("ReaderActivity", "dispatchTouchEvent: action=${ev.action} x=${ev.x} y=${ev.y}")
-        gestureDetector.onTouchEvent(ev)
+        // Only let the activity's gesture detector handle the touch if we are NOT in scroll mode
+        // Or handle it in a way that doesn't block vertical scrolling.
+        // For a reading app, it's often better to let the Fragment/Navigator handle most touches.
+        
+        val fragment = supportFragmentManager.findFragmentById(R.id.reader_container) as? ReaderFragment
+        val isScrollMode = fragment?.isScrollMode() ?: false
+        
+        if (!isScrollMode) {
+            gestureDetector.onTouchEvent(ev)
+        } else {
+            // In scroll mode, we still want to detect taps to toggle bars
+            // but we must be careful not to intercept scrolls.
+            // Simple approach: Only detect single taps.
+            if (ev.action == MotionEvent.ACTION_UP) {
+                // We might need a more refined check here if we want to support both.
+                // For now, let's just use the gesture detector but return super.
+                gestureDetector.onTouchEvent(ev)
+            }
+        }
+        
         return super.dispatchTouchEvent(ev)
     }
     

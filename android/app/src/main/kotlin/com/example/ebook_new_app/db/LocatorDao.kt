@@ -24,4 +24,7 @@ interface LocatorDao {
 
     @Query("SELECT * FROM highlights WHERE bookId = :bookId ORDER BY createdAt DESC")
     fun getHighlightsForBook(bookId: String): Flow<List<Highlight>>
+
+    @Query("SELECT * FROM highlights WHERE bookId = :bookId")
+    suspend fun getHighlightsForBookSync(bookId: String): List<Highlight>
 }
