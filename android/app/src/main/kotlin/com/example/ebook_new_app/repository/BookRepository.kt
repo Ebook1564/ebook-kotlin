@@ -81,11 +81,35 @@ class BookRepository {
                 allBooks.addAll(getBooksByCategory(categoryDoc))
             }
             
-            val distinctBooks = allBooks.distinctBy { it.title.lowercase() + it.author.lowercase() }
+            // Also fetch from the flat "books" collection (Production Relay)
+            try {
+                val librarySnapshot = firestore.collection("books").get().await()
+                allBooks.addAll(librarySnapshot.documents.map { Book.fromDoc(it) })
+            } catch (e: Exception) {
+                Log.e("BookRepository", "Error checking 'books' collection", e)
+            }
+            
+            val distinctBooks = allBooks.distinctBy { 
+                val key = (it.title + it.author).lowercase().replace(" ", "")
+                key
+            }
             Log.d("BookRepository", "Successfully synced ${distinctBooks.size} distinct books.")
             distinctBooks
         } catch (e: Exception) {
             Log.e("BookRepository", "Error in getAllBooksAcrossCategories", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getLibraryBooks(): List<Book> {
+        return try {
+            val snapshot = firestore.collection("books")
+                .orderBy("addedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .get()
+                .await()
+            snapshot.documents.map { Book.fromDoc(it) }
+        } catch (e: Exception) {
+            Log.e("BookRepository", "Error getting library books", e)
             emptyList()
         }
     }
