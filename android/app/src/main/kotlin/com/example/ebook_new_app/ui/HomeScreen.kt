@@ -3,6 +3,7 @@ package com.example.ebook_new_app.ui
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +31,7 @@ import com.example.ebook_new_app.utils.FileDownloader
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
@@ -38,8 +40,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     
     var loadingBookId by remember { mutableStateOf<String?>(null) }
+    var selectedBook by remember { mutableStateOf<Book?>(null) }
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
     fun onReadClick(book: Book) {
+        showSheet = false
         loadingBookId = book.id
         scope.launch {
             // FileDownloader.ensureCached handles both Assets and Cloud URL
@@ -96,7 +102,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             title = "Continue Reading", 
                             books = uiState.continueReading,
                             loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
+                            onBookClick = { 
+                                selectedBook = it
+                                showSheet = true
+                            }
                         )
                     }
                 }
@@ -107,7 +116,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             title = "Trending Now", 
                             books = uiState.trendingBooks,
                             loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
+                            onBookClick = { 
+                                selectedBook = it
+                                showSheet = true
+                            }
                         )
                     }
                 }
@@ -118,7 +130,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             title = "New Releases", 
                             books = uiState.newReleases,
                             loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
+                            onBookClick = { 
+                                selectedBook = it
+                                showSheet = true
+                            }
                         )
                     }
                 }
@@ -126,6 +141,23 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 item {
                     Spacer(modifier = Modifier.height(80.dp))
                 }
+            }
+        }
+
+        if (showSheet && selectedBook != null) {
+            ModalBottomSheet(
+                onDismissRequest = { showSheet = false },
+                sheetState = sheetState,
+                containerColor = Color(0xFF1A1A1A),
+                contentColor = Color.White,
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+            ) {
+                BookDetailContent(
+                    book = selectedBook!!,
+                    isLoading = loadingBookId == selectedBook!!.id,
+                    onReadClick = { onReadClick(selectedBook!!) },
+                    onClose = { showSheet = false }
+                )
             }
         }
     }
@@ -234,6 +266,16 @@ fun CategoryRow(title: String, books: List<Book>, loadingBookId: String?, onBook
 
 @Composable
 fun BookPoster(book: Book, isLoading: Boolean, onClick: () -> Unit) {
+    val gradientBrush = remember {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFE50914),
+                Color(0xFF00C6FF),
+                Color(0xFF0072FF)
+            )
+        )
+    }
+
     Column(
         modifier = Modifier
             .width(110.dp)
@@ -243,7 +285,8 @@ fun BookPoster(book: Book, isLoading: Boolean, onClick: () -> Unit) {
             modifier = Modifier
                 .height(160.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(8.dp))
+                .border(2.dp, gradientBrush, RoundedCornerShape(8.dp))
                 .background(Color.DarkGray)
         ) {
             if (book.coverImageUrl.isNotEmpty()) {
