@@ -1,5 +1,7 @@
 package com.example.ebook_new_app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -11,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -19,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalDensity
@@ -27,22 +32,26 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimatedModernNavBar(
     selectedTab: NavTab,
+    pagerState: PagerState,
     onTabSelected: (NavTab) -> Unit
 ) {
     val theme = LocalBookTheme.current
     val density = LocalDensity.current
     val tabPositions = remember { mutableStateMapOf<Int, Dp>() }
     val tabWidths = remember { mutableStateMapOf<Int, Dp>() }
+    val scope = rememberCoroutineScope()
 
     val indicatorOffset by animateDpAsState(
         targetValue = tabPositions.getOrElse(selectedTab.ordinal) { 0.dp },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMedium
+            stiffness = Spring.StiffnessVeryLow
         ),
         label = "indicatorOffset"
     )
@@ -51,7 +60,7 @@ fun AnimatedModernNavBar(
         targetValue = tabWidths.getOrElse(selectedTab.ordinal) { 0.dp },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMedium
+            stiffness = Spring.StiffnessVeryLow
         ),
         label = "indicatorWidth"
     )
@@ -80,7 +89,12 @@ fun AnimatedModernNavBar(
                     ModernNavItem(
                         tab = tab,
                         isSelected = selectedTab == tab,
-                        onClick = { onTabSelected(tab) },
+                        onClick = {
+                            onTabSelected(tab)
+                            scope.launch {
+                                pagerState.animateScrollToPage(index)
+                            }
+                        },
                         modifier = Modifier.onGloballyPositioned { coordinates ->
                             with(density) {
                                 tabPositions[index] =

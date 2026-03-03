@@ -109,48 +109,23 @@ fun LibraryScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .padding(padding),
+                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 item {
-                    Text(
-                        "CURRENTLY READING",
-                        color = theme.onBackground,
-                        fontFamily = theme.fontFamily,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    LibraryShelf(title = "CURRENTLY READING", books = uiState.currentlyReading, loadingBookId = loadingBookId, onReadClick = ::onReadClick)
                 }
-                
-                if (uiState.currentlyReading.isEmpty()) {
-                    item {
-                        Text("No books here yet.", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily, modifier = Modifier.padding(16.dp))
-                    }
-                } else {
-                    items(uiState.currentlyReading) { book ->
-                        LibraryBookItem(book, isLoading = loadingBookId == book.id) { onReadClick(book) }
-                    }
-                }
-
                 item {
-                    Text(
-                        "WISHLIST",
-                        color = theme.onBackground,
-                        fontFamily = theme.fontFamily,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    LibraryShelf(title = "WANT TO READ", books = uiState.wishlist, loadingBookId = loadingBookId, onReadClick = ::onReadClick)
                 }
-
-                if (uiState.wishlist.isEmpty()) {
-                    item {
-                        Text("Your wishlist is empty.", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily, modifier = Modifier.padding(16.dp))
-                    }
-                } else {
-                    items(uiState.wishlist) { book ->
-                        LibraryBookItem(book, isLoading = loadingBookId == book.id) { onReadClick(book) }
-                    }
+                // Placeholder sections
+                item {
+                    // Using currentlyReading as a placeholder for 'FINISHED' for UI demonstration
+                    LibraryShelf(title = "FINISHED", books = uiState.currentlyReading.take(2), loadingBookId = null, onReadClick = {})
+                }
+                item {
+                    // Using wishlist as a placeholder for 'SIMILAR TO WHAT YOU'VE READ' for UI demonstration
+                    LibraryShelf(title = "SIMILAR TO WHAT YOU'VE READ", books = uiState.wishlist.drop(2).take(3), loadingBookId = null, onReadClick = {})
                 }
             }
         }
@@ -158,30 +133,59 @@ fun LibraryScreen(
 }
 
 @Composable
+fun LibraryShelf(
+    title: String,
+    books: List<Book>,
+    loadingBookId: String?,
+    onReadClick: (Book) -> Unit
+) {
+    val theme = LocalBookTheme.current
+    Column {
+        Text(
+            text = title,
+            color = theme.onBackground,
+            fontFamily = theme.fontFamily,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        if (books.isEmpty()) {
+            Text("No books on this shelf yet.", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                books.forEach { book ->
+                    LibraryBookItem(book, isLoading = loadingBookId == book.id) { onReadClick(book) }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
 fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
     val theme = LocalBookTheme.current
+    val progress = 0.6f // Hardcoded progress for demonstration
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .border(0.5.dp, theme.onBackground.copy(alpha = 0.1f), RoundedCornerShape(2.dp)),
-        colors = CardDefaults.cardColors(containerColor = theme.onBackground.copy(alpha = 0.02f)),
-        shape = RoundedCornerShape(2.dp),
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = theme.onBackground.copy(alpha = 0.03f)),
+        shape = RoundedCornerShape(4.dp),
         onClick = onClick,
         enabled = !isLoading
     ) {
         Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .height(110.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Box(modifier = Modifier.width(75.dp).fillMaxHeight()) {
+            Box(modifier = Modifier.width(80.dp).height(120.dp)) {
                 AsyncImage(
                     model = book.coverImageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, theme.onBackground.copy(alpha = 0.1f))
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp))
                 )
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize().background(theme.background.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
@@ -193,27 +197,26 @@ fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(book.title, color = theme.onBackground, fontWeight = FontWeight.Bold, fontFamily = theme.fontFamily, maxLines = 2)
+                Text(book.title, color = theme.onBackground, fontWeight = FontWeight.Bold, fontFamily = theme.fontFamily, maxLines = 2, fontSize = 18.sp)
                 Text(book.author, color = theme.onBackground.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = theme.fontFamily)
                 Spacer(modifier = Modifier.weight(1f))
-                LinearProgressIndicator(
-                    progress = 0.4f, 
-                    modifier = Modifier.fillMaxWidth().height(2.dp),
-                    color = theme.primary,
-                    trackColor = theme.onBackground.copy(alpha = 0.1f)
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Button(
-                onClick = onClick,
-                enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(2.dp)
-            ) {
-                Text("READ", color = theme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                // "Hot Bar" Progress Indicator
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = progress, 
+                        modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = theme.primary,
+                        trackColor = theme.onBackground.copy(alpha = 0.1f)
+                    )
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        color = theme.onBackground.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
         }
     }

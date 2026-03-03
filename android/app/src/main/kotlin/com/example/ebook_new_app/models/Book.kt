@@ -9,7 +9,8 @@ data class Book(
     val coverImageUrl: String = "",
     val description: String = "",
     val fileUrl: String? = null,
-    val originalFileName: String? = null
+    val originalFileName: String? = null,
+    val genres: List<String> = emptyList() // Added genres property
 ) {
     companion object {
         fun fromDoc(doc: DocumentSnapshot): Book {
@@ -47,6 +48,14 @@ data class Book(
                 ?: doc.getString("cover_image") 
                 ?: ""
 
+            // 4. Genres Parsing with Fallbacks
+            val genresData = doc.get("genres") ?: doc.get("tags") ?: doc.get("categories")
+            val bookGenres = when (genresData) {
+                is List<*> -> genresData.mapNotNull { it?.toString() }
+                is String -> genresData.split(",").map { it.trim() }
+                else -> emptyList()
+            }
+
             return Book(
                 id = doc.id,
                 title = doc.getString("title") ?: doc.getString("name") ?: "No Title",
@@ -54,7 +63,8 @@ data class Book(
                 coverImageUrl = image,
                 description = doc.getString("description") ?: "",
                 fileUrl = url,
-                originalFileName = asset
+                originalFileName = asset,
+                genres = bookGenres
             )
         }
     }
