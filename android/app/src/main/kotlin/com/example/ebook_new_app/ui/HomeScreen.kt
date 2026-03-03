@@ -2,7 +2,9 @@ package com.example.ebook_new_app.ui
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -23,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Palette
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
@@ -31,9 +35,12 @@ import com.example.ebook_new_app.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(
+    viewModel: HomeViewModel = viewModel(),
+    onThemeToggle: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
-    val backgroundColor = Color(0xFF000000)
+    val theme = LocalBookTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
@@ -42,7 +49,6 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     fun onReadClick(book: Book) {
         loadingBookId = book.id
         scope.launch {
-            // FileDownloader.ensureCached handles both Assets and Cloud URL
             val file = FileDownloader.ensureCached(context, book)
             loadingBookId = null
 
@@ -54,15 +60,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 }
                 context.startActivity(intent)
             } else {
-                Toast.makeText(context, "Book crystallization failed. Check connection!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Crystallization failed!", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
+    Box(modifier = Modifier.fillMaxSize().background(theme.background)) {
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFFE50914))
+                CircularProgressIndicator(color = theme.primary)
             }
         } else if (uiState.billboardBook == null && uiState.trendingBooks.isEmpty()) {
             Column(
@@ -70,16 +76,42 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("No books found", color = Color.White)
+                Text("Library empty", color = theme.onBackground, fontFamily = theme.fontFamily)
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { viewModel.loadHomeData() }) {
-                    Text("Retry")
+                Button(
+                    onClick = { viewModel.loadHomeData() },
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.onBackground)
+                ) {
+                    Text("Retry", color = theme.background)
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "BOOKVERSE",
+                            color = theme.primary,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp,
+                            fontSize = 24.sp
+                        )
+                        IconButton(onClick = onThemeToggle) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Toggle Theme",
+                                tint = theme.onBackground
+                            )
+                        }
+                    }
+                }
+
                 uiState.billboardBook?.let { book ->
                     item {
                         BillboardSection(
@@ -90,36 +122,26 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     }
                 }
 
-                if (uiState.continueReading.isNotEmpty()) {
-                    item {
-                        CategoryRow(
-                            title = "Continue Reading", 
-                            books = uiState.continueReading,
-                            loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
-                        )
-                    }
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                if (uiState.trendingBooks.isNotEmpty()) {
-                    item {
-                        CategoryRow(
-                            title = "Trending Now", 
-                            books = uiState.trendingBooks,
-                            loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
-                        )
-                    }
-                }
+                val categories = listOf(
+                    "Continue Reading" to uiState.continueReading,
+                    "Trending Now" to uiState.trendingBooks,
+                    "New Releases" to uiState.newReleases
+                )
 
-                if (uiState.newReleases.isNotEmpty()) {
-                    item {
-                        CategoryRow(
-                            title = "New Releases", 
-                            books = uiState.newReleases,
-                            loadingBookId = loadingBookId,
-                            onBookClick = { onReadClick(it) }
-                        )
+                categories.forEach { (title, books) ->
+                    if (books.isNotEmpty()) {
+                        item {
+                            CategoryRow(
+                                title = title, 
+                                books = books,
+                                loadingBookId = loadingBookId,
+                                onBookClick = { onReadClick(it) }
+                            )
+                        }
                     }
                 }
                 
@@ -133,10 +155,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
 @Composable
 fun BillboardSection(book: Book, isLoading: Boolean, onReadClick: () -> Unit) {
+    val theme = LocalBookTheme.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(450.dp)
+            .height(480.dp)
+            .shadow(8.dp)
     ) {
         AsyncImage(
             model = book.coverImageUrl.ifEmpty { "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1000" },
@@ -152,8 +176,8 @@ fun BillboardSection(book: Book, isLoading: Boolean, onReadClick: () -> Unit) {
                     brush = Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color.Black.copy(alpha = 0.5f),
-                            Color.Black
+                            theme.background.copy(alpha = 0.4f),
+                            theme.background
                         )
                     )
                 )
@@ -168,7 +192,8 @@ fun BillboardSection(book: Book, isLoading: Boolean, onReadClick: () -> Unit) {
             Text(
                 text = book.title,
                 style = MaterialTheme.typography.headlineLarge,
-                color = Color.White,
+                color = theme.onBackground,
+                fontFamily = theme.fontFamily,
                 fontWeight = FontWeight.Bold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp)
@@ -176,35 +201,37 @@ fun BillboardSection(book: Book, isLoading: Boolean, onReadClick: () -> Unit) {
             Text(
                 text = book.author,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.7f)
+                fontFamily = theme.fontFamily,
+                color = theme.onBackground.copy(alpha = 0.7f)
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             Row {
                 Button(
                     onClick = onReadClick,
                     enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.width(130.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(2.dp),
+                    modifier = Modifier.width(140.dp)
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = theme.onPrimary, strokeWidth = 2.dp)
                     } else {
                         Text(
                             "READ NOW", 
-                            color = Color.White, 
-                            fontWeight = FontWeight.ExtraBold,
+                            color = theme.onPrimary, 
+                            fontWeight = FontWeight.Bold,
                             style = androidx.compose.ui.text.TextStyle(letterSpacing = 1.sp)
                         )
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Button(
+                OutlinedButton(
                     onClick = { /* More Info */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Gray.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(4.dp)
+                    border = BorderStroke(1.dp, theme.onBackground),
+                    shape = RoundedCornerShape(2.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.onBackground)
                 ) {
-                    Text("MY LIST", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("MY LIST", color = theme.onBackground, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -213,17 +240,19 @@ fun BillboardSection(book: Book, isLoading: Boolean, onReadClick: () -> Unit) {
 
 @Composable
 fun CategoryRow(title: String, books: List<Book>, loadingBookId: String?, onBookClick: (Book) -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+    val theme = LocalBookTheme.current
+    Column(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
             text = title,
-            color = Color.White,
-            fontSize = 20.sp,
+            color = theme.onBackground,
+            fontFamily = theme.fontFamily,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(books) { book ->
                 BookPoster(book, isLoading = loadingBookId == book.id, onClick = { onBookClick(book) })
@@ -234,17 +263,19 @@ fun CategoryRow(title: String, books: List<Book>, loadingBookId: String?, onBook
 
 @Composable
 fun BookPoster(book: Book, isLoading: Boolean, onClick: () -> Unit) {
+    val theme = LocalBookTheme.current
     Column(
         modifier = Modifier
-            .width(110.dp)
+            .width(120.dp)
             .clickable(enabled = !isLoading, onClick = onClick)
     ) {
         Box(
             modifier = Modifier
-                .height(160.dp)
+                .height(180.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.DarkGray)
+                .clip(RoundedCornerShape(2.dp))
+                .border(1.dp, theme.onBackground.copy(alpha = 0.2f))
+                .background(theme.onBackground.copy(alpha = 0.05f))
         ) {
             if (book.coverImageUrl.isNotEmpty()) {
                 AsyncImage(
@@ -257,17 +288,17 @@ fun BookPoster(book: Book, isLoading: Boolean, onClick: () -> Unit) {
                 Icon(
                     imageVector = Icons.Default.MenuBook,
                     contentDescription = null,
-                    modifier = Modifier.align(Alignment.Center),
-                    tint = Color.Gray
+                    modifier = Modifier.align(Alignment.Center).size(40.dp),
+                    tint = theme.onBackground.copy(alpha = 0.3f)
                 )
             }
             
             if (isLoading) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxSize().background(theme.background.copy(alpha = 0.7f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(30.dp), color = Color(0xFFE50914))
+                    CircularProgressIndicator(modifier = Modifier.size(30.dp), color = theme.primary)
                 }
             }
         }

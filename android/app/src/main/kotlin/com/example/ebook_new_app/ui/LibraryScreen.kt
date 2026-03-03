@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,6 +39,7 @@ fun LibraryScreen(
     onProfileClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val theme = LocalBookTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var loadingBookId by remember { mutableStateOf<String?>(null) }
@@ -66,42 +68,42 @@ fun LibraryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black)
+                    .background(theme.background)
                     .padding(horizontal = 24.dp, vertical = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "MY LIBRARY", 
-                    color = Color.White, 
-                    fontWeight = FontWeight.ExtraBold, 
+                    color = theme.onBackground, 
+                    fontFamily = theme.fontFamily,
+                    fontWeight = FontWeight.Bold, 
                     fontSize = 24.sp,
                     letterSpacing = 2.sp
                 )
                 
-                // Account Favicon (Spotify Style)
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1A1A1A))
+                        .background(theme.onBackground.copy(alpha = 0.1f))
                         .clickable { onProfileClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person, 
                         contentDescription = "Profile",
-                        tint = Color.White,
+                        tint = theme.onBackground,
                         modifier = Modifier.size(24.dp)
                     )
                 }
             }
         },
-        containerColor = Color.Black
+        containerColor = theme.background
     ) { padding ->
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFFE50914))
+                CircularProgressIndicator(color = theme.primary)
             }
         } else {
             LazyColumn(
@@ -111,9 +113,10 @@ fun LibraryScreen(
             ) {
                 item {
                     Text(
-                        "Currently Reading",
-                        color = Color.White,
-                        fontSize = 20.sp,
+                        "CURRENTLY READING",
+                        color = theme.onBackground,
+                        fontFamily = theme.fontFamily,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -121,7 +124,7 @@ fun LibraryScreen(
                 
                 if (uiState.currentlyReading.isEmpty()) {
                     item {
-                        Text("No books here yet.", color = Color.Gray, modifier = Modifier.padding(16.dp))
+                        Text("No books here yet.", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily, modifier = Modifier.padding(16.dp))
                     }
                 } else {
                     items(uiState.currentlyReading) { book ->
@@ -131,9 +134,10 @@ fun LibraryScreen(
 
                 item {
                     Text(
-                        "Wishlist",
-                        color = Color.White,
-                        fontSize = 20.sp,
+                        "WISHLIST",
+                        color = theme.onBackground,
+                        fontFamily = theme.fontFamily,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -141,7 +145,7 @@ fun LibraryScreen(
 
                 if (uiState.wishlist.isEmpty()) {
                     item {
-                        Text("Your wishlist is empty.", color = Color.Gray, modifier = Modifier.padding(16.dp))
+                        Text("Your wishlist is empty.", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily, modifier = Modifier.padding(16.dp))
                     }
                 } else {
                     items(uiState.wishlist) { book ->
@@ -155,31 +159,33 @@ fun LibraryScreen(
 
 @Composable
 fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
+    val theme = LocalBookTheme.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-        shape = RoundedCornerShape(8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .border(0.5.dp, theme.onBackground.copy(alpha = 0.1f), RoundedCornerShape(2.dp)),
+        colors = CardDefaults.cardColors(containerColor = theme.onBackground.copy(alpha = 0.02f)),
+        shape = RoundedCornerShape(2.dp),
         onClick = onClick,
         enabled = !isLoading
     ) {
         Row(
             modifier = Modifier
                 .padding(12.dp)
-                .height(100.dp),
+                .height(110.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.width(70.dp).fillMaxHeight()) {
+            Box(modifier = Modifier.width(75.dp).fillMaxHeight()) {
                 AsyncImage(
                     model = book.coverImageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp))
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, theme.onBackground.copy(alpha = 0.1f))
                 )
                 if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color(0xFFE50914), strokeWidth = 2.dp)
+                    Box(modifier = Modifier.fillMaxSize().background(theme.background.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = theme.primary, strokeWidth = 2.dp)
                     }
                 }
             }
@@ -187,14 +193,14 @@ fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(book.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2)
-                Text(book.author, color = Color.Gray, fontSize = 14.sp)
+                Text(book.title, color = theme.onBackground, fontWeight = FontWeight.Bold, fontFamily = theme.fontFamily, maxLines = 2)
+                Text(book.author, color = theme.onBackground.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = theme.fontFamily)
                 Spacer(modifier = Modifier.weight(1f))
                 LinearProgressIndicator(
                     progress = 0.4f, 
-                    modifier = Modifier.fillMaxWidth().height(4.dp),
-                    color = Color(0xFFE50914),
-                    trackColor = Color.Gray.copy(alpha = 0.3f)
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    color = theme.primary,
+                    trackColor = theme.onBackground.copy(alpha = 0.1f)
                 )
             }
             
@@ -203,11 +209,11 @@ fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
             Button(
                 onClick = onClick,
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(4.dp)
+                shape = RoundedCornerShape(2.dp)
             ) {
-                Text("READ", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                Text("READ", color = theme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     }

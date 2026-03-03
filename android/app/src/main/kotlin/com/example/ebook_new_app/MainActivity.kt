@@ -4,26 +4,28 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.ebook_new_app.ui.*
+import com.example.ebook_new_app.ui.AnimatedModernNavBar
+import com.example.ebook_new_app.ui.HomeScreen
+import com.example.ebook_new_app.ui.LibraryScreen
+import com.example.ebook_new_app.ui.NavTab
+import com.example.ebook_new_app.ui.ProfileScreen
+import com.example.ebook_new_app.ui.Screen
+import com.example.ebook_new_app.ui.SearchScreen
+import com.example.ebook_new_app.ui.ProvideBookTheme
+import com.example.ebook_new_app.ui.ThemeType
+import com.example.ebook_new_app.ui.LocalBookTheme
 import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
@@ -32,42 +34,44 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         FirebaseApp.initializeApp(this)
         setContent {
-            BookVerseApp()
+            var themeType by rememberSaveable { mutableStateOf(ThemeType.VINTAGE) }
+            ProvideBookTheme(themeType = themeType) {
+                BookVerseApp(
+                    onThemeToggle = {
+                        themeType = if (themeType == ThemeType.VINTAGE) ThemeType.PITCH_BLACK else ThemeType.VINTAGE
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun BookVerseApp() {
+fun BookVerseApp(onThemeToggle: () -> Unit) {
     val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    
-    // Determine the current tab based on the navigation route
-    val selectedTab = when (currentDestination?.route) {
-        Screen.Home.route -> NavTab.HOME
-        Screen.Search.route -> NavTab.SEARCH
-        Screen.Library.route -> NavTab.LIBRARY
-        else -> NavTab.HOME
-    }
+    var selectedTab by rememberSaveable { mutableStateOf(NavTab.HOME) }
+    val theme = LocalBookTheme.current
 
     Scaffold(
+        containerColor = theme.background,
         bottomBar = {
-            ModernNavBar(
+            AnimatedModernNavBar(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
-                    val route = when (tab) {
-                        NavTab.HOME -> Screen.Home.route
-                        NavTab.SEARCH -> Screen.Search.route
-                        NavTab.LIBRARY -> Screen.Library.route
-                    }
-                    
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    if (tab != selectedTab) {
+                        selectedTab = tab
+                        val route = when (tab) {
+                            NavTab.HOME -> Screen.Home.route
+                            NavTab.SEARCH -> Screen.Search.route
+                            NavTab.LIBRARY -> Screen.Library.route
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 }
             )
@@ -78,15 +82,17 @@ fun BookVerseApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.Home.route) { 
+                HomeScreen(onThemeToggle = onThemeToggle) 
+            }
             composable(Screen.Search.route) { SearchScreen() }
-            composable(Screen.Library.route) { 
+            composable(Screen.Library.route) {
                 LibraryScreen(
                     onProfileClick = { navController.navigate(Screen.Profile.route) }
-                ) 
+                )
             }
-            composable(Screen.Profile.route) { 
-                ProfileScreen(onBackClick = { navController.popBackStack() }) 
+            composable(Screen.Profile.route) {
+                ProfileScreen(onBackClick = { navController.popBackStack() })
             }
         }
     }
