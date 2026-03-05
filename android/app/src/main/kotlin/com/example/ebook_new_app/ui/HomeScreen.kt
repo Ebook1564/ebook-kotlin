@@ -64,9 +64,10 @@ fun HomeScreen(
         } else {
             LazyColumn(
                 state = scrollState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                // USE CONTENT PADDING FOR RELIABLE SCROLLING
+                contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
-                // MOVE HEADER SECTION HERE (inside Home Only)
                 item {
                     HeaderSection(appViewModel, uiState.userName)
                 }
@@ -100,8 +101,6 @@ fun HomeScreen(
                         }
                     }
                 }
-                
-                item { Spacer(modifier = Modifier.height(120.dp)) }
             }
         }
 
@@ -130,8 +129,8 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding() // Correct padding from top
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 24.dp), // Increased breathing room
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -165,10 +164,10 @@ fun DynamicGreeting(userName: String) {
 
     Column {
         Text(
-            text = "$greeting, Aayush", // Fixed name as requested or dynamic
+            text = "$greeting, Aayush",
             style = BookVerseTheme.typography.headline,
             color = BookVerseTheme.colors.textPrimary,
-            fontSize = 22.sp, // Refined size
+            fontSize = 22.sp,
             fontWeight = FontWeight.Black
         )
         Text(

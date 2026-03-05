@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
@@ -61,91 +63,98 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
         Category(id = "8", title = "Biography", color = "#00BCD4")
     )
 
-    Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
-        // BACKGROUND CAROUSEL (Visible when category is selected)
-        if (selectedCategory != null && searchQuery.isEmpty()) {
-            BackgroundBookCarousel(uiState.trendingBooks)
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BookVerseTheme.colors.background)
+            .padding(horizontal = 24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Column(
+        // Search Bar
+        TextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it; if(it.isNotEmpty()) selectedCategory = null },
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
+                .fillMaxWidth()
+                .clip(CircleShape),
+            placeholder = { Text("Search books...", color = BookVerseTheme.colors.textSecondary) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = BookVerseTheme.colors.primary) },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = BookVerseTheme.colors.surface,
+                unfocusedContainerColor = BookVerseTheme.colors.surface,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = BookVerseTheme.colors.textPrimary,
+                unfocusedTextColor = BookVerseTheme.colors.textPrimary
+            )
+        )
 
-            // Search Bar
-            TextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it; if(it.isNotEmpty()) selectedCategory = null },
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (searchQuery.isEmpty()) {
+            // CATEGORY HEADER AREA (Scoped Carousel)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(CircleShape),
-                placeholder = { Text("Search books...", color = BookVerseTheme.colors.textSecondary) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = BookVerseTheme.colors.primary) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = BookVerseTheme.colors.surface,
-                    unfocusedContainerColor = BookVerseTheme.colors.surface,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = BookVerseTheme.colors.textPrimary,
-                    unfocusedTextColor = BookVerseTheme.colors.textPrimary
-                )
-            )
+                    .height(80.dp) // Fixed height for header
+                    .clipToBounds(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                // Background Carousel: Only inside this header box
+                if (selectedCategory != null) {
+                    BackgroundBookCarousel(uiState.trendingBooks)
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (searchQuery.isEmpty()) {
                 Text(
                     text = if (selectedCategory == null) "Browse Categories" else "Selected: ${selectedCategory!!.title}",
                     style = BookVerseTheme.typography.headline,
                     color = BookVerseTheme.colors.textPrimary,
-                    fontSize = 20.sp
+                    fontSize = 20.sp,
+                    modifier = Modifier.zIndex(1f) // Ensure text is above carousel
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
 
-                // Honeycomb / Circular Staggered Grid
-                if (selectedCategory == null) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(browseCategories) { category ->
-                            HoneycombCategoryCard(category) {
-                                selectedCategory = category
-                            }
-                        }
-                    }
-                } else {
-                    // Category specific book list
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(bottom = 100.dp)
-                    ) {
-                        item {
-                            TextButton(onClick = { selectedCategory = null }) {
-                                Text("← Back to categories", color = BookVerseTheme.colors.primary)
-                            }
-                        }
-                        items(uiState.trendingBooks.shuffled().take(5)) { book ->
-                            SearchResultItem(book)
+            if (selectedCategory == null) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(browseCategories) { category ->
+                        HoneycombCategoryCard(category) {
+                            selectedCategory = category
                         }
                     }
                 }
             } else {
-                // Search Results
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 100.dp)
                 ) {
-                    items(filteredBooks) { book ->
+                    item {
+                        TextButton(onClick = { selectedCategory = null }) {
+                            Text("← Back to categories", color = BookVerseTheme.colors.primary)
+                        }
+                    }
+                    items(uiState.trendingBooks.shuffled().take(5)) { book ->
                         SearchResultItem(book)
                     }
+                }
+            }
+        } else {
+            // Search Results
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 100.dp)
+            ) {
+                items(filteredBooks) { book ->
+                    SearchResultItem(book)
                 }
             }
         }
@@ -184,33 +193,30 @@ fun BackgroundBookCarousel(books: List<Book>) {
         initialValue = 0f,
         targetValue = -1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
+            animation = tween(15000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         )
     )
 
-    Box(modifier = Modifier.fillMaxSize().scale(1.2f)) {
-        Row(
-            modifier = Modifier
-                .offset(x = scrollOffset.dp)
-                .fillMaxHeight()
-                .padding(vertical = 100.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // Repeat a few times for infinite effect
-            repeat(5) {
-                books.forEach { book ->
-                    AsyncImage(
-                        model = book.coverImageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .width(120.dp)
-                            .fillMaxHeight()
-                            .alpha(0.15f)
-                            .blur(4.dp)
-                    )
-                }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset(x = scrollOffset.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(5) {
+            books.forEach { book ->
+                AsyncImage(
+                    model = book.coverImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(100.dp)
+                        .height(60.dp) // Narrower for header
+                        .alpha(0.2f)
+                        .blur(6.dp)
+                )
             }
         }
     }
