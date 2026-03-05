@@ -1,13 +1,11 @@
 package com.example.ebook_new_app.ui
 
-import android.content.Context
-import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,136 +15,72 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
-import com.example.ebook_new_app.reader.ReaderActivity
-import com.example.ebook_new_app.utils.FileDownloader
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var loadingBookId by remember { mutableStateOf<String?>(null) }
 
-    fun onReadClick(book: Book) {
-        loadingBookId = book.id
-        scope.launch {
-            val file = FileDownloader.ensureCached(context, book)
-            loadingBookId = null
-
-            if (file != null) {
-                val intent = Intent(context, ReaderActivity::class.java).apply {
-                    putExtra("FILE_PATH", file.absolutePath)
-                    putExtra("BOOK_TITLE", book.title)
-                    putExtra("BOOK_ID", book.id)
-                }
-                context.startActivity(intent)
-            } else {
-                Toast.makeText(context, "Failed to open book", Toast.LENGTH_SHORT).show()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BookVerseTheme.colors.background)
+            .padding(horizontal = 24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "My Library",
+                style = BookVerseTheme.typography.headline,
+                color = BookVerseTheme.colors.textPrimary,
+                fontSize = 28.sp
+            )
+            IconButton(
+                onClick = onProfileClick,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(BookVerseTheme.colors.surface)
+            ) {
+                Icon(Icons.Default.Person, contentDescription = "Profile", tint = BookVerseTheme.colors.primary)
             }
         }
-    }
 
-    Scaffold(
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black)
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "MY LIBRARY", 
-                    color = Color.White, 
-                    fontWeight = FontWeight.ExtraBold, 
-                    fontSize = 24.sp,
-                    letterSpacing = 2.sp
-                )
-                
-                // Account Favicon (Spotify Style)
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1A1A1A))
-                        .clickable { onProfileClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person, 
-                        contentDescription = "Profile",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        },
-        containerColor = Color.Black
-    ) { padding ->
+        Spacer(modifier = Modifier.height(24.dp))
+
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFFE50914))
+                CircularProgressIndicator(color = BookVerseTheme.colors.primary)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 100.dp)
             ) {
-                item {
-                    Text(
-                        "Currently Reading",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-                
-                if (uiState.currentlyReading.isEmpty()) {
-                    item {
-                        Text("No books here yet.", color = Color.Gray, modifier = Modifier.padding(16.dp))
-                    }
-                } else {
-                    items(uiState.currentlyReading) { book ->
-                        LibraryBookItem(book, isLoading = loadingBookId == book.id) { onReadClick(book) }
-                    }
-                }
-
-                item {
-                    Text(
-                        "Wishlist",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-
-                if (uiState.wishlist.isEmpty()) {
-                    item {
-                        Text("Your wishlist is empty.", color = Color.Gray, modifier = Modifier.padding(16.dp))
-                    }
-                } else {
-                    items(uiState.wishlist) { book ->
-                        LibraryBookItem(book, isLoading = loadingBookId == book.id) { onReadClick(book) }
-                    }
+                items(uiState.currentlyReading) { book ->
+                    // 3D DVD Case Cover with Progress
+                    DVDCaseBook(book, progress = (30..90).random().toFloat() / 100f)
                 }
             }
         }
@@ -154,61 +88,94 @@ fun LibraryScreen(
 }
 
 @Composable
-fun LibraryBookItem(book: Book, isLoading: Boolean, onClick: () -> Unit) {
-    Card(
+fun DVDCaseBook(book: Book, progress: Float) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-        shape = RoundedCornerShape(8.dp),
-        onClick = onClick,
-        enabled = !isLoading
+            .clickable { /* TODO */ }
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .padding(12.dp)
-                .height(100.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .height(220.dp)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    rotationY = -15f // 3D Tilt
+                    cameraDistance = 12f * density
+                }
         ) {
-            Box(modifier = Modifier.width(70.dp).fillMaxHeight()) {
+            // THE SPINE
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(12.dp)
+                    .background(Color.DarkGray)
+                    .graphicsLayer {
+                        rotationY = -90f
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+            )
+
+            // THE COVER
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                    .background(BookVerseTheme.colors.surface)
+            ) {
                 AsyncImage(
                     model = book.coverImageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp))
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            val splitY = size.height * (1f - progress)
+                            
+                            // 1. GrayScale part
+                            drawContent()
+                            drawRect(
+                                color = Color.White,
+                                blendMode = BlendMode.Saturation,
+                                alpha = 1f
+                            )
+                            
+                            // 2. Color part
+                            clipRect(top = splitY) {
+                                this@drawWithContent.drawContent()
+                            }
+                        }
                 )
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color(0xFFE50914), strokeWidth = 2.dp)
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(book.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2)
-                Text(book.author, color = Color.Gray, fontSize = 14.sp)
-                Spacer(modifier = Modifier.weight(1f))
-                LinearProgressIndicator(
-                    progress = 0.4f, 
-                    modifier = Modifier.fillMaxWidth().height(4.dp),
-                    color = Color(0xFFE50914),
-                    trackColor = Color.Gray.copy(alpha = 0.3f)
+                
+                // 3D Highlights
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color.White.copy(0.1f), Color.Transparent, Color.Black.copy(0.1f)),
+                                start = Offset(0f, 0f),
+                                end = Offset(500f, 500f)
+                            )
+                        )
                 )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Button(
-                onClick = onClick,
-                enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                Text("READ", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
             }
         }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Text(
+            text = book.title,
+            style = BookVerseTheme.typography.body,
+            color = BookVerseTheme.colors.textPrimary,
+            maxLines = 1,
+            fontWeight = FontWeight.Bold,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            text = "${(progress * 100).toInt()}% Read",
+            style = BookVerseTheme.typography.label,
+            color = BookVerseTheme.colors.primary,
+            fontSize = 11.sp
+        )
     }
 }

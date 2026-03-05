@@ -1,9 +1,12 @@
 package com.example.ebook_new_app.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -11,13 +14,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +41,7 @@ import com.example.ebook_new_app.viewmodel.HomeViewModel
 fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<Category?>(null) }
     
     val filteredBooks = if (searchQuery.isNotEmpty()) {
         uiState.trendingBooks.filter { 
@@ -54,73 +61,88 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
         Category(id = "8", title = "Biography", color = "#00BCD4")
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(horizontal = 16.dp)
-    ) {
-        Text(
-            "EXPLORE",
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(top = 48.dp, bottom = 16.dp)
-        )
+    Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
+        // BACKGROUND CAROUSEL (Visible when category is selected)
+        if (selectedCategory != null && searchQuery.isEmpty()) {
+            BackgroundBookCarousel(uiState.trendingBooks)
+        }
 
-        // Search Bar
-        TextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            placeholder = { Text("What do you want to read?", color = Color.Gray, fontWeight = FontWeight.SemiBold) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Black) },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.Black,
-                unfocusedTextColor = Color.Black
-            )
-        )
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (searchQuery.isEmpty()) {
-            Text(
-                "Browse all", 
-                color = Color.White, 
-                fontSize = 18.sp, 
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 12.dp)
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it; if(it.isNotEmpty()) selectedCategory = null },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape),
+                placeholder = { Text("Search books...", color = BookVerseTheme.colors.textSecondary) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = BookVerseTheme.colors.primary) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = BookVerseTheme.colors.surface,
+                    unfocusedContainerColor = BookVerseTheme.colors.surface,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = BookVerseTheme.colors.textPrimary,
+                    unfocusedTextColor = BookVerseTheme.colors.textPrimary
+                )
             )
-            
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(browseCategories) { category ->
-                    CategoryCard(category)
-                }
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                if (filteredBooks.isEmpty()) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
-                            Text("No books found for \"$searchQuery\"", color = Color.Gray)
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (searchQuery.isEmpty()) {
+                Text(
+                    text = if (selectedCategory == null) "Browse Categories" else "Selected: ${selectedCategory!!.title}",
+                    style = BookVerseTheme.typography.headline,
+                    color = BookVerseTheme.colors.textPrimary,
+                    fontSize = 20.sp
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Honeycomb / Circular Staggered Grid
+                if (selectedCategory == null) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(browseCategories) { category ->
+                            HoneycombCategoryCard(category) {
+                                selectedCategory = category
+                            }
                         }
                     }
                 } else {
+                    // Category specific book list
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 100.dp)
+                    ) {
+                        item {
+                            TextButton(onClick = { selectedCategory = null }) {
+                                Text("← Back to categories", color = BookVerseTheme.colors.primary)
+                            }
+                        }
+                        items(uiState.trendingBooks.shuffled().take(5)) { book ->
+                            SearchResultItem(book)
+                        }
+                    }
+                }
+            } else {
+                // Search Results
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 100.dp)
+                ) {
                     items(filteredBooks) { book ->
                         SearchResultItem(book)
                     }
@@ -131,22 +153,66 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
 }
 
 @Composable
-fun CategoryCard(category: Category) {
+fun HoneycombCategoryCard(category: Category, onClick: () -> Unit) {
+    val isDark = BookVerseTheme.colors.isDark
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(android.graphics.Color.parseColor(category.color)))
-            .padding(12.dp)
+            .size(150.dp)
+            .clip(CircleShape)
+            .background(Color(android.graphics.Color.parseColor(category.color)).copy(alpha = 0.8f))
+            .clickable(onClick = onClick)
+            .then(
+                if (isDark) Modifier.border(2.dp, Brush.linearGradient(listOf(Color.White.copy(0.5f), Color.Transparent)), CircleShape)
+                else Modifier
+            ),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = category.title,
             color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.TopStart)
+            style = BookVerseTheme.typography.label,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold
         )
+    }
+}
+
+@Composable
+fun BackgroundBookCarousel(books: List<Book>) {
+    val infiniteTransition = rememberInfiniteTransition()
+    val scrollOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().scale(1.2f)) {
+        Row(
+            modifier = Modifier
+                .offset(x = scrollOffset.dp)
+                .fillMaxHeight()
+                .padding(vertical = 100.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Repeat a few times for infinite effect
+            repeat(5) {
+                books.forEach { book ->
+                    AsyncImage(
+                        model = book.coverImageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .width(120.dp)
+                            .fillMaxHeight()
+                            .alpha(0.15f)
+                            .blur(4.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -158,23 +224,21 @@ fun SearchResultItem(book: Book) {
     ) {
         Box(
             modifier = Modifier
-                .size(50.dp, 75.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.DarkGray)
+                .size(60.dp, 90.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(BookVerseTheme.colors.surface)
         ) {
-            if (book.coverImageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = book.coverImageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            AsyncImage(
+                model = book.coverImageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(book.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(book.author, color = Color.Gray, fontSize = 14.sp)
+            Text(book.title, style = BookVerseTheme.typography.body, color = BookVerseTheme.colors.textPrimary, fontWeight = FontWeight.Bold)
+            Text(book.author, style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.textSecondary)
         }
     }
 }

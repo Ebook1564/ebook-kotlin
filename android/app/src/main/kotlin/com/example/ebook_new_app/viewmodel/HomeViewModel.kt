@@ -9,12 +9,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class InitialBounds(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float
+)
+
 data class HomeUiState(
     val billboardBook: Book? = null,
     val trendingBooks: List<Book> = emptyList(),
     val continueReading: List<Book> = emptyList(),
     val newReleases: List<Book> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val transitionBook: Book? = null,
+    val initialBounds: InitialBounds? = null,
+    val userName: String = "Reader"
 )
 
 class HomeViewModel : ViewModel() {
@@ -47,5 +57,19 @@ class HomeViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+    }
+
+    fun startReadTransition(book: Book, bounds: InitialBounds? = null) {
+        _uiState.value = _uiState.value.copy(
+            transitionBook = book,
+            initialBounds = bounds
+        )
+    }
+
+    fun endReadTransition() {
+        _uiState.value = _uiState.value.copy(
+            transitionBook = null,
+            initialBounds = null
+        )
     }
 }

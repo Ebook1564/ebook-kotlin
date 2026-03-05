@@ -18,8 +18,13 @@ import com.example.ebook_new_app.R
 import com.example.ebook_new_app.db.Bookmark
 import com.example.ebook_new_app.db.Highlight
 import com.example.ebook_new_app.viewmodel.ReaderViewModel
+import com.example.ebook_new_app.repository.ReaderSettingsRepository
+import com.example.ebook_new_app.utils.EpubPreviewUtils
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubPreferences
@@ -49,9 +54,15 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ebook_new_app.viewmodel.ReaderTheme
 import com.example.ebook_new_app.viewmodel.ReaderSettings
 
@@ -62,11 +73,12 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.*
 
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
-import org.readium.r2.navigator.epub.EpubNavigatorFragment.Configuration
+import org.readium.r2.navigator.epub.EpubNavigatorFragment.Configuration as EpubConfig
 
 @OptIn(ExperimentalReadiumApi::class)
 class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
@@ -76,7 +88,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private var navigator: EpubNavigatorFragment? = null
     private var currentSelection: Locator? = null
     private var tts: TextToSpeech? = null
-    private var isTtsSpeaking = false
+    private var isTtsInitialized = false
     
     private lateinit var topBar: View
     private lateinit var bottomBar: View
@@ -90,6 +102,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var readerTitle: TextView
     private lateinit var settingsComposeView: ComposeView
     private lateinit var selectionComposeView: ComposeView
+    private lateinit var revealOverlayView: ComposeView
+    private lateinit var fragmentReaderContainer: View
+    private lateinit var ttsControlComposeView: ComposeView
 
     // Search UI
     private lateinit var searchNavBar: View
@@ -101,6 +116,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private var currentSearchLocators = mutableListOf<Locator>()
     private var currentSearchIndex = -1
     private var highlightsJob: kotlinx.coroutines.Job? = null
+
+    // TTS Compose State
+    private var isTtsActive by mutableStateOf(false)
+    private var isTtsPlaying by mutableStateOf(false)
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -127,16 +146,48 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         btnSettings = view.findViewById(R.id.btn_settings)
         settingsComposeView = view.findViewById(R.id.settings_compose_view)
         selectionComposeView = view.findViewById(R.id.selection_compose_view)
+        revealOverlayView = view.findViewById(R.id.reveal_overlay_view)
+        fragmentReaderContainer = view.findViewById(R.id.fragment_reader_container)
+        
+        // Add TTS control view to layout
+        ttsControlComposeView = ComposeView(requireContext()).apply {
+            id = View.generateViewId()
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM
+            )
+            visibility = View.GONE
+        }
+        (view as ViewGroup).addView(ttsControlComposeView)
 
-        // Setup ViewTree owners for ComposeViews
-        listOf(settingsComposeView, selectionComposeView).forEach { composeView ->
-            composeView.setViewTreeLifecycleOwner(viewLifecycleOwner)
-            composeView.setViewTreeViewModelStoreOwner(this)
-            composeView.setViewTreeSavedStateRegistryOwner(this)
-            composeView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        listOf(settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
+            cv.setViewTreeLifecycleOwner(viewLifecycleOwner)
+            cv.setViewTreeViewModelStoreOwner(this)
+            cv.setViewTreeSavedStateRegistryOwner(this)
+            cv.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         }
 
-        // Search UI init
+        val settingsRepo = ReaderSettingsRepository(requireContext())
+        val themeColor = settingsRepo.getThemeColor()
+
+        revealOverlayView.setContent {
+            val alpha = remember { Animatable(1f) }
+            LaunchedEffect(Unit) {
+                delay(800)
+                alpha.animateTo(0f, tween(1000))
+                revealOverlayView.visibility = View.GONE
+            }
+            
+            SideEffect {
+                fragmentReaderContainer.alpha = 1f - alpha.value
+            }
+
+            Box(modifier = Modifier.fillMaxSize().background(themeColor.copy(alpha = alpha.value)))
+        }
+
+        setupTtsControls()
+
         searchNavBar = view.findViewById(R.id.search_nav_bar)
         btnPrevSearch = view.findViewById(R.id.btn_prev_search)
         btnNextSearch = view.findViewById(R.id.btn_next_search)
@@ -153,62 +204,147 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         val initialLocator = publication.locatorFromLink(publication.readingOrder.first()) ?: return view
 
         setupNavigator(initialLocator, settings)
-        
         observeHighlights()
-        
-        // Initialize TTS
-        tts = TextToSpeech(requireContext(), this)
         
         return view
     }
 
+    private fun setupTtsControls() {
+        ttsControlComposeView.setContent {
+            if (isTtsActive) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 8.dp,
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { /* Nav previous */ }) {
+                            Icon(Icons.Default.SkipPrevious, contentDescription = null)
+                        }
+                        
+                        LargeFloatingActionButton(
+                            onClick = { togglePlayPauseTts() },
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(
+                                if (isTtsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        IconButton(onClick = { /* Nav next */ }) {
+                            Icon(Icons.Default.SkipNext, contentDescription = null)
+                        }
+
+                        IconButton(onClick = { stopTts() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close TTS")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun togglePlayPauseTts() {
+        if (isTtsPlaying) {
+            tts?.stop()
+            isTtsPlaying = false
+        } else {
+            speakCurrentPage()
+        }
+    }
+
+    private fun stopTts() {
+        tts?.stop()
+        isTtsActive = false
+        isTtsPlaying = false
+        ttsControlComposeView.visibility = View.GONE
+    }
+
+    private fun speakCurrentPage() {
+        if (tts == null) {
+            tts = TextToSpeech(requireContext().applicationContext, this)
+            return
+        }
+        if (!isTtsInitialized) return
+
+        lifecycleScope.launch {
+            val publication = ReaderRepository.currentPublication ?: return@launch
+            val locator = navigator?.currentLocator?.value ?: return@launch
+            
+            var textToSpeak = locator.text.highlight ?: ""
+            
+            if (textToSpeak.isEmpty()) {
+                val resource = publication.get(locator.href)
+                val content = resource?.read()?.getOrNull()
+                if (content != null) {
+                    val html = String(content, Charsets.UTF_8)
+                    textToSpeak = parseHtmlToTextSimple(html)
+                }
+            }
+            
+            if (textToSpeak.isNotEmpty()) {
+                tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "ReaderTTS")
+                isTtsPlaying = true
+            } else {
+                Toast.makeText(context, "No text found to read on this page.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun parseHtmlToTextSimple(html: String): String {
+        return html.replace("<style[^>]*>.*?</style>".toRegex(RegexOption.DOT_MATCHES_ALL), "")
+            .replace("<script[^>]*>.*?</script>".toRegex(RegexOption.DOT_MATCHES_ALL), "")
+            .replace("<[^>]+>".toRegex(), " ")
+            .replace("&nbsp;", " ")
+            .replace("\\s+".toRegex(), " ").trim()
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            isTtsInitialized = true
+            tts?.language = Locale.US
+            speakCurrentPage()
+        }
+    }
+
     private fun setupNavigator(initialLocator: Locator, settings: ReaderSettings) {
         val publication = ReaderRepository.currentPublication ?: return
-        
-        val config = Configuration(
+        val config = EpubConfig(
             selectionActionModeCallback = object : ActionMode.Callback {
-                override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                    return true
-                }
-
+                override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = true
                 override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
                     lifecycleScope.launch {
                         val selection = navigator?.currentSelection()
                         if (selection != null) {
-                            showSelectionMenu(selection)
+                            showSelectionMenu(selection.locator)
                         }
                     }
-                    return false // Suppress default menu
-                }
-
-                override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
                     return false
                 }
-
+                override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean = false
                 override fun onDestroyActionMode(mode: ActionMode?) {}
             }
         )
-
         val factory = EpubNavigatorFactory(publication)
         val fragmentFactory = factory.createFragmentFactory(
             initialLocator = initialLocator,
             initialPreferences = createEpubPreferences(settings),
             configuration = config,
             listener = object : EpubNavigatorFragment.Listener {
-                override fun onExternalLinkActivated(url: AbsoluteUrl) {
-                }
+                override fun onExternalLinkActivated(url: AbsoluteUrl) {}
             }
         )
-        
-        val navigatorFragment = fragmentFactory.instantiate(
-            requireContext().classLoader, 
-            EpubNavigatorFragment::class.java.name
-        ) as EpubNavigatorFragment
+        val navigatorFragment = fragmentFactory.instantiate(requireContext().classLoader, EpubNavigatorFragment::class.java.name) as EpubNavigatorFragment
         this.navigator = navigatorFragment
-
-        childFragmentManager.beginTransaction()
-            .replace(R.id.fragment_reader_container, navigatorFragment)
-            .commit()
+        childFragmentManager.beginTransaction().replace(R.id.fragment_reader_container, navigatorFragment).commit()
     }
 
     private fun createEpubPreferences(settings: ReaderSettings): EpubPreferences {
@@ -227,123 +363,45 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         )
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.US
-            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    activity?.runOnUiThread {
-                        isTtsSpeaking = false
-                        btnTts.setImageResource(R.drawable.ic_tts)
-                    }
-                }
-                override fun onError(utteranceId: String?) {
-                    activity?.runOnUiThread {
-                        isTtsSpeaking = false
-                        btnTts.setImageResource(R.drawable.ic_tts)
-                    }
-                }
-            })
-        } else {
-            Log.e("TTS", "Initialization failed")
-        }
-    }
-
     override fun onDestroy() {
-        tts?.stop()
-        tts?.shutdown()
+        try { tts?.stop(); tts?.shutdown() } catch (e: Exception) {}
         super.onDestroy()
     }
 
     private fun applyInsets(view: View) {
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
             topBar.updatePadding(top = bars.top)
             bottomBar.updatePadding(bottom = bars.bottom)
-            
-            searchNavBar.updateLayoutParams<FrameLayout.LayoutParams> {
-                bottomMargin = bars.bottom + (80 * resources.displayMetrics.density).toInt()
-            }
-            
+            searchNavBar.updateLayoutParams<FrameLayout.LayoutParams> { bottomMargin = bars.bottom + (80 * resources.displayMetrics.density).toInt() }
             insets
         }
     }
 
     private fun setupToolbar() {
-        btnBack.setOnClickListener {
-            activity?.finish()
-        }
-
-        btnBookmarkStar.setOnClickListener {
-            bookmarkCurrentLocation()
-        }
-
+        btnBack.setOnClickListener { activity?.finish() }
+        btnBookmarkStar.setOnClickListener { bookmarkCurrentLocation() }
         btnHighlight.setOnClickListener {
-            val selection = currentSelection
-            if (selection != null) {
-                // If there's a selection, show the menu if not already visible
-                // But the listener should handle this. This is for manual triggers.
-                val publication = ReaderRepository.currentPublication
-                if (publication != null) {
-                    showSelectionMenu(Selection(locator = selection, rect = null))
-                }
-            } else {
-                Toast.makeText(context, "Please select text first", Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                val selection = navigator?.currentSelection()
+                if (selection != null) showSelectionMenu(selection.locator)
+                else Toast.makeText(context, "Select text first", Toast.LENGTH_SHORT).show()
             }
         }
-
-        btnBookList.setOnClickListener {
-            showBookListDialog()
+        btnBookList.setOnClickListener { showBookListDialog() }
+        btnSearch.setOnClickListener { showSearchDialog() }
+        btnTts.setOnClickListener { 
+            isTtsActive = true
+            ttsControlComposeView.visibility = View.VISIBLE
+            topBar.visibility = View.GONE
+            bottomBar.visibility = View.GONE
+            speakCurrentPage() 
         }
-
-        btnSearch.setOnClickListener {
-            showSearchDialog()
-        }
-
-        btnTts.setOnClickListener {
-            toggleTts()
-        }
-
-        btnSettings.setOnClickListener {
-            showSettingsDialog()
-        }
-    }
-
-    private fun setupSearchNavBar() {
-        btnPrevSearch.setOnClickListener {
-            if (currentSearchLocators.isNotEmpty()) {
-                currentSearchIndex = if (currentSearchIndex <= 0) currentSearchLocators.size - 1 else currentSearchIndex - 1
-                updateSearchNavigation()
-            }
-        }
-
-        btnNextSearch.setOnClickListener {
-            if (currentSearchLocators.isNotEmpty()) {
-                currentSearchIndex = if (currentSearchIndex >= currentSearchLocators.size - 1) 0 else currentSearchIndex + 1
-                updateSearchNavigation()
-            }
-        }
-
-        btnCloseSearch.setOnClickListener {
-            searchNavBar.visibility = View.GONE
-            currentSearchLocators.clear()
-            currentSearchIndex = -1
-        }
-    }
-
-    private fun updateSearchNavigation() {
-        if (currentSearchIndex >= 0 && currentSearchIndex < currentSearchLocators.size) {
-            val locator = currentSearchLocators[currentSearchIndex]
-            navigator?.go(locator, animated = true)
-            searchCountText.text = "${currentSearchIndex + 1}/${currentSearchLocators.size}"
-        }
+        btnSettings.setOnClickListener { showSettingsDialog() }
     }
 
     fun toggleBars() {
-        if (!::topBar.isInitialized || !::bottomBar.isInitialized) return
-        
+        if (!::topBar.isInitialized || !::bottomBar.isInitialized || isTtsActive) return
         if (topBar.visibility == View.VISIBLE) {
             topBar.visibility = View.GONE
             bottomBar.visibility = View.GONE
@@ -355,240 +413,30 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun bookmarkCurrentLocation() {
-        val locator = navigator?.currentLocator?.value ?: return
-        viewModel.insertBookmark(bookId, locator.toJSON().toString())
-        Toast.makeText(context, "Bookmark added", Toast.LENGTH_SHORT).show()
-        
-        btnBookmarkStar.setImageResource(R.drawable.ic_star) 
-        btnBookmarkStar.postDelayed({
-            if (isAdded) btnBookmarkStar.setImageResource(R.drawable.ic_star_border)
-        }, 1000)
-    }
-
-    private fun showBookListDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_book_navigation, null)
-        val btnTabContents = dialogView.findViewById<Button>(R.id.btn_tab_contents)
-        val btnTabBookmarks = dialogView.findViewById<Button>(R.id.btn_tab_bookmarks)
-        val btnTabHighlights = dialogView.findViewById<Button>(R.id.btn_tab_highlights)
-        val listView = dialogView.findViewById<ListView>(R.id.list_navigation)
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogView)
-            .show()
-
-        var currentTab = 0 // 0: Contents, 1: Bookmarks, 2: Highlights
-
-        fun createWhiteTextAdapter(items: List<String>): ListAdapter {
-            return object : ArrayAdapter<String>(requireContext(), android.R.layout.simple_list_item_1, items) {
-                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                    val view = super.getView(position, convertView, parent)
-                    val textView = view.findViewById<TextView>(android.R.id.text1)
-                    textView.setTextColor(0xFFFFFFFF.toInt()) // Force white text for dark dialog
-                    return view
-                }
-            }
-        }
-
-        fun updateList() {
-            // Reset all backgrounds
-            btnTabContents.setBackgroundColor(0xFF222222.toInt())
-            btnTabBookmarks.setBackgroundColor(0xFF222222.toInt())
-            btnTabHighlights.setBackgroundColor(0xFF222222.toInt())
-
-            when (currentTab) {
-                0 -> {
-                    btnTabContents.setBackgroundColor(0xFF444444.toInt())
-                    val publication = ReaderRepository.currentPublication
-                    val toc = publication?.tableOfContents ?: emptyList()
-                    listView.adapter = createWhiteTextAdapter(toc.map { it.title ?: "Untitled" })
-                    listView.setOnItemClickListener { _, _, position, _ ->
-                        val link = toc[position]
-                        val locator = publication?.locatorFromLink(link)
-                        if (locator != null) {
-                            navigator?.go(locator, animated = true)
-                            topBar.visibility = View.GONE
-                            bottomBar.visibility = View.GONE
-                            dialog.dismiss()
-                        }
-                    }
-                }
-                1 -> {
-                    btnTabBookmarks.setBackgroundColor(0xFF444444.toInt())
-                    lifecycleScope.launch {
-                        viewModel.getBookmarks(bookId).collectLatest { bookmarks ->
-                            listView.adapter = createWhiteTextAdapter(bookmarks.map { bookmark ->
-                                val locator = try {
-                                    Locator.fromJSON(org.json.JSONObject(bookmark.locator))
-                                } catch (e: Exception) { null }
-                                val chapter = locator?.title ?: "Chapter"
-                                val progression = locator?.locations?.progression?.let { " (${(it * 100).toInt()}%)" } ?: ""
-                                "$chapter$progression"
-                            })
-                            listView.setOnItemClickListener { _, _, position, _ ->
-                                val bookmark = bookmarks[position]
-                                val locator = try {
-                                    Locator.fromJSON(org.json.JSONObject(bookmark.locator))
-                                } catch (e: Exception) { null }
-                                if (locator != null) {
-                                    navigator?.go(locator, animated = true)
-                                    topBar.visibility = View.GONE
-                                    bottomBar.visibility = View.GONE
-                                    dialog.dismiss()
-                                }
-                            }
-                        }
-                    }
-                }
-                2 -> {
-                    btnTabHighlights.setBackgroundColor(0xFF444444.toInt())
-                    lifecycleScope.launch {
-                        viewModel.getHighlights(bookId).collectLatest { highlights ->
-                            listView.adapter = createWhiteTextAdapter(highlights.map { highlight ->
-                                val locator = try {
-                                    Locator.fromJSON(org.json.JSONObject(highlight.locator))
-                                } catch (e: Exception) { null }
-                                val text = locator?.text?.highlight ?: "Highlighted text"
-                                "\"$text\""
-                            })
-                            listView.setOnItemClickListener { _, _, position, _ ->
-                                val highlight = highlights[position]
-                                val locator = try {
-                                    Locator.fromJSON(org.json.JSONObject(highlight.locator))
-                                } catch (e: Exception) { null }
-                                if (locator != null) {
-                                    navigator?.go(locator, animated = true)
-                                    topBar.visibility = View.GONE
-                                    bottomBar.visibility = View.GONE
-                                    dialog.dismiss()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        btnTabContents.setOnClickListener { currentTab = 0; updateList() }
-        btnTabBookmarks.setOnClickListener { currentTab = 1; updateList() }
-        btnTabHighlights.setOnClickListener { currentTab = 2; updateList() }
-
-        updateList()
-    }
-
-    private fun highlightSelection(locator: Locator, color: Int = 0x8800AAFF.toInt(), annotation: String? = null) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val existingHighlights = viewModel.getHighlightsSync(bookId)
-            val existing = existingHighlights.find { 
-                it.locator == locator.toJSON().toString()
-            }
-
-            if (existing != null) {
-                if (existing.color == color && annotation == existing.annotation) {
-                    viewModel.deleteHighlight(existing)
-                    Toast.makeText(context, "Highlight removed", Toast.LENGTH_SHORT).show()
-                } else {
-                    viewModel.deleteHighlight(existing)
-                    viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation)
-                    Toast.makeText(context, "Highlight updated", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation)
-                Toast.makeText(context, "Text highlighted", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun showSelectionMenu(selection: Selection) {
+    private fun showSelectionMenu(locator: Locator) {
         selectionComposeView.visibility = View.VISIBLE
         selectionComposeView.setContent {
             MaterialTheme {
-                val colors = listOf(
-                    0x88FFFF00.toInt(), // Yellow
-                    0x8800FF00.toInt(), // Green
-                    0x8800AAFF.toInt(), // Blue
-                    0x88FF00FF.toInt(), // Pink
-                    0x88FF0000.toInt()  // Red
-                )
-                
+                val colors = listOf(0x88FFFF00.toInt(), 0x8800FF00.toInt(), 0x8800AAFF.toInt(), 0x88FF00FF.toInt(), 0x88FF0000.toInt())
                 var showTagInput by remember { mutableStateOf(false) }
                 var tagText by remember { mutableStateOf("") }
-
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Transparent background to catch clicks outside
-                    Surface(
-                        modifier = Modifier.fillMaxSize().selectable(selected = true, onClick = { 
-                            selectionComposeView.visibility = View.GONE 
-                            navigator?.clearSelection()
-                        }),
-                        color = Color.Transparent
-                    ) {}
-
-                    // Menu content
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(16.dp)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        shadowElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ) {
+                    Surface(modifier = Modifier.fillMaxSize().selectable(selected = true, onClick = { selectionComposeView.visibility = View.GONE; navigator?.clearSelection() }), color = Color.Transparent) {}
+                    Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(), shape = RoundedCornerShape(12.dp), shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             if (!showTagInput) {
                                 Text("Highlight", style = MaterialTheme.typography.titleMedium)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    colors.forEach { colorInt ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .background(Color(colorInt), CircleShape)
-                                                .selectable(selected = false, onClick = {
-                                                    highlightSelection(selection.locator, colorInt)
-                                                    selectionComposeView.visibility = View.GONE
-                                                    navigator?.clearSelection()
-                                                })
-                                        )
-                                    }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    colors.forEach { colorInt -> Box(modifier = Modifier.size(40.dp).background(Color(colorInt), CircleShape).selectable(selected = false, onClick = { highlightSelection(locator, colorInt); selectionComposeView.visibility = View.GONE; navigator?.clearSelection() })) }
                                 }
-                                
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                                
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    TextButton(onClick = { showTagInput = true }) {
-                                        Text("Add Tag/Note")
-                                    }
-                                    TextButton(onClick = {
-                                        Toast.makeText(context, "Lookup: ${selection.locator.text.highlight}", Toast.LENGTH_SHORT).show()
-                                    }) {
-                                        Text("Lookup")
-                                    }
+                                    TextButton(onClick = { showTagInput = true }) { Text("Add Note") }
+                                    TextButton(onClick = { Toast.makeText(context, "Lookup: ${locator.text.highlight}", Toast.LENGTH_SHORT).show() }) { Text("Lookup") }
                                 }
                             } else {
-                                Text("Add Tag/Note", style = MaterialTheme.typography.titleMedium)
-                                OutlinedTextField(
-                                    value = tagText,
-                                    onValueChange = { tagText = it },
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                    placeholder = { Text("Enter tag or note...") }
-                                )
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                    TextButton(onClick = { showTagInput = false }) {
-                                        Text("Back")
-                                    }
-                                    Button(onClick = {
-                                        highlightSelection(selection.locator, 0x8800AAFF.toInt(), tagText)
-                                        selectionComposeView.visibility = View.GONE
-                                        navigator?.clearSelection()
-                                    }) {
-                                        Text("Save")
-                                    }
-                                }
+                                OutlinedTextField(value = tagText, onValueChange = { tagText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Note...") })
+                                Button(onClick = { highlightSelection(locator, 0x8800AAFF.toInt(), tagText); selectionComposeView.visibility = View.GONE; navigator?.clearSelection() }) { Text("Save") }
                             }
                         }
                     }
@@ -602,215 +450,176 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         highlightsJob = viewLifecycleOwner.lifecycleScope.launch {
             viewModel.getHighlights(bookId).collectLatest { highlights ->
                 val decorations = highlights.map { highlight ->
-                    val locator = try {
-                        Locator.fromJSON(org.json.JSONObject(highlight.locator))
-                    } catch (e: Exception) {
-                        null
-                    } ?: return@map null
-                    
-                    Decoration(
-                        id = highlight.id.toString(),
-                        locator = locator,
-                        style = Decoration.Style.Highlight(tint = highlight.color)
-                    )
+                    val locator = try { Locator.fromJSON(org.json.JSONObject(highlight.locator)) } catch (e: Exception) { null } ?: return@map null
+                    Decoration(id = highlight.id.toString(), locator = locator, style = Decoration.Style.Highlight(tint = highlight.color))
                 }.filterNotNull()
-                
-                val currentNav = navigator
-                if (currentNav != null && currentNav.isAdded && !currentNav.isDetached) {
-                    (currentNav as? DecorableNavigator)?.applyDecorations(decorations, "highlights")
-                }
+                (navigator as? DecorableNavigator)?.applyDecorations(decorations, "highlights")
             }
         }
     }
 
     private fun showSearchDialog() {
         val input = EditText(context)
-        input.setHint("Enter text to search...")
-        AlertDialog.Builder(context)
-            .setTitle("Search Book")
-            .setView(input)
-            .setPositiveButton("Search") { _, _ ->
-                val query = input.text.toString()
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        input.setHint("Search...")
+        AlertDialog.Builder(context).setTitle("Search Book").setView(input).setPositiveButton("Search") { _, _ -> performSearch(input.text.toString()) }.setNegativeButton("Cancel", null).show()
     }
 
     private fun performSearch(query: String) {
         val publication = ReaderRepository.currentPublication ?: return
         lifecycleScope.launch {
-            try {
-                val iterator = publication.search(query)
-                if (iterator != null) {
-                    currentSearchLocators.clear()
-                    
-                    var resultTry = iterator.next()
-                    while (resultTry is Try.Success<*, *>) {
-                        val collection = resultTry.value as? LocatorCollection
-                        if (collection == null || collection.locators.isEmpty()) break
-                        currentSearchLocators.addAll(collection.locators)
-                        resultTry = iterator.next()
-                    }
-                    
-                    if (currentSearchLocators.isNotEmpty()) {
-                        currentSearchIndex = 0
-                        searchNavBar.visibility = View.VISIBLE
-                        searchNavBar.bringToFront()
-                        updateSearchNavigation()
-                        topBar.visibility = View.GONE
-                        bottomBar.visibility = View.GONE
-                    } else {
-                        Toast.makeText(context, "No results found", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    Toast.makeText(context, "Search not supported", Toast.LENGTH_SHORT).show()
+            val iterator = publication.search(query)
+            if (iterator != null) {
+                currentSearchLocators.clear()
+                var resultTry = iterator.next()
+                while (resultTry is Try.Success<*, *>) {
+                    val collection = resultTry.value as? LocatorCollection ?: break
+                    currentSearchLocators.addAll(collection.locators)
+                    resultTry = iterator.next()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(context, "Search error", Toast.LENGTH_SHORT).show()
+                if (currentSearchLocators.isNotEmpty()) {
+                    currentSearchIndex = 0
+                    searchNavBar.visibility = View.VISIBLE
+                    updateSearchNavigation()
+                }
             }
         }
     }
 
-    private fun toggleTts() {
-        if (isTtsSpeaking) {
-            tts?.stop()
-            isTtsSpeaking = false
-            btnTts.setImageResource(R.drawable.ic_tts)
-            return
-        }
-
-        val textToSpeak = currentSelection?.text?.highlight 
-            ?: navigator?.currentLocator?.value?.text?.highlight
-            ?: ""
-
-        if (textToSpeak.isNotEmpty()) {
-            tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "ReaderTTS")
-            isTtsSpeaking = true
-            // Use a pause icon if available, otherwise just keep same or change color
-            btnTts.setImageResource(android.R.drawable.ic_media_pause)
-        } else {
-            Toast.makeText(context, "No text found to read. Try selecting some text first.", Toast.LENGTH_SHORT).show()
+    private fun updateSearchNavigation() {
+        if (currentSearchIndex in currentSearchLocators.indices) {
+            navigator?.go(currentSearchLocators[currentSearchIndex], animated = true)
+            searchCountText.text = "${currentSearchIndex + 1}/${currentSearchLocators.size}"
         }
     }
 
+    private fun setupSearchNavBar() {
+        btnPrevSearch.setOnClickListener { if (currentSearchLocators.isNotEmpty()) { currentSearchIndex = if (currentSearchIndex <= 0) currentSearchLocators.size - 1 else currentSearchIndex - 1; updateSearchNavigation() } }
+        btnNextSearch.setOnClickListener { if (currentSearchLocators.isNotEmpty()) { currentSearchIndex = if (currentSearchIndex >= currentSearchLocators.size - 1) 0 else currentSearchIndex + 1; updateSearchNavigation() } }
+        btnCloseSearch.setOnClickListener { searchNavBar.visibility = View.GONE; currentSearchLocators.clear() }
+    }
+
+    private fun bookmarkCurrentLocation() {
+        val locator = navigator?.currentLocator?.value ?: return
+        viewModel.insertBookmark(bookId, locator.toJSON().toString())
+        btnBookmarkStar.setImageResource(R.drawable.ic_star)
+        btnBookmarkStar.postDelayed({ if (isAdded) btnBookmarkStar.setImageResource(R.drawable.ic_star_border) }, 1000)
+    }
+
+    private fun showBookListDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_book_navigation, null)
+        val listView = dialogView.findViewById<ListView>(R.id.list_navigation)
+        val dialog = AlertDialog.Builder(requireContext()).setView(dialogView).show()
+        val toc = ReaderRepository.currentPublication?.tableOfContents ?: emptyList()
+        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, toc.map { it.title ?: "Untitled" })
+        listView.setOnItemClickListener { _, _, pos, _ ->
+            ReaderRepository.currentPublication?.locatorFromLink(toc[pos])?.let { navigator?.go(it, animated = true) }
+            dialog.dismiss()
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
     private fun showSettingsDialog() {
         settingsComposeView.visibility = View.VISIBLE
         settingsComposeView.setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = darkColorScheme()) {
                 val settings by viewModel.settings.collectAsState()
-                
-                // Full screen box to handle background dim and click-to-close
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Dimmed background
+                Box(modifier = Modifier.fillMaxSize()) {
                     Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .selectable(selected = true, onClick = { settingsComposeView.visibility = View.GONE }),
-                        color = Color.Black.copy(alpha = 0.5f)
+                        modifier = Modifier.fillMaxSize().selectable(selected = true, onClick = { settingsComposeView.visibility = View.GONE }),
+                        color = Color.Black.copy(alpha = 0.6f)
                     ) {}
-
-                    // Settings Panel (Bottom)
+                    
                     Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                        tonalElevation = 8.dp,
+                        color = Color(0xFF1A1A1A)
                     ) {
-                        Column(modifier = Modifier.padding(24.dp).fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(24.dp).padding(bottom = 32.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Reading Settings", style = MaterialTheme.typography.titleLarge)
+                                Text("Reading Settings", style = MaterialTheme.typography.titleLarge, color = Color.White)
                                 IconButton(onClick = { settingsComposeView.visibility = View.GONE }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = Color.Gray)
                                 }
                             }
                             
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text("Font Size: ${settings.fontSize.toInt()}%")
-                            Slider(
-                                value = settings.fontSize.toFloat(),
-                                onValueChange = {
-                                    val newSettings = settings.copy(fontSize = it.toDouble())
-                                    viewModel.updateSettings(newSettings)
-                                    recreateNavigator(newSettings)
-                                },
-                                valueRange = 50f..300f,
-                                steps = 10
-                            )
-
                             Spacer(modifier = Modifier.height(24.dp))
-                            Text("Theme")
+                            
+                            Text("Theme", color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 ReaderTheme.entries.forEach { theme ->
-                                    val (chipBgColor, chipTextColor) = when(theme) {
+                                    val (bgColor, textColor) = when(theme) {
                                         ReaderTheme.WHITE -> Color.White to Color.Black
-                                        ReaderTheme.DARK -> Color.Black to Color.White
+                                        ReaderTheme.DARK -> Color(0xFF2C2C2C) to Color.White
                                         ReaderTheme.SEPIA -> Color(0xFFF4ECD8) to Color(0xFF5B4636)
                                     }
-
+                                    
                                     FilterChip(
                                         selected = settings.theme == theme,
                                         onClick = {
-                                            val newSettings = settings.copy(theme = theme)
-                                            viewModel.updateSettings(newSettings)
-                                            recreateNavigator(newSettings)
+                                            val ns = settings.copy(theme = theme)
+                                            viewModel.updateSettings(ns)
+                                            recreateNavigator(ns)
                                         },
                                         label = { Text(theme.name) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            containerColor = chipBgColor,
-                                            labelColor = chipTextColor,
-                                            selectedContainerColor = chipBgColor,
-                                            selectedLabelColor = chipTextColor
+                                            containerColor = bgColor,
+                                            labelColor = textColor,
+                                            selectedContainerColor = bgColor,
+                                            selectedLabelColor = textColor
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = settings.theme == theme,
-                                            borderColor = if (settings.theme == theme) MaterialTheme.colorScheme.primary else Color.Gray,
-                                            borderWidth = if (settings.theme == theme) 2.dp else 1.dp
+                                            borderColor = if (settings.theme == theme) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            borderWidth = 2.dp,
+                                            selectedBorderColor = MaterialTheme.colorScheme.primary
                                         )
                                     )
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text("Font Size: ${settings.fontSize.toInt()}%", color = Color.LightGray)
+                            Slider(
+                                value = settings.fontSize.toFloat(),
+                                onValueChange = {
+                                    val ns = settings.copy(fontSize = it.toDouble())
+                                    viewModel.updateSettings(ns)
+                                    recreateNavigator(ns)
+                                },
+                                valueRange = 50f..300f,
+                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                            )
+                            
                             Spacer(modifier = Modifier.height(24.dp))
+                            
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Scroll Mode", style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        if (settings.scrollMode) "Vertical Scrolling" else "Side-to-Side Paging",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                Column {
+                                    Text("Vertical Scrolling", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                    Text("Enable continuous scroll mode", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                 }
                                 Switch(
                                     checked = settings.scrollMode,
                                     onCheckedChange = {
-                                        val newSettings = settings.copy(scrollMode = it)
-                                        viewModel.updateSettings(newSettings)
-                                        recreateNavigator(newSettings)
+                                        val ns = settings.copy(scrollMode = it)
+                                        viewModel.updateSettings(ns)
+                                        recreateNavigator(ns)
                                     }
                                 )
                             }
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
@@ -818,12 +627,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun recreateNavigator(settings: ReaderSettings) {
-        val currentLocator = navigator?.currentLocator?.value ?: return
-        setupNavigator(currentLocator, settings)
+    private fun highlightSelection(locator: Locator, color: Int, annotation: String? = null) {
+        viewLifecycleOwner.lifecycleScope.launch { viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation) }
     }
 
-    fun isScrollMode(): Boolean {
-        return viewModel.settings.value.scrollMode
-    }
+    private fun recreateNavigator(settings: ReaderSettings) { navigator?.currentLocator?.value?.let { setupNavigator(it, settings) } }
+    fun isScrollMode(): Boolean = viewModel.settings.value.scrollMode
 }
