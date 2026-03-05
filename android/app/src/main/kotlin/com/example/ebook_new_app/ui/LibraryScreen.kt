@@ -39,9 +39,10 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BookVerseTheme.colors.background)
+            .statusBarsPadding()
             .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -64,7 +65,7 @@ fun LibraryScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -73,14 +74,13 @@ fun LibraryScreen(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp), // Increased for thicker books
+                verticalArrangement = Arrangement.spacedBy(36.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 100.dp)
+                contentPadding = PaddingValues(bottom = 140.dp)
             ) {
                 items(uiState.currentlyReading) { book ->
-                    // 3D DVD Case Cover with Progress
-                    DVDCaseBook(book, progress = (30..90).random().toFloat() / 100f)
+                    Enhanced3DBook(book, progress = (30..90).random().toFloat() / 100f)
                 }
             }
         }
@@ -88,37 +88,78 @@ fun LibraryScreen(
 }
 
 @Composable
-fun DVDCaseBook(book: Book, progress: Float) {
+fun Enhanced3DBook(book: Book, progress: Float) {
+    val isDark = BookVerseTheme.colors.isDark
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO */ }
+            .clickable { /* TODO: Open Book */ }
     ) {
         Box(
             modifier = Modifier
-                .height(220.dp)
-                .fillMaxWidth()
-                .graphicsLayer {
-                    rotationY = -15f // 3D Tilt
-                    cameraDistance = 12f * density
-                }
+                .height(200.dp)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.CenterStart
         ) {
-            // THE SPINE
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(12.dp)
-                    .background(Color.DarkGray)
-                    .graphicsLayer {
-                        rotationY = -90f
-                        transformOrigin = TransformOrigin(0f, 0.5f)
-                    }
-            )
-
-            // THE COVER
+            // 1. THE PAGE STACK (Thicker!)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(start = 18.dp) // INCREASED THICKNESS
+                    .graphicsLayer {
+                        rotationY = -38f
+                        cameraDistance = 12f * density
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                if(isDark) Color(0xFF2A2A2A) else Color(0xFFD0D0D0),
+                                if(isDark) Color(0xFFF5F5F5) else Color.White,
+                                if(isDark) Color(0xFFD0D0D0) else Color(0xFFE0E0E0)
+                            )
+                        ),
+                        shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
+                    )
+                    .drawWithContent {
+                        drawContent()
+                        val lineCount = 25
+                        val step = size.height / lineCount
+                        for (i in 0 until lineCount) {
+                            drawLine(
+                                color = Color.Black.copy(alpha = 0.08f),
+                                start = Offset(0f, i * step),
+                                end = Offset(size.width, i * step),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                    }
+            )
+
+            // 2. THE SPINE
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(16.dp) // Thicker spine
+                    .graphicsLayer {
+                        rotationY = -90f
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                        cameraDistance = 12f * density
+                    }
+                    .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFF3E2723))
+            )
+
+            // 3. THE FRONT COVER
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        rotationY = -38f
+                        cameraDistance = 12f * density
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                        translationX = -3.dp.toPx()
+                    }
                     .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
                     .background(BookVerseTheme.colors.surface)
             ) {
@@ -130,29 +171,28 @@ fun DVDCaseBook(book: Book, progress: Float) {
                         .fillMaxSize()
                         .drawWithContent {
                             val splitY = size.height * (1f - progress)
-                            
-                            // 1. GrayScale part
                             drawContent()
                             drawRect(
                                 color = Color.White,
                                 blendMode = BlendMode.Saturation,
                                 alpha = 1f
                             )
-                            
-                            // 2. Color part
                             clipRect(top = splitY) {
                                 this@drawWithContent.drawContent()
                             }
                         }
                 )
                 
-                // 3D Highlights
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.linearGradient(
-                                colors = listOf(Color.White.copy(0.1f), Color.Transparent, Color.Black.copy(0.1f)),
+                                colors = listOf(
+                                    Color.White.copy(0.12f), 
+                                    Color.Transparent, 
+                                    Color.Black.copy(0.12f)
+                                ),
                                 start = Offset(0f, 0f),
                                 end = Offset(500f, 500f)
                             )
@@ -161,7 +201,7 @@ fun DVDCaseBook(book: Book, progress: Float) {
             }
         }
         
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         Text(
             text = book.title,
@@ -175,7 +215,8 @@ fun DVDCaseBook(book: Book, progress: Float) {
             text = "${(progress * 100).toInt()}% Read",
             style = BookVerseTheme.typography.label,
             color = BookVerseTheme.colors.primary,
-            fontSize = 11.sp
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black
         )
     }
 }

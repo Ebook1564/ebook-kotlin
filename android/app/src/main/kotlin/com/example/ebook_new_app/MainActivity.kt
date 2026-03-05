@@ -4,6 +4,7 @@ import android.app.ActivityOptions
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -61,7 +62,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 
-// Circular Reveal Shape
+// PREMIUM CONSTANTS
+val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+const val PremiumDuration = 1400
+
 class CircularRevealShape(private val radius: Float, private val center: Offset) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val path = Path().apply {
@@ -85,36 +89,35 @@ class MainActivity : ComponentActivity() {
             val transitionTrigger by appViewModel.themeTransitionTrigger
             val isTransitioning by appViewModel.isTransitioning
             
+            var showProfile by remember { mutableStateOf(false) }
+            
             val view = this.window.decorView
             SideEffect {
                 val window = this@MainActivity.window
                 WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = (themeMode == AppThemeMode.DAY)
             }
 
-            // ONE AND ONLY Shared State Instance for Interactive Content
             val pagerState = rememberPagerState(pageCount = { 3 })
             val homeScrollState = rememberLazyListState()
+            val homeUiState by homeViewModel.uiState.collectAsState()
+
+            LaunchedEffect(homeUiState.selectedCategoryForSearch) {
+                homeUiState.selectedCategoryForSearch?.let {
+                    pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing))
+                }
+            }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                // LAYER 1: STATIC PREVIOUS THEME (Bottom)
                 if (previousTheme != null) {
-                    // Create a DUMMY scroll state for the background to avoid measurement conflicts
                     val dummyScrollState = rememberLazyListState(
                         initialFirstVisibleItemIndex = homeScrollState.firstVisibleItemIndex,
                         initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
                     )
-                    
                     BookVerseTheme(previousTheme!!) {
-                        StaticAppLayout(
-                            homeViewModel, 
-                            appViewModel, 
-                            pagerState.currentPage, 
-                            dummyScrollState
-                        )
+                        StaticAppLayout(homeViewModel, appViewModel, pagerState.currentPage, dummyScrollState, onProfileClick = { showProfile = true })
                     }
                 }
 
-                // LAYER 2: INTERACTIVE CURRENT THEME (Revealed via Expanding Ripple)
                 val config = LocalConfiguration.current
                 val density = LocalDensity.current
                 val maxRadius = hypot(with(density) { config.screenWidthDp.dp.toPx() }, with(density) { config.screenHeightDp.dp.toPx() })
@@ -122,7 +125,10 @@ class MainActivity : ComponentActivity() {
                 
                 LaunchedEffect(transitionTrigger) {
                     if (previousTheme != null) {
-                        radius.animateTo(maxRadius * 1.5f, tween(1000, easing = LinearOutSlowInEasing))
+                        radius.animateTo(
+                            targetValue = maxRadius * 1.5f, 
+                            animationSpec = tween(PremiumDuration, easing = PremiumEasing)
+                        )
                         appViewModel.endTransition()
                     }
                 }
@@ -141,13 +147,29 @@ class MainActivity : ComponentActivity() {
                             appViewModel, 
                             pagerState, 
                             homeScrollState, 
-                            isInteractive = !isTransitioning
+                            isInteractive = !isTransitioning,
+                            onProfileClick = { showProfile = true }
                         )
                     }
                 }
 
                 if (isTransitioning) {
                     Box(modifier = Modifier.fillMaxSize().clickable(enabled = true, onClick = {}, interactionSource = remember { MutableInteractionSource() }, indication = null))
+                }
+                
+                AnimatedVisibility(
+                    visible = showProfile,
+                    enter = slideInHorizontally(
+                        initialOffsetX = { it }, 
+                        animationSpec = tween(700, easing = PremiumEasing)
+                    ) + fadeIn(),
+                    exit = slideOutHorizontally(
+                        targetOffsetX = { it }, 
+                        animationSpec = tween(700, easing = PremiumEasing)
+                    ) + fadeOut()
+                ) {
+                    BackHandler { showProfile = false }
+                    ProfileScreen(onBackClick = { showProfile = false })
                 }
             }
         }
@@ -160,25 +182,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun StaticAppLayout(
-    homeViewModel: HomeViewModel, 
-    appViewModel: AppViewModel, 
-    currentPage: Int, 
-    homeScrollState: LazyListState
-) {
+fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, currentPage: Int, homeScrollState: LazyListState, onProfileClick: () -> Unit) {
     val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
                 0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
                 1 -> SearchScreen(viewModel = homeViewModel)
-                2 -> LibraryScreen(onProfileClick = { })
+                2 -> LibraryScreen(onProfileClick = onProfileClick)
             }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)
-            ) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(currentPage, themeMode) { }
             }
         }
@@ -186,13 +199,7 @@ fun StaticAppLayout(
 }
 
 @Composable
-fun BookVerseApp(
-    homeViewModel: HomeViewModel, 
-    appViewModel: AppViewModel, 
-    pagerState: PagerState, 
-    homeScrollState: LazyListState, 
-    isInteractive: Boolean
-) {
+fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pagerState: PagerState, homeScrollState: LazyListState, isInteractive: Boolean, onProfileClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
@@ -212,16 +219,12 @@ fun BookVerseApp(
                 when (page) {
                     0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
                     1 -> SearchScreen(viewModel = homeViewModel)
-                    2 -> LibraryScreen(onProfileClick = { })
+                    2 -> LibraryScreen(onProfileClick = onProfileClick)
                 }
             }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)
-            ) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                    if (isInteractive) scope.launch { pagerState.animateScrollToPage(index) } 
+                    if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
                 }
             }
         }
@@ -251,37 +254,16 @@ fun BookVerseApp(
 fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (Int) -> Unit) {
     val tabs = listOf("HOME", "SEARCH", "LIBRARY")
     if (themeMode == AppThemeMode.NIGHT) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-                .height(64.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(Color.Black.copy(alpha = 0.94f))
-                    .blur(30.dp)
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(32.dp))
-            )
-            Row(
-                modifier = Modifier.fillMaxSize(), 
-                horizontalArrangement = Arrangement.SpaceEvenly, 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)).background(Color.Black.copy(alpha = 0.94f)).blur(30.dp).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(32.dp)))
+            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedIndex == index
-                    val color by animateColorAsState(if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f))
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, 
-                        contentAlignment = Alignment.Center
-                    ) {
+                    val color by animateColorAsState(
+                        targetValue = if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f),
+                        animationSpec = tween(600, easing = PremiumEasing)
+                    )
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = title, color = color, fontSize = 11.sp, fontWeight = if(isSelected) FontWeight.Black else FontWeight.Bold, letterSpacing = 1.sp)
                             if (isSelected) Box(Modifier.padding(top = 4.dp).size(4.dp).background(color, CircleShape))
@@ -291,30 +273,15 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
             }
         }
     } else {
-        Surface(
-            modifier = Modifier.fillMaxWidth(), 
-            color = Color(0xFFF5F1E0), 
-            tonalElevation = 4.dp, 
-            shadowElevation = 12.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .height(72.dp), 
-                horizontalArrangement = Arrangement.SpaceEvenly, 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFFF5F1E0), tonalElevation = 4.dp, shadowElevation = 12.dp) {
+            Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(72.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedIndex == index
-                    val color by animateColorAsState(if (isSelected) Color(0xFF5B4636) else Color(0xFF8D7A66).copy(alpha = 0.6f))
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, 
-                        contentAlignment = Alignment.Center
-                    ) {
+                    val color by animateColorAsState(
+                        targetValue = if (isSelected) Color(0xFF5B4636) else Color(0xFF8D7A66).copy(alpha = 0.6f),
+                        animationSpec = tween(600, easing = PremiumEasing)
+                    )
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = title, color = color, style = BookVerseTheme.typography.label, fontSize = 13.sp, fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal)
                             if (isSelected) Box(Modifier.padding(top = 4.dp).width(24.dp).height(2.dp).background(color))

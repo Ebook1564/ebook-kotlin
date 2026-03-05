@@ -8,6 +8,7 @@ data class Book(
     val author: String = "Unknown Author",
     val coverImageUrl: String = "",
     val description: String = "",
+    val categories: List<String> = emptyList(),
     val fileUrl: String? = null,
     val originalFileName: String? = null
 ) {
@@ -30,7 +31,14 @@ data class Book(
                 else -> "Unknown Author"
             }
 
-            // 2. Metadata with Case-Insensitive Fallbacks
+            // 2. Categories Parsing
+            val cats = when (val catData = doc.get("categories") ?: doc.get("tags") ?: doc.get("genre")) {
+                is List<*> -> catData.filterIsInstance<String>()
+                is String -> listOf(catData)
+                else -> emptyList<String>()
+            }
+
+            // 3. Metadata with Case-Insensitive Fallbacks
             val url = doc.getString("fileUrl") 
                 ?: doc.getString("file_url") 
                 ?: doc.getString("url") 
@@ -41,7 +49,7 @@ data class Book(
                 ?: doc.getString("fileName") 
                 ?: doc.getString("filename")
 
-            // 3. Image with Fallbacks
+            // 4. Image with Fallbacks
             val image = doc.getString("coverImageUrl") 
                 ?: doc.getString("image") 
                 ?: doc.getString("cover_image") 
@@ -53,6 +61,7 @@ data class Book(
                 author = authorName,
                 coverImageUrl = image,
                 description = doc.getString("description") ?: "",
+                categories = cats,
                 fileUrl = url,
                 originalFileName = asset
             )

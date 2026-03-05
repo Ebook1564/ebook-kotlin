@@ -1,5 +1,6 @@
 package com.example.ebook_new_app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,14 +46,7 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     
-    val filteredBooks = if (searchQuery.isNotEmpty()) {
-        uiState.trendingBooks.filter { 
-            it.title.contains(searchQuery, ignoreCase = true) || 
-            it.author.contains(searchQuery, ignoreCase = true) 
-        }
-    } else emptyList()
-
-    val browseCategories = listOf(
+    val browseCategories = remember { listOf(
         Category(id = "1", title = "Mystery", color = "#FF5722"),
         Category(id = "2", title = "Romance", color = "#E91E63"),
         Category(id = "3", title = "Fantasy", color = "#9C27B0"),
@@ -61,15 +55,39 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
         Category(id = "6", title = "Horror", color = "#2196F3"),
         Category(id = "7", title = "Non-Fiction", color = "#03A9F4"),
         Category(id = "8", title = "Biography", color = "#00BCD4")
-    )
+    ) }
+
+    // AUTO-SELECT CATEGORY FROM EXTERNAL NAVIGATION
+    LaunchedEffect(uiState.selectedCategoryForSearch) {
+        uiState.selectedCategoryForSearch?.let { catTitle ->
+            val match = browseCategories.find { it.title.equals(catTitle, ignoreCase = true) }
+            if (match != null) {
+                selectedCategory = match
+            }
+            // Clear navigation trigger after processing
+            viewModel.clearCategoryNavigation()
+        }
+    }
+
+    BackHandler(enabled = selectedCategory != null) {
+        selectedCategory = null
+    }
+    
+    val filteredBooks = if (searchQuery.isNotEmpty()) {
+        uiState.trendingBooks.filter { 
+            it.title.contains(searchQuery, ignoreCase = true) || 
+            it.author.contains(searchQuery, ignoreCase = true) 
+        }
+    } else emptyList()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BookVerseTheme.colors.background)
+            .statusBarsPadding()
             .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Search Bar
         TextField(
@@ -90,18 +108,16 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
             )
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         if (searchQuery.isEmpty()) {
-            // CATEGORY HEADER AREA (Scoped Carousel)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp) // Fixed height for header
+                    .height(80.dp)
                     .clipToBounds(),
                 contentAlignment = Alignment.CenterStart
             ) {
-                // Background Carousel: Only inside this header box
                 if (selectedCategory != null) {
                     BackgroundBookCarousel(uiState.trendingBooks)
                 }
@@ -111,7 +127,7 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
                     style = BookVerseTheme.typography.headline,
                     color = BookVerseTheme.colors.textPrimary,
                     fontSize = 20.sp,
-                    modifier = Modifier.zIndex(1f) // Ensure text is above carousel
+                    modifier = Modifier.zIndex(1f)
                 )
             }
             
@@ -134,7 +150,7 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 100.dp)
+                    contentPadding = PaddingValues(bottom = 140.dp)
                 ) {
                     item {
                         TextButton(onClick = { selectedCategory = null }) {
@@ -147,11 +163,10 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
                 }
             }
         } else {
-            // Search Results
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 100.dp)
+                contentPadding = PaddingValues(bottom = 140.dp)
             ) {
                 items(filteredBooks) { book ->
                     SearchResultItem(book)
@@ -213,7 +228,7 @@ fun BackgroundBookCarousel(books: List<Book>) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .width(100.dp)
-                        .height(60.dp) // Narrower for header
+                        .height(60.dp)
                         .alpha(0.2f)
                         .blur(6.dp)
                 )

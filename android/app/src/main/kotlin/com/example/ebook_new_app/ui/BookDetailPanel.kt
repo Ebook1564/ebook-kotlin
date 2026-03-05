@@ -2,7 +2,10 @@ package com.example.ebook_new_app.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -29,6 +32,7 @@ fun BookDetailContent(
     book: Book,
     isLoading: Boolean,
     onReadClick: (InitialBounds?) -> Unit,
+    onCategoryClick: (String) -> Unit,
     onClose: () -> Unit
 ) {
     var coverBounds by remember { mutableStateOf<InitialBounds?>(null) }
@@ -93,11 +97,37 @@ fun BookDetailContent(
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                Text(
-                    text = "EPUB • High Quality",
-                    style = typography.label,
-                    color = colors.textSecondary.copy(alpha = 0.7f)
-                )
+                // CATEGORY TAGS
+                if (book.categories.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(book.categories) { cat ->
+                            Surface(
+                                modifier = Modifier.clickable { onCategoryClick(cat) },
+                                color = colors.primary.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = cat.uppercase(),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = colors.primary,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "EPUB • High Quality",
+                        style = typography.label,
+                        color = colors.textSecondary.copy(alpha = 0.7f)
+                    )
+                }
             }
         }
 
@@ -109,7 +139,7 @@ fun BookDetailContent(
             modifier = Modifier.fillMaxWidth().height(54.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = colors.primary, 
-                contentColor = if(colors.isDark) Color.White else Color.White
+                contentColor = Color.White
             ),
             shape = RoundedCornerShape(8.dp),
             enabled = !isLoading

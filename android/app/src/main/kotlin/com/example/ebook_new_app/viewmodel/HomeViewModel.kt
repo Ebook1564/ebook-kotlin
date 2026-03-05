@@ -24,7 +24,8 @@ data class HomeUiState(
     val isLoading: Boolean = false,
     val transitionBook: Book? = null,
     val initialBounds: InitialBounds? = null,
-    val userName: String = "Reader"
+    val userName: String = "Reader",
+    val selectedCategoryForSearch: String? = null // Navigation trigger
 )
 
 class HomeViewModel : ViewModel() {
@@ -40,16 +41,13 @@ class HomeViewModel : ViewModel() {
     fun loadHomeData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            android.util.Log.d("HomeViewModel", "Starting to load home data...")
-            
             val allBooks = repository.getAllBooksAcrossCategories()
-            android.util.Log.d("HomeViewModel", "Loaded ${allBooks.size} books total")
             
             if (allBooks.isNotEmpty()) {
-                _uiState.value = HomeUiState(
+                _uiState.value = _uiState.value.copy(
                     billboardBook = allBooks.firstOrNull(),
                     trendingBooks = allBooks.shuffled().take(7),
-                    continueReading = allBooks.take(3), // Placeholder logic
+                    continueReading = allBooks.take(3),
                     newReleases = allBooks.reversed().take(7),
                     isLoading = false
                 )
@@ -57,6 +55,14 @@ class HomeViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+    }
+
+    fun navigateToCategory(category: String) {
+        _uiState.value = _uiState.value.copy(selectedCategoryForSearch = category)
+    }
+
+    fun clearCategoryNavigation() {
+        _uiState.value = _uiState.value.copy(selectedCategoryForSearch = null)
     }
 
     fun startReadTransition(book: Book, bounds: InitialBounds? = null) {

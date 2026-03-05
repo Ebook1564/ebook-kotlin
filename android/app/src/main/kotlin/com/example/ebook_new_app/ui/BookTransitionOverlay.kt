@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.utils.FileDownloader
 import com.example.ebook_new_app.viewmodel.InitialBounds
@@ -51,10 +52,7 @@ fun BookTransitionOverlay(
     val density = LocalDensity.current
     val colors = BookVerseTheme.colors
     
-    // Add a border color if the theme is light to distinguish pages from background
     val pageBorderColor = if (!colors.isDark) colors.textSecondary.copy(alpha = 0.2f) else Color.Transparent
-    
-    // Use a darker dim color for Light Mode to make ivory pages pop
     val dimColor = if (colors.isDark) Color.Black else Color.Black.copy(alpha = 0.7f)
 
     BoxWithConstraints(
@@ -67,7 +65,6 @@ fun BookTransitionOverlay(
         val sW = constraints.maxWidth.toFloat()
         val sH = constraints.maxHeight.toFloat()
 
-        // --- GEOMETRY ---
         val startW = initialBounds?.width ?: (sW * 0.3f)
         val startH = initialBounds?.height ?: (startW * 1.5f)
         val startX = initialBounds?.left ?: (sW / 2 - startW / 2)
@@ -78,7 +75,6 @@ fun BookTransitionOverlay(
         val centerX = (sW - centerW) / 2
         val centerY = (sH - centerH) / 2
         
-        // --- ANIMATION STATES ---
         val liftProgress = remember { Animatable(0f) }
         val immersionZoom = remember { Animatable(0f) }
         val bgAlpha = remember { Animatable(0f) }
@@ -89,20 +85,19 @@ fun BookTransitionOverlay(
         val totalFlips = 6 
 
         LaunchedEffect(book) {
-            // PHASE 1: Lift & Center
-            launch { bgAlpha.animateTo(1f, tween(400)) }
+            // PHASE 1: Lift & Center (Premium Pacing)
+            launch { bgAlpha.animateTo(1f, tween(600, easing = PremiumEasing)) }
             launch {
-                delay(150)
-                dogEarAlpha.animateTo(1f, tween(200))
+                delay(200)
+                dogEarAlpha.animateTo(1f, tween(400, easing = PremiumEasing))
             }
-            liftProgress.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+            liftProgress.animateTo(1f, tween(800, easing = PremiumEasing))
 
-            // PHASE 2: Wait for Cache
             val file = withContext(Dispatchers.IO) { FileDownloader.ensureCached(context, book) }
             if (file != null) {
-                delay(100)
+                delay(200)
 
-                // PHASE 3: Snappy Atmospheric Shuffle
+                // PHASE 3: Accelerated Atmospheric Shuffle
                 repeat(totalFlips) { index ->
                     currentFlipIndex = index + 1
                     flipRotation.snapTo(0f)
@@ -111,23 +106,25 @@ fun BookTransitionOverlay(
                     
                     if (isLastFlip) {
                         launch {
-                            delay(300)
-                            immersionZoom.animateTo(1f, tween(1400, easing = FastOutSlowInEasing))
+                            delay(400)
+                            immersionZoom.animateTo(1f, tween(1600, easing = PremiumEasing))
                         }
                     }
 
-                    // Acceleration Curve
-                    val duration = if (isLastFlip) 1000 else (450 - (index * 50))
+                    // Physics-based acceleration: 500ms down to 150ms
+                    val baseDuration = 500 - (index * 70)
+                    val duration = if (isLastFlip) 1200 else max(150, baseDuration)
+                    
                     flipRotation.animateTo(
                         targetValue = -180f,
                         animationSpec = tween(
-                            durationMillis = max(180, duration),
-                            easing = if (isLastFlip) FastOutSlowInEasing else LinearEasing
+                            durationMillis = duration,
+                            easing = if (isLastFlip) PremiumEasing else LinearEasing
                         )
                     )
                 }
                 
-                delay(150)
+                delay(200)
                 onAnimationFinished(file)
             } else {
                 onDismiss()
@@ -137,7 +134,6 @@ fun BookTransitionOverlay(
         val lp = liftProgress.value
         val iz = immersionZoom.value
         
-        // SCALE-TO-FILL
         val fillScale = max(sW / centerW, sH / centerH) * 1.25f 
         val masterScale = 1f + (fillScale - 1f) * iz
 
@@ -151,7 +147,6 @@ fun BookTransitionOverlay(
                 .fillMaxSize()
                 .background(dimColor.copy(alpha = 0.99f * bgAlpha.value))
         ) {
-            // THE BOOK CONTAINER
             Box(
                 modifier = Modifier
                     .offset { IntOffset(currentX.roundToInt(), currentY.roundToInt()) }
@@ -162,7 +157,6 @@ fun BookTransitionOverlay(
                         transformOrigin = TransformOrigin(0.5f, 0.5f)
                     }
             ) {
-                // 1. LEFT PAGE STACK
                 if (currentFlipIndex > 1 || flipRotation.value < -90f) {
                     Box(
                         modifier = Modifier
@@ -175,7 +169,6 @@ fun BookTransitionOverlay(
                     }
                 }
 
-                // 2. STATIC BASE
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -185,7 +178,6 @@ fun BookTransitionOverlay(
                     Box(modifier = Modifier.fillMaxHeight().width(40.dp).align(Alignment.CenterStart).background(Brush.horizontalGradient(0.0f to Color.Black.copy(0.2f), 0.1f to Color.Black.copy(0.08f), 1.0f to Color.Transparent)))
                 }
 
-                // 3. THE FLIPPING LEAF
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -200,7 +192,6 @@ fun BookTransitionOverlay(
                         }
                 ) {
                     if (flipRotation.value > -90f) {
-                        // FRONT SIDE
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -231,7 +222,6 @@ fun BookTransitionOverlay(
                             }
                         }
                     } else {
-                        // BACK SIDE
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()

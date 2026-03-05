@@ -65,7 +65,6 @@ fun HomeScreen(
             LazyColumn(
                 state = scrollState,
                 modifier = Modifier.fillMaxSize(),
-                // USE CONTENT PADDING FOR RELIABLE SCROLLING
                 contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
                 item {
@@ -116,6 +115,10 @@ fun HomeScreen(
                     book = selectedBook!!,
                     isLoading = false,
                     onReadClick = { bounds -> onReadClick(selectedBook!!, bounds) },
+                    onCategoryClick = { category ->
+                        showSheet = false
+                        viewModel.navigateToCategory(category)
+                    },
                     onClose = { showSheet = false }
                 )
             }
@@ -130,7 +133,7 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 24.dp), // Increased breathing room
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -265,15 +268,6 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
 fun BookPoster(book: Book, onClick: () -> Unit) {
     val isDark = BookVerseTheme.colors.isDark
     
-    val gradientBrush = remember {
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0xFFE50914),
-                Color(0xFF00C6FF)
-            )
-        )
-    }
-
     Column(
         modifier = Modifier
             .width(120.dp)
@@ -289,8 +283,8 @@ fun BookPoster(book: Book, onClick: () -> Unit) {
                 )
                 .clip(RoundedCornerShape(8.dp))
                 .then(
-                    if (isDark) Modifier.border(1.dp, gradientBrush, RoundedCornerShape(8.dp))
-                    else Modifier.border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    if (!isDark) Modifier.border(0.5.dp, Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    else Modifier
                 )
                 .background(BookVerseTheme.colors.surface)
         ) {
@@ -305,7 +299,9 @@ fun BookPoster(book: Book, onClick: () -> Unit) {
                 Icon(
                     imageVector = Icons.Default.MenuBook,
                     contentDescription = null,
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Alignment.Center.let { modifier ->
+                        Modifier.padding(24.dp)
+                    },
                     tint = BookVerseTheme.colors.textSecondary
                 )
             }
