@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"  
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
+    android:background="#FDFCF0">
 
-    <!-- The Book Reader Container -->
+    <!-- The Book Reader Container (Initial alpha 0 for elegant fade) -->
     <FrameLayout
         android:id="@+id/fragment_reader_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:alpha="0.0" />
 
-    <!-- Top Bar (Back and Title) -->
+    <!-- Reveal Overlay (Matches transition background) -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/reveal_overlay_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="1dp" />
+
+    <!-- Top Bar -->
     <LinearLayout
         android:id="@+id/reader_top_bar"
         android:layout_width="match_parent"
@@ -54,7 +62,7 @@
 
     </LinearLayout>
 
-    <!-- Bottom Bar (Search, TTS, Bookmark, List) -->
+    <!-- Bottom Bar -->
     <LinearLayout
         android:id="@+id/reader_bottom_bar"
         android:layout_width="match_parent"
@@ -115,7 +123,7 @@
 
     </LinearLayout>
 
-    <!-- Search Navigation Bar -->
+    <!-- Search UI -->
     <LinearLayout
         android:id="@+id/search_nav_bar"
         android:layout_width="wrap_content"
