@@ -1,303 +1,424 @@
 package com.example.ebook_new_app.ui
 
-import androidx.compose.animation.core.Spring
+// Assuming LocalBookTheme is available from this package based on original code.
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.drawscope.drawArc
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.viewmodel.HomeViewModel
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.math.sqrt
+import kotlinx.coroutines.launch
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
-    val theme = LocalBookTheme.current
     var searchQuery by remember { mutableStateOf("") }
-    
-    val allCategories = listOf("Fiction", "History", "Science", "Romance", "Fantasy", "Mystery", "Biography")
     var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val isDetailView = selectedCategory != null
+    val theme = LocalBookTheme.current
 
-    // Calculate book counts for each category
-    val categoryBookCounts = remember(uiState.trendingBooks) {
-        allCategories.associateWith { category ->
-            uiState.trendingBooks.count { book ->
-                book.genres.any { it.contains(category, ignoreCase = true) }
-            }
-        }
+    val allCategories = listOf("Fiction", "History", "Science", "Romance", "Fantasy", "Mystery", "Biography", "Adventure")
+
+    val dummyBookData = remember {
+        mapOf(
+            "Fiction" to listOf("The Grand Adventure", "The Hidden Gem"),
+            "History" to listOf("History of Time", "Ancient Civilizations"),
+            "Science" to listOf("History of Time", "Cosmic Wonders", "Quantum Leap"),
+            "Romance" to listOf("Love in Paris", "Whispers of the Heart"),
+            "Fantasy" to listOf("Dragon's Quest", "Elven Prophecy"),
+            "Mystery" to listOf("Shadows of the Past", "The Hidden Gem", "The Cold Case"),
+            "Biography" to listOf("Biography of a Star", "Life of a Legend"),
+            "Adventure" to listOf("The Grand Adventure", "Dragon's Quest")
+        )
     }
-    val totalBooksInAllCategories = uiState.trendingBooks.sumOf { book ->
-        allCategories.count { category ->
-            book.genres.any { it.contains(category, ignoreCase = true) }
-        }
-    }.coerceAtLeast(1) // Avoid division by zero
+    val allDummyBookTitles = remember { dummyBookData.values.flatten().distinct() }
 
-    val filteredBooks = uiState.trendingBooks.filter { book ->
-        val matchesSearchQuery = searchQuery.isEmpty() ||
-                                 book.title.contains(searchQuery, ignoreCase = true) ||
-                                 book.author.contains(searchQuery, ignoreCase = true)
 
-        val matchesCategory = selectedCategory == null ||
-                              book.genres.any { it.contains(selectedCategory!!, ignoreCase = true) }
-        matchesSearchQuery && matchesCategory
-    }
+    val categoryListState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(theme.background)
+    ) {
+        // --- HEADER AND SEARCH BAR ---
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "EXPLORE",
+                color = theme.onBackground,
+                fontFamily = theme.fontFamily,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search titles or authors...", color = theme.onBackground.copy(alpha = 0.5f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = theme.onBackground.copy(alpha = 0.5f)) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = theme.onBackground.copy(alpha = 0.05f),
+                    unfocusedContainerColor = theme.onBackground.copy(alpha = 0.05f),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = theme.onBackground,
+                    unfocusedTextColor = theme.onBackground,
+                    cursorColor = theme.primary
+                )
+            )
+        }
+
+        // --- CATEGORY ROW ---
+        val booksForCategory = remember(selectedCategory) { dummyBookData[selectedCategory] ?: emptyList() }
+        CategoryRow(
+            categories = allCategories,
+            selectedCategory = selectedCategory,
+            booksForCategory = booksForCategory,
+            onCategorySelected = { category, index ->
+                val newSelection = if (selectedCategory == category) null else category
+                selectedCategory = newSelection
+                if (newSelection != null) {
+                    coroutineScope.launch {
+                        categoryListState.animateScrollToItem(index = index, scrollOffset = -150)
+                    }
+                }
+            },
+            listState = categoryListState
+        )
+
+        // --- DETAILS DRAWER ---
+        AnimatedVisibility(
+            visible = isDetailView,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 }
+        ) {
+            selectedCategory?.let { currentCategory ->
+                DetailsDrawer(
+                    category = currentCategory,
+                    bookTitles = booksForCategory,
+                    onBookClick = { /* TODO: Implement Read Now function */ }
+                )
+            }
+        }
+
+        // --- RANDOM RECOMMENDATIONS ---
+        AnimatedVisibility(visible = !isDetailView) {
+            RandomRecommendations(
+                bookTitles = allDummyBookTitles.shuffled().take(10),
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryRow(
+    categories: List<String>,
+    selectedCategory: String?,
+    booksForCategory: List<String>,
+    onCategorySelected: (String, Int) -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState
+) {
+    val isDetailView = selectedCategory != null
+    LazyRow(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalArrangement = if (isDetailView) Arrangement.Center else Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        userScrollEnabled = !isDetailView
+    ) {
+        itemsIndexed(categories) { index, category ->
+            val isSelected = selectedCategory == category
+            Box(contentAlignment = Alignment.Center) {
+                AnimatedCategoryItem(
+                    title = category,
+                    isSelected = isSelected,
+                    isDetailView = isDetailView,
+                    onClick = { onCategorySelected(category, index) }
+                )
+                StatBubbles(
+                    isVisible = isSelected && isDetailView,
+                    totalBooks = booksForCategory.size,
+                    readBooks = remember(booksForCategory) { if(booksForCategory.isNotEmpty()) (booksForCategory.size / 3..booksForCategory.size).random() else 0 }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedCategoryItem(
+    title: String,
+    isSelected: Boolean,
+    isDetailView: Boolean,
+    onClick: () -> Unit
+) {
+    val theme = LocalBookTheme.current
+    val scale by animateFloatAsState(targetValue = if (isSelected) 1.1f else 1.0f, label = "scale")
+    val alpha by animateFloatAsState(targetValue = if (isDetailView && !isSelected) 0.3f else 1.0f, label = "alpha")
+    val elevation by animateDpAsState(targetValue = if (isSelected) 16.dp else 8.dp, label = "elevation")
+
+    val cardBrush = Brush.verticalGradient(
+        colors = listOf(
+            theme.onBackground.copy(alpha = 0.05f),
+            theme.onBackground.copy(alpha = 0.15f)
+        )
+    )
+
+    val handleBrush = Brush.linearGradient(
+        colors = listOf(
+            theme.onBackground.copy(alpha = 0.3f),
+            theme.onBackground.copy(alpha = 0.5f),
+            theme.onBackground.copy(alpha = 0.3f)
+        )
+    )
+
+    Card(
+        modifier = Modifier
+            .graphicsLayer { this.alpha = alpha }
+            .scale(scale)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+    ) {
+        Column(
+            modifier = Modifier
+                .background(cardBrush)
+                .padding(vertical = 16.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = theme.onBackground
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(5.dp)
+                    .background(handleBrush, RoundedCornerShape(50))
+            )
+        }
+    }
+}
+
+@Composable
+fun StatBubbles(
+    isVisible: Boolean,
+    totalBooks: Int,
+    readBooks: Int
+) {
+    val theme = LocalBookTheme.current
+    Row(modifier = Modifier.offset(x = 80.dp).zIndex(1f)) {
+        AnimatedVisibility(
+            visible = isVisible,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
+            Card(
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = theme.primary.copy(alpha = 0.9f)),
+                modifier = Modifier.size(56.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(text = "$totalBooks", fontWeight = FontWeight.Bold, color = theme.onPrimary, fontSize = 14.sp)
+                    Text(text = "Total", color = theme.onPrimary.copy(alpha = 0.8f), fontSize = 10.sp)
+                }
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        AnimatedVisibility(
+            visible = isVisible,
+            enter = scaleIn(initialScale = 0.5f) + fadeIn(),
+            exit = scaleOut(targetScale = 0.5f) + fadeOut()
+        ) {
+            Card(
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = theme.onBackground.copy(alpha = 0.2f)),
+                modifier = Modifier.size(50.dp).offset(y = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(text = "$readBooks", fontWeight = FontWeight.Bold, color = theme.onBackground, fontSize = 13.sp)
+                    Text(text = "Read", color = theme.onBackground.copy(alpha = 0.7f), fontSize = 9.sp)
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun DetailsDrawer(
+    category: String,
+    bookTitles: List<String>,
+    onBookClick: (String) -> Unit
+) {
+    val isDark = isSystemInDarkTheme()
+    val woodyBrush = if (isDark) {
+        Brush.verticalGradient(colors = listOf(Color(0xFF4E342E), Color(0xFF3E2723)))
+    } else {
+        Brush.verticalGradient(colors = listOf(Color(0xFF8D6E63), Color(0xFF795548)))
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(woodyBrush)
             .padding(16.dp)
     ) {
         Text(
-            "EXPLORE",
-            color = theme.onBackground,
-            fontFamily = theme.fontFamily,
-            fontSize = 40.sp, 
+            text = "Books in $category",
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-
-        TextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search titles or authors...", color = theme.onBackground.copy(alpha = 0.5f), fontFamily = theme.fontFamily) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = theme.onBackground.copy(alpha = 0.5f)) },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = theme.onBackground.copy(alpha = 0.05f),
-                unfocusedContainerColor = theme.onBackground.copy(alpha = 0.05f),
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = theme.onBackground,
-                unfocusedTextColor = theme.onBackground,
-                cursorColor = theme.primary
-            )
-        )
-
-        Spacer(modifier = Modifier.height(24.dp)) // Sufficient space to avoid overlap
-
-        PieChartCategorySelector(
-            categories = allCategories,
-            selectedCategory = selectedCategory,
-            categoryBookCounts = categoryBookCounts,
-            totalBooksInAllCategories = totalBooksInAllCategories,
-            onCategorySelected = { category ->
-                selectedCategory = if (selectedCategory == category) null else category
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(250.dp) // Reduced height for the pie chart
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(filteredBooks) { book ->
-                SearchResultItem(book)
-            }
-        }
-    }
-}
-
-@Composable
-fun PieChartCategorySelector(
-    categories: List<String>,
-    selectedCategory: String?,
-    categoryBookCounts: Map<String, Int>,
-    totalBooksInAllCategories: Int,
-    onCategorySelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val theme = LocalBookTheme.current
-    val colors = remember {
-        listOf(
-            Color(0xFF8B0000), // Dark Red
-            Color(0xFFB8860B), // Dark Goldenrod
-            Color(0xFF006400), // Dark Green
-            Color(0xFF483D8B), // Dark Slate Blue
-            Color(0xFF8B4513), // Saddle Brown
-            Color(0xFF2F4F4F), // Dark Slate Gray
-            Color(0xFF6A5ACD)  // Slate Blue
-        ).shuffled()
-    }
-
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        val pieChartSize = 200.dp // Size of the pie chart
-        val selectedSliceRadius = 15.dp // How much selected slice "pops out"
-
-        Canvas(modifier = Modifier
-            .size(pieChartSize + selectedSliceRadius * 2) // Increase canvas size for pop-out
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val centerX = size.width / 2f
-                    val centerY = size.height / 2f
-                    val touchX = offset.x - centerX
-                    val touchY = offset.y - centerY
-                    val touchRadius = sqrt(touchX * touchX + touchY * touchY)
-                    
-                    if (touchRadius <= (pieChartSize.toPx() / 2 + selectedSliceRadius.toPx())) {
-                        var touchAngle = (atan2(touchY, touchX) * 180 / Math.PI).toFloat()
-                        if (touchAngle < 0) touchAngle += 360f
-
-                        var currentStartAngle = 0f
-                        categories.forEachIndexed { index, category ->
-                            val count = categoryBookCounts[category] ?: 0
-                            val sweepAngle = (count.toFloat() / totalBooksInAllCategories) * 360f
-
-                            if (touchAngle >= currentStartAngle && touchAngle < currentStartAngle + sweepAngle) {
-                                onCategorySelected(category)
-                                return@detectTapGestures
-                            }
-                            currentStartAngle += sweepAngle
-                        }
-                    }
-                    onCategorySelected(null) // Deselect if no slice is hit
-                }
-            }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            var currentStartAngle = 0f
-
-            categories.forEachIndexed { index, category ->
-                val count = categoryBookCounts[category] ?: 0
-                val sweepAngle = (count.toFloat() / totalBooksInAllCategories) * 360f
-                val isCurrentlySelected = selectedCategory == category
-
-                val currentRadius = if (isCurrentlySelected) {
-                    (pieChartSize.toPx() / 2) + selectedSliceRadius.toPx()
-                } else {
-                    pieChartSize.toPx() / 2
-                }
-
-                val offset = if (isCurrentlySelected) {
-                    val angleMid = currentStartAngle + sweepAngle / 2
-                    val offsetX = (selectedSliceRadius.toPx() / 2) * cos(Math.toRadians(angleMid.toDouble())).toFloat()
-                    val offsetY = (selectedSliceRadius.toPx() / 2) * sin(Math.toRadians(angleMid.toDouble())).toFloat()
-                    Offset(offsetX, offsetY)
-                } else {
-                    Offset.Zero
-                }
-
-                drawArc(
-                    color = colors[index % colors.size],
-                    startAngle = currentStartAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = true,
-                    topLeft = Offset(
-                        (size.width - currentRadius * 2) / 2f + offset.x,
-                        (size.height - currentRadius * 2) / 2f + offset.y
-                    ),
-                    size = Size(currentRadius * 2, currentRadius * 2)
-                )
-
-                // Draw text label on the arc
-                val labelAngle = currentStartAngle + sweepAngle / 2
-                val labelRadius = currentRadius * 0.7f // Position text inside slice
-                val x = (size.width / 2 + labelRadius * cos(Math.toRadians(labelAngle.toDouble()))).toFloat() + offset.x
-                val y = (size.height / 2 + labelRadius * sin(Math.toRadians(labelAngle.toDouble()))).toFloat() + offset.y
-
-                drawIntoCanvas { canvas ->
-                    val paint = Paint().asFrameworkPaint().apply {
-                        color = Color.White.toArgb()
-                        textSize = 10.sp.toPx()
-                        textAlign = android.graphics.Paint.Align.CENTER
-                    }
-                    canvas.nativeCanvas.drawText(
-                        category,
-                        x,
-                        y,
-                        paint
-                    )
-                }
-
-                currentStartAngle += sweepAngle
+            items(bookTitles) { bookTitle ->
+                BookGridItem(bookTitle = bookTitle, onClick = { onBookClick(bookTitle) })
             }
-        }
-
-        // Display book count and percentage for selected category in the center
-        selectedCategory?.let { category ->
-            val count = categoryBookCounts[category] ?: 0
-            val percentage = ((count.toFloat() / totalBooksInAllCategories) * 100).roundToInt()
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    category.uppercase(),
-                    color = theme.onBackground,
-                    fontFamily = theme.fontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-                Text(
-                    "$percentage%",
-                    color = theme.onBackground.copy(alpha = 0.7f),
-                    fontFamily = theme.fontFamily,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        } ?: run {
-             Text(
-                "SELECT CATEGORY",
-                color = theme.onBackground.copy(alpha = 0.8f),
-                fontFamily = theme.fontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
         }
     }
 }
 
 @Composable
-fun SearchResultItem(book: Book) {
+fun BookGridItem(bookTitle: String, onClick: () -> Unit) {
     val theme = LocalBookTheme.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier
+            .aspectRatio(2f / 3f)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(4.dp),
+        elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(containerColor = theme.onBackground.copy(alpha = 0.1f))
     ) {
         Box(
-            modifier = Modifier
-                .size(60.dp, 90.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(theme.onBackground.copy(alpha = 0.1f))
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = bookTitle,
+                color = theme.onBackground,
+                textAlign = TextAlign.Center,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(4.dp)
+            )
+        }
+    }
+}
+
+
+@Composable
+fun RandomRecommendations(bookTitles: List<String>, modifier: Modifier = Modifier) {
+    val theme = LocalBookTheme.current
+    Column(modifier = modifier) {
+        Text(
+            text = "Recommendations For You",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = theme.onBackground,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(book.title, color = theme.onBackground, fontWeight = FontWeight.Bold, fontFamily = theme.fontFamily, fontSize = 18.sp)
-            Text(book.author, color = theme.onBackground.copy(alpha = 0.7f), fontSize = 16.sp, fontFamily = theme.fontFamily)
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(bookTitles) { bookTitle ->
+                Column(modifier = Modifier.width(120.dp)) {
+                    BookGridItem(bookTitle = bookTitle, onClick = { /*TODO*/ })
+                    Text(
+                        bookTitle,
+                        maxLines = 2,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = theme.onBackground
+                    )
+                }
+            }
         }
     }
 }

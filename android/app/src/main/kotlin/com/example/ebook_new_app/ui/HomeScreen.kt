@@ -96,7 +96,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "BOOKVERSE",
+                            "EBookBundle",
                             color = theme.primary,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp,
