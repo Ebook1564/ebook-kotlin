@@ -228,15 +228,15 @@ fun ShelfTier(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 32.dp), 
+                    .padding(bottom = 24.dp), 
                 contentAlignment = Alignment.BottomCenter
             ) {
                 if (books.isNotEmpty()) {
-                    if (isExpanded) {
-                        HandOfCardsCarousel(books, onBookClick = onInspectBook)
-                    } else {
-                        UprightBookRow(books.take(5))
-                    }
+                    TransitioningShelfBooks(
+                        books = books,
+                        isExpanded = isExpanded,
+                        onBookClick = onInspectBook
+                    )
                 }
             }
         }
@@ -257,7 +257,16 @@ fun ShelfTier(
 }
 
 @Composable
-fun HandOfCardsCarousel(books: List<Book>, onBookClick: (Book) -> Unit) {
+fun TransitioningShelfBooks(
+    books: List<Book>,
+    isExpanded: Boolean,
+    onBookClick: (Book) -> Unit
+) {
+    val expansionProgress by animateFloatAsState(
+        targetValue = if (isExpanded) 1f else 0f,
+        animationSpec = tween(1000, easing = PremiumEasing)
+    )
+
     val infiniteTransition = rememberInfiniteTransition()
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = -1f,
@@ -268,37 +277,67 @@ fun HandOfCardsCarousel(books: List<Book>, onBookClick: (Book) -> Unit) {
         )
     )
 
+    val displayCount = 7
+    val displayBooks = if (books.size > displayCount) books.take(displayCount) else books
+    val total = displayBooks.size
+
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp),
+        modifier = Modifier.fillMaxWidth().height(200.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        val displayCount = 7
-        val displayBooks = if (books.size > displayCount) books.take(displayCount) else books
-        val total = displayBooks.size
-        
         displayBooks.forEachIndexed { index, book ->
             val relativeIndex = index - (total - 1) / 2f
-            val arcRotation = relativeIndex * 12f
-            val arcXOffset = relativeIndex * 40.dp.value
-            val arcYOffset = relativeIndex.absoluteValue * 8.dp.value
             
-            // Back and forth periodic movement
-            val staggeredFloat = (floatAnim * (index % 3 + 1) * 4f).dp
+            // 1. FAN CALCULATIONS (OPEN STATE)
+            val openRotationZ = relativeIndex * 12f
+            val openXOffset = relativeIndex * 40.dp.value
+            val openYOffset = -20.dp.value // RAISED UP (Requirement 2)
+            val openRotationY = -20f
+            val openRotationX = 0f
+
+            // 2. UPRIGHT CALCULATIONS (CLOSED STATE - Requirement 1)
+            val leanAngle = when(index % 3) {
+                0 -> -4f
+                1 -> 3f
+                else -> 0f
+            }
+            val closedRotationZ = leanAngle
+            val closedXOffset = relativeIndex * 50.dp.value // Original spacing
+            val closedYOffset = 0.dp.value // Higher than before
+            val closedRotationY = -20f
+            val closedRotationX = 0f
+
+            // 3. INTERPOLATED VALUES
+            val currentRotationZ = lerp(closedRotationZ, openRotationZ, expansionProgress)
+            val currentXOffset = lerp(closedXOffset, openXOffset, expansionProgress)
+            val currentYOffset = lerp(closedYOffset, openYOffset, expansionProgress)
+            val currentRotationY = lerp(closedRotationY, openRotationY, expansionProgress)
+            val currentRotationX = lerp(closedRotationX, openRotationX, expansionProgress)
             
+            // Staggered Floating (Only when expanded)
+            val staggeredFloat = if (expansionProgress > 0.8f) {
+                (floatAnim * (index % 3 + 1) * 4f * (expansionProgress - 0.8f) * 5f).dp
+            } else 0.dp
+
             Box(
                 modifier = Modifier
-                    .offset(x = arcXOffset.dp, y = (arcYOffset + staggeredFloat.value).dp)
+                    .offset(x = currentXOffset.dp, y = (currentYOffset + staggeredFloat.value).dp)
                     .width(85.dp)
                     .height(125.dp)
                     .graphicsLayer {
-                        rotationZ = arcRotation
-                        rotationY = -20f
-                        cameraDistance = 12f * density
+                        rotationX = currentRotationX
+                        rotationY = currentRotationY
+                        rotationZ = currentRotationZ
+                        cameraDistance = 15f * density
+                        transformOrigin = TransformOrigin(0.5f, 1f)
                     }
-                    .shadow(12.dp, RoundedCornerShape(2.dp))
-                    .clickable { onBookClick(book) }
+                    .shadow(
+                        elevation = with(androidx.compose.ui.platform.LocalDensity.current) {
+                            lerp(6.dp.toPx(), 12.dp.toPx(), expansionProgress).toDp()
+                        },
+                        shape = RoundedCornerShape(2.dp)
+                    )
+                    .clickable(enabled = isExpanded) { onBookClick(book) }
                     .zIndex(10f - relativeIndex.absoluteValue)
             ) {
                 AsyncImage(
@@ -308,10 +347,14 @@ fun HandOfCardsCarousel(books: List<Book>, onBookClick: (Book) -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(2.dp))
-                        .border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(2.dp))
+                        .border(
+                            width = 0.5.dp,
+                            color = Color.White.copy(alpha = lerp(0.1f, 0.25f, expansionProgress)),
+                            shape = RoundedCornerShape(2.dp)
+                        )
                 )
                 
-                // Thickness highlight
+                // Dynamic Edge Lighting based on state
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -319,7 +362,7 @@ fun HandOfCardsCarousel(books: List<Book>, onBookClick: (Book) -> Unit) {
                         .align(Alignment.CenterEnd)
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(0.3f))
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f * expansionProgress))
                             )
                         )
                 )
