@@ -13,6 +13,8 @@ data class LibraryUiState(
     val currentlyReading: List<Book> = emptyList(),
     val completed: List<Book> = emptyList(),
     val wishlist: List<Book> = emptyList(),
+    val genres: List<String> = listOf("All", "Mystery", "Romance", "Fantasy", "Sci-Fi", "Thriller", "Horror", "Non-Fiction", "History"),
+    val selectedGenre: String = "All",
     val isLoading: Boolean = false
 )
 
@@ -22,6 +24,8 @@ class LibraryViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
+    private var allBooksInternal: List<Book> = emptyList()
+
     init {
         loadLibraryData()
     }
@@ -30,17 +34,29 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             val allBooks = repository.getAllBooksAcrossCategories()
+            allBooksInternal = allBooks
             
-            if (allBooks.isNotEmpty()) {
-                _uiState.value = LibraryUiState(
-                    currentlyReading = allBooks.take(3),
-                    completed = allBooks.drop(3).take(5),
-                    wishlist = allBooks.drop(8).take(5),
-                    isLoading = false
-                )
-            } else {
-                _uiState.value = _uiState.value.copy(isLoading = false)
-            }
+            filterAndPopulate()
         }
+    }
+
+    fun selectGenre(genre: String) {
+        _uiState.value = _uiState.value.copy(selectedGenre = genre)
+        filterAndPopulate()
+    }
+
+    private fun filterAndPopulate() {
+        val filtered = if (_uiState.value.selectedGenre == "All") {
+            allBooksInternal
+        } else {
+            allBooksInternal.filter { it.categories.contains(_uiState.value.selectedGenre) }
+        }
+
+        _uiState.value = _uiState.value.copy(
+            currentlyReading = filtered.shuffled().take(3),
+            completed = filtered.shuffled().take(5),
+            wishlist = filtered.shuffled().take(5),
+            isLoading = false
+        )
     }
 }

@@ -1,14 +1,21 @@
 package com.example.ebook_new_app.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,15 +23,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
 
@@ -34,23 +43,24 @@ fun LibraryScreen(
     onProfileClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var expandedTier by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BookVerseTheme.colors.background)
             .statusBarsPadding()
-            .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        
+        // TOP HEADER
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "My Library",
+                "My Collection",
                 style = BookVerseTheme.typography.headline,
                 color = BookVerseTheme.colors.textPrimary,
                 fontSize = 28.sp
@@ -65,22 +75,153 @@ fun LibraryScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        // GENRE PILLS
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(uiState.genres) { genre ->
+                val isSelected = uiState.selectedGenre == genre
+                Surface(
+                    onClick = { viewModel.selectGenre(genre) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.surface,
+                    border = if (!isSelected) BorderStroke(1.dp, BookVerseTheme.colors.textSecondary.copy(alpha = 0.2f)) else null,
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            text = genre,
+                            color = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary,
+                            style = BookVerseTheme.typography.label,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
 
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BookVerseTheme.colors.primary)
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(28.dp), // Increased for thicker books
-                verticalArrangement = Arrangement.spacedBy(36.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 140.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 140.dp)
             ) {
-                items(uiState.currentlyReading) { book ->
-                    Enhanced3DBook(book, progress = (30..90).random().toFloat() / 100f)
+                ShelfTier(
+                    title = "Currently Reading",
+                    books = uiState.currentlyReading,
+                    isExpanded = expandedTier == "current",
+                    onToggle = { expandedTier = if (expandedTier == "current") null else "current" }
+                )
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                ShelfTier(
+                    title = "Finished",
+                    books = uiState.completed,
+                    isExpanded = expandedTier == "finished",
+                    onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" }
+                )
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                ShelfTier(
+                    title = "Want to Read",
+                    books = uiState.wishlist,
+                    isExpanded = expandedTier == "wishlist",
+                    onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ShelfTier(
+    title: String,
+    books: List<Book>,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val shelfColor = Color(0xFF3E2723) 
+    val shelfWallColor = Color(0xFF2D1B18)
+    
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = BookVerseTheme.typography.label,
+            color = BookVerseTheme.colors.textSecondary,
+            letterSpacing = 2.sp,
+            fontWeight = FontWeight.Black,
+            fontSize = 12.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // THE HEAD-ON 3D SHELF (Precisely grounded)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp) 
+                .clickable { onToggle() }
+        ) {
+            // 1. BACK WALL
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 20.dp)
+                    .background(shelfWallColor, RoundedCornerShape(2.dp))
+            )
+            
+            // 2. THE FLOOR (Receding Horizontal Plane)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .graphicsLayer {
+                        rotationX = 65f // Perspective floor
+                        cameraDistance = 8f * density
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                    }
+                    .background(
+                        brush = Brush.verticalGradient(listOf(shelfColor, Color.Black.copy(0.4f))),
+                        shape = RoundedCornerShape(2.dp)
+                    )
+                    .shadow(16.dp)
+            )
+
+            // 3. THE BOOKS (Upright & Anchored)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 12.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (books.isNotEmpty()) {
+                    UprightBookRow(books.take(5))
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 24.dp)) {
+                books.forEach { book ->
+                    SearchResultItem(book)
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
@@ -88,135 +229,64 @@ fun LibraryScreen(
 }
 
 @Composable
-fun Enhanced3DBook(book: Book, progress: Float) {
-    val isDark = BookVerseTheme.colors.isDark
-    
-    Column(
+fun UprightBookRow(books: List<Book>) {
+    // Manually positioned books for perfect alignment
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO: Open Book */ }
+            .height(140.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Box(
-            modifier = Modifier
-                .height(200.dp)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            // 1. THE PAGE STACK (Thicker!)
+        val total = books.size
+        books.forEachIndexed { index, book ->
+            // Precise spacing calculation
+            val spacing = 50.dp
+            val centerOffset = (index - (total - 1) / 2f) * spacing.value
+            
+            // Subtle, controlled leaning
+            val leanAngle = when(index % 3) {
+                0 -> -4f
+                1 -> 3f
+                else -> 0f
+            }
+            
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 18.dp) // INCREASED THICKNESS
+                    .offset(x = centerOffset.dp)
+                    .width(75.dp)
+                    .height(125.dp)
                     .graphicsLayer {
-                        rotationY = -38f
-                        cameraDistance = 12f * density
-                        transformOrigin = TransformOrigin(0f, 0.5f)
+                        rotationY = -20f 
+                        rotationZ = leanAngle
+                        cameraDistance = 15f * density
+                        transformOrigin = TransformOrigin(0.5f, 1f) // Anchor to bottom center
                     }
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                if(isDark) Color(0xFF2A2A2A) else Color(0xFFD0D0D0),
-                                if(isDark) Color(0xFFF5F5F5) else Color.White,
-                                if(isDark) Color(0xFFD0D0D0) else Color(0xFFE0E0E0)
-                            )
-                        ),
-                        shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
-                    )
-                    .drawWithContent {
-                        drawContent()
-                        val lineCount = 25
-                        val step = size.height / lineCount
-                        for (i in 0 until lineCount) {
-                            drawLine(
-                                color = Color.Black.copy(alpha = 0.08f),
-                                start = Offset(0f, i * step),
-                                end = Offset(size.width, i * step),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
-                    }
-            )
-
-            // 2. THE SPINE
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(16.dp) // Thicker spine
-                    .graphicsLayer {
-                        rotationY = -90f
-                        transformOrigin = TransformOrigin(0f, 0.5f)
-                        cameraDistance = 12f * density
-                    }
-                    .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFF3E2723))
-            )
-
-            // 3. THE FRONT COVER
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        rotationY = -38f
-                        cameraDistance = 12f * density
-                        transformOrigin = TransformOrigin(0f, 0.5f)
-                        translationX = -3.dp.toPx()
-                    }
-                    .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                    .background(BookVerseTheme.colors.surface)
+                    .shadow(6.dp, RoundedCornerShape(2.dp))
             ) {
+                // Book Content
                 AsyncImage(
                     model = book.coverImageUrl,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.FillBounds, // FIT TO BOUNDS
                     modifier = Modifier
                         .fillMaxSize()
-                        .drawWithContent {
-                            val splitY = size.height * (1f - progress)
-                            drawContent()
-                            drawRect(
-                                color = Color.White,
-                                blendMode = BlendMode.Saturation,
-                                alpha = 1f
-                            )
-                            clipRect(top = splitY) {
-                                this@drawWithContent.drawContent()
-                            }
-                        }
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(0.5.dp, Color.White.copy(0.15f), RoundedCornerShape(2.dp))
                 )
                 
+                // Spine Depth Highlight
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxHeight()
+                        .width(8.dp)
+                        .align(Alignment.CenterStart)
                         .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color.White.copy(0.12f), 
-                                    Color.Transparent, 
-                                    Color.Black.copy(0.12f)
-                                ),
-                                start = Offset(0f, 0f),
-                                end = Offset(500f, 500f)
+                            Brush.horizontalGradient(
+                                listOf(Color.Black.copy(0.45f), Color.Transparent)
                             )
                         )
                 )
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = book.title,
-            style = BookVerseTheme.typography.body,
-            color = BookVerseTheme.colors.textPrimary,
-            maxLines = 1,
-            fontWeight = FontWeight.Bold,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-        )
-        Text(
-            text = "${(progress * 100).toInt()}% Read",
-            style = BookVerseTheme.typography.label,
-            color = BookVerseTheme.colors.primary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Black
-        )
     }
 }
