@@ -26,6 +26,7 @@ class ReaderSettingsRepository(context: Context) {
             ReaderTheme.WHITE -> Color.White
             ReaderTheme.DARK -> Color(0xFF121212)
             ReaderTheme.SEPIA -> Color(0xFFFDFCF0)
+            ReaderTheme.SPACE -> TODO()
         }
     }
     
@@ -34,6 +35,7 @@ class ReaderSettingsRepository(context: Context) {
             ReaderTheme.WHITE -> Color.Black
             ReaderTheme.DARK -> Color.White
             ReaderTheme.SEPIA -> Color(0xFF5B4636)
+            ReaderTheme.SPACE -> TODO()
         }
     }
 }

@@ -16,50 +16,56 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(onBackClick: () -> Unit = {}) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("PROFILE", fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+    val backgroundColor = BookVerseTheme.colors.background
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (backgroundColor == Color.Transparent) {
+            SpaceBackground()
+        }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("PROFILE", fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp) },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = Color.White
+                    )
                 )
-            )
-        },
-        containerColor = Color.Black
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(40.dp))
-            Surface(
-                modifier = Modifier.size(120.dp),
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = Color(0xFF1A1A1A)
+            },
+            containerColor = backgroundColor
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("JD", color = Color.White, style = MaterialTheme.typography.displayMedium)
+                Spacer(modifier = Modifier.height(40.dp))
+                Surface(
+                    modifier = Modifier.size(120.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = Color(0xFF1A1A1A)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("JD", color = Color.White, style = MaterialTheme.typography.displayMedium)
+                    }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("John Doe", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Premium Member", color = Color(0xFFE50914), fontWeight = FontWeight.Bold)
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                ProfileOption("Reading Statistics")
+                ProfileOption("Manage Subscription")
+                ProfileOption("Settings")
+                ProfileOption("Help & Support")
             }
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("John Doe", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
-            Text("Premium Member", color = Color(0xFFE50914), fontWeight = FontWeight.Bold)
-            
-            Spacer(modifier = Modifier.height(40.dp))
-            
-            ProfileOption("Reading Statistics")
-            ProfileOption("Manage Subscription")
-            ProfileOption("Settings")
-            ProfileOption("Help & Support")
         }
     }
 }

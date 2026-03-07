@@ -22,7 +22,7 @@ data class ReaderSettings(
 )
 
 enum class ReaderTheme {
-    WHITE, DARK, SEPIA
+    WHITE, DARK, SEPIA, SPACE
 }
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {

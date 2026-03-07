@@ -38,6 +38,16 @@ val NightColors = AppColors(
     isDark = true
 )
 
+val SpaceColorsTheme = AppColors(
+    background = Color.Transparent,
+    surface = Color(0xFF121212),
+    primary = Color(0xFFE50914),
+    textPrimary = Color.White,
+    textSecondary = Color.Gray,
+    navBackground = Color(0x99121212),
+    isDark = true
+)
+
 val DayColors = AppColors(
     background = Color(0xFFFDFCF0),
     surface = Color(0xFFF5F1E0),
@@ -82,8 +92,12 @@ fun BookVerseTheme(
     themeMode: AppThemeMode,
     content: @Composable () -> Unit
 ) {
-    val colors = if (themeMode == AppThemeMode.NIGHT) NightColors else DayColors
-    val typography = if (themeMode == AppThemeMode.NIGHT) NightTypography else DayTypography
+    val colors = when (themeMode) {
+        AppThemeMode.NIGHT -> NightColors
+        AppThemeMode.DAY -> DayColors
+        AppThemeMode.SPACE -> SpaceColorsTheme
+    }
+    val typography = if (themeMode == AppThemeMode.DAY) DayTypography else NightTypography
 
     CompositionLocalProvider(
         LocalAppColors provides colors,

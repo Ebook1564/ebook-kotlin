@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ebook_new_app.viewmodel.ReaderTheme
 import com.example.ebook_new_app.viewmodel.ReaderSettings
+import com.example.ebook_new_app.ui.SpaceBackground
 
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -105,6 +106,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var revealOverlayView: ComposeView
     private lateinit var fragmentReaderContainer: View
     private lateinit var ttsControlComposeView: ComposeView
+    private lateinit var spaceBackgroundView: ComposeView
 
     // Search UI
     private lateinit var searchNavBar: View
@@ -134,6 +136,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             return view
         }
         
+        spaceBackgroundView = view.findViewById(R.id.space_background_view)
         topBar = view.findViewById(R.id.reader_top_bar)
         bottomBar = view.findViewById(R.id.reader_bottom_bar)
         readerTitle = view.findViewById(R.id.reader_title)
@@ -161,11 +164,21 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
         (view as ViewGroup).addView(ttsControlComposeView)
 
-        listOf(settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
+        listOf(spaceBackgroundView, settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
             cv.setViewTreeLifecycleOwner(viewLifecycleOwner)
             cv.setViewTreeViewModelStoreOwner(this)
             cv.setViewTreeSavedStateRegistryOwner(this)
             cv.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+
+        spaceBackgroundView.setContent {
+            SpaceBackground()
+        }
+
+        lifecycleScope.launch {
+            viewModel.settings.collect { settings ->
+                spaceBackgroundView.visibility = if (settings.theme == ReaderTheme.SPACE) View.VISIBLE else View.GONE
+            }
         }
 
         val settingsRepo = ReaderSettingsRepository(requireContext())
@@ -354,6 +367,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 ReaderTheme.WHITE -> Theme.LIGHT
                 ReaderTheme.DARK -> Theme.DARK
                 ReaderTheme.SEPIA -> Theme.SEPIA
+                ReaderTheme.SPACE -> Theme.DARK
             },
             scroll = settings.scrollMode,
             columnCount = if (settings.scrollMode) ColumnCount.ONE else null,
@@ -559,6 +573,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                         ReaderTheme.WHITE -> Color.White to Color.Black
                                         ReaderTheme.DARK -> Color(0xFF2C2C2C) to Color.White
                                         ReaderTheme.SEPIA -> Color(0xFFF4ECD8) to Color(0xFF5B4636)
+                                        ReaderTheme.SPACE -> Color(0xFF03040F) to Color.White
                                     }
                                     
                                     FilterChip(

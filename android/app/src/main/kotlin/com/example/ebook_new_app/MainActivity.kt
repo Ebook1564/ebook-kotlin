@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +47,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -183,8 +190,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, currentPage: Int, homeScrollState: LazyListState, onProfileClick: () -> Unit) {
-    val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
-    Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
+    val themeMode = appViewModel.themeMode.value
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (themeMode == AppThemeMode.SPACE) {
+            SpaceBackground()
+        } else {
+            Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background))
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
                 0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
@@ -192,7 +204,11 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, cu
                 2 -> LibraryScreen(onProfileClick = onProfileClick)
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                ElegantNavBar(currentPage, themeMode) { }
+                if (themeMode == AppThemeMode.SPACE) {
+                    SpaceEasyTouchNav(currentPage) { }
+                } else {
+                    ElegantNavBar(currentPage, themeMode) { }
+                }
             }
         }
     }
@@ -203,12 +219,17 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
-    val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
+    val themeMode = appViewModel.themeMode.value
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
     val themeColor = readerSettingsRepo.getThemeColor()
     val textColor = readerSettingsRepo.getTextColor()
 
-    Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (themeMode == AppThemeMode.SPACE) {
+            SpaceBackground()
+        } else {
+            Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background))
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState, 
@@ -223,8 +244,14 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
                 }
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                    if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                if (themeMode == AppThemeMode.SPACE) {
+                    SpaceEasyTouchNav(pagerState.currentPage) { index ->
+                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
+                    }
+                } else {
+                    ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
+                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                    }
                 }
             }
         }
@@ -290,5 +317,138 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        AnimatedContent(
+            targetState = expanded,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(500, easing = PremiumEasing)) + scaleIn(initialScale = 0.8f))
+                    .togetherWith(fadeOut(animationSpec = tween(500, easing = PremiumEasing)) + scaleOut(targetScale = 0.8f))
+            },
+            label = "nav_expansion"
+        ) { isExpanded ->
+            if (isExpanded) {
+                Surface(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .height(80.dp),
+                    shape = RoundedCornerShape(40.dp),
+                    color = Color.Black.copy(alpha = 0.9f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    tonalElevation = 12.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(32.dp)
+                    ) {
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.Public,
+                            label = "HOME",
+                            isSelected = selectedIndex == 0,
+                            onClick = { onTabSelected(0); expanded = false }
+                        )
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.TravelExplore,
+                            label = "SEARCH",
+                            isSelected = selectedIndex == 1,
+                            onClick = { onTabSelected(1); expanded = false }
+                        )
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.AccountTree,
+                            label = "LIBRARY",
+                            isSelected = selectedIndex == 2,
+                            onClick = { onTabSelected(2); expanded = false }
+                        )
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .clickable { expanded = false }, 
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            } else {
+                // iPhone Style Assistive Touch Button
+                Surface(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { expanded = true }
+                        ),
+                    shape = CircleShape,
+                    color = Color(0xAA333333),
+                    border = BorderStroke(2.dp, Color.White.copy(alpha = 0.3f)),
+                    tonalElevation = 8.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EasyTouchNavItem(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val color by animateColorAsState(
+        targetValue = if (isSelected) Color(0xFFE50914) else Color.White,
+        animationSpec = tween(600, easing = PremiumEasing)
+    )
+    
+    Column(
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = color,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = color,
+            fontSize = 10.sp,
+            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
     }
 }

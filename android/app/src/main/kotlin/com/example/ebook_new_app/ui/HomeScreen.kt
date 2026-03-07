@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -143,10 +144,14 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
             onClick = { appViewModel.toggleTheme() },
             modifier = Modifier
                 .clip(CircleShape)
-                .background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT) 0.3f else 0.8f))
+                .background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.SPACE) 0.3f else 0.8f))
         ) {
             Icon(
-                imageVector = if (themeMode == AppThemeMode.NIGHT) Icons.Default.LightMode else Icons.Default.Nightlight,
+                imageVector = when (themeMode) {
+                    AppThemeMode.DAY -> Icons.Default.Nightlight
+                    AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
+                    AppThemeMode.SPACE -> Icons.Default.LightMode
+                },
                 contentDescription = "Toggle Theme",
                 tint = BookVerseTheme.colors.primary
             )
