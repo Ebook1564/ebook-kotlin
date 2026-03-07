@@ -248,10 +248,49 @@ fun ShelfTier(
         ) {
             Column(modifier = Modifier.padding(top = 24.dp)) {
                 books.forEach { book ->
-                    SearchResultItem(book)
+                    LibraryBookItem(book, onInspectBook)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun LibraryBookItem(book: Book, onClick: (Book) -> Unit) {
+    val colors = BookVerseTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(book) }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = book.coverImageUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(60.dp, 90.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.surface)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = book.title,
+                style = BookVerseTheme.typography.body,
+                color = colors.textPrimary,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = book.author,
+                style = BookVerseTheme.typography.label,
+                color = colors.textSecondary,
+                fontSize = 12.sp
+            )
         }
     }
 }
