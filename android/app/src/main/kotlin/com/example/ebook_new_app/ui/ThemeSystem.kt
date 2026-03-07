@@ -3,10 +3,14 @@ package com.example.ebook_new_app.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontFamily.Companion.SansSerif
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.ebook_new_app.viewmodel.AppThemeMode
@@ -41,7 +45,7 @@ val NightColors = AppColors(
 val SpaceColorsTheme = AppColors(
     background = Color.Transparent,
     surface = Color(0xFF121212),
-    primary = Color(0xFFE50914),
+    primary = Color(0xFF8A2BE2),
     textPrimary = Color.White,
     textSecondary = Color.Gray,
     navBackground = Color(0x99121212),
@@ -62,6 +66,13 @@ val NightTypography = AppTypography(
     headline = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Black, fontSize = 24.sp),
     body = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 16.sp),
     label = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 12.sp),
+    serif = false
+)
+
+val SpaceTypography = AppTypography(
+    headline = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Black, fontSize = 24.sp), // Default to SansSerif
+    body = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 16.sp),   // Default to SansSerif
+    label = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 12.sp),   // Default to SansSerif
     serif = false
 )
 
@@ -92,12 +103,25 @@ fun BookVerseTheme(
     themeMode: AppThemeMode,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+    val CSRovian = remember {
+        FontFamily(Font(assetManager = context.assets, path = "fonts/CSRovian-Regular_demo-BF699c126e68bd4.otf"))
+    }
+
     val colors = when (themeMode) {
         AppThemeMode.NIGHT -> NightColors
         AppThemeMode.DAY -> DayColors
         AppThemeMode.SPACE -> SpaceColorsTheme
     }
-    val typography = if (themeMode == AppThemeMode.DAY) DayTypography else NightTypography
+    val typography = when (themeMode) {
+        AppThemeMode.DAY -> DayTypography
+        AppThemeMode.NIGHT -> NightTypography
+        AppThemeMode.SPACE -> SpaceTypography.copy(
+            headline = SpaceTypography.headline.copy(fontFamily = CSRovian),
+            body = SpaceTypography.body.copy(fontFamily = CSRovian),
+            label = SpaceTypography.label.copy(fontFamily = CSRovian)
+        )
+    }
 
     CompositionLocalProvider(
         LocalAppColors provides colors,

@@ -57,7 +57,7 @@ fun ProfileScreen(onBackClick: () -> Unit = {}) {
                 }
                 Spacer(modifier = Modifier.height(24.dp))
                 Text("John Doe", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Premium Member", color = Color(0xFFE50914), fontWeight = FontWeight.Bold)
+                Text("Premium Member", color = BookVerseTheme.colors.primary, fontWeight = FontWeight.Bold)
                 
                 Spacer(modifier = Modifier.height(40.dp))
                 

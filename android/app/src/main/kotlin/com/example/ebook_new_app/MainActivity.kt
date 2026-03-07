@@ -15,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -48,11 +50,13 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +72,8 @@ import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
+import kotlin.math.roundToInt
+import kotlin.random.Random
 
 // PREMIUM CONSTANTS
 val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
@@ -230,28 +236,28 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
         } else {
             Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background))
         }
-        Box(modifier = Modifier.fillMaxSize()) {
-            HorizontalPager(
-                state = pagerState, 
-                modifier = Modifier.fillMaxSize(), 
-                beyondViewportPageCount = 1, 
-                userScrollEnabled = isInteractive
-            ) { page ->
-                when (page) {
-                    0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
-                    1 -> SearchScreen(viewModel = homeViewModel)
-                    2 -> LibraryScreen(onProfileClick = onProfileClick)
-                }
+
+        HorizontalPager(
+            state = pagerState, 
+            modifier = Modifier.fillMaxSize(), 
+            beyondViewportPageCount = 1, 
+            userScrollEnabled = isInteractive
+        ) { page ->
+            when (page) {
+                0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
+                1 -> SearchScreen(viewModel = homeViewModel)
+                2 -> LibraryScreen(onProfileClick = onProfileClick)
             }
+        }
+        
+        if (themeMode == AppThemeMode.SPACE) {
+            SpaceEasyTouchNav(pagerState.currentPage) { index ->
+                if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
+            }
+        } else {
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                if (themeMode == AppThemeMode.SPACE) {
-                    SpaceEasyTouchNav(pagerState.currentPage) { index ->
-                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                    }
-                } else {
-                    ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
-                    }
+                ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
+                    if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
                 }
             }
         }
@@ -287,7 +293,7 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedIndex == index
                     val color by animateColorAsState(
-                        targetValue = if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f),
+                        targetValue = if (isSelected) BookVerseTheme.colors.primary else Color.White.copy(alpha = 0.5f),
                         animationSpec = tween(600, easing = PremiumEasing)
                     )
                     Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
@@ -323,36 +329,104 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
 @Composable
 fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     
+    val buttonSizePx = with(density) { 48.dp.toPx() } // Reduced button size
+    val barWidthPx = with(density) { 280.dp.toPx() } // Reduced bar width
+    val barHeightPx = with(density) { 64.dp.toPx() } // Reduced bar height
+    val safeMarginPx = with(density) { 8.dp.toPx() } // Reduced safe margin for better fit
+
+    val offsetX = remember { Animatable(screenWidthPx / 2f) }
+    val offsetY = remember { Animatable(screenHeightPx - buttonSizePx * 2.5f) }
+
+    val driftAnimatableX = remember { Animatable(0f) }
+    val driftAnimatableY = remember { Animatable(0f) }
+
+    // Floating animation when collapsed
+    LaunchedEffect(!expanded) {
+        if (!expanded) {
+            while (true) {
+                val targetX = (Random.nextFloat() * 0.1f - 0.05f) * screenWidthPx // drift 5% of screen width
+                val targetY = (Random.nextFloat() * 0.1f - 0.05f) * screenHeightPx // drift 5% of screen height
+                
+                driftAnimatableX.animateTo(targetX, animationSpec = tween(durationMillis = 15000, easing = LinearEasing))
+                driftAnimatableY.animateTo(targetY, animationSpec = tween(durationMillis = 15000, easing = LinearEasing))
+            }
+        }
+    }
+
+    // Auto-shift to center when expanded
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            // Stop any ongoing drift animation immediately
+            driftAnimatableX.stop()
+            driftAnimatableY.stop()
+
+            // Animate to center of the screen
+            offsetX.animateTo(screenWidthPx / 2f, animationSpec = tween(400, easing = PremiumEasing))
+            offsetY.animateTo(screenHeightPx / 2f, animationSpec = tween(400, easing = PremiumEasing))
+        }
+    }
+
+    val midnightPurpleGradient = Brush.linearGradient(
+        colors = listOf(Color(0xFF6C29C0), Color(0xFF1A3BCC), Color(0xFFC0298A))
+    )
+    
+    val currentWidthPx = if (expanded) barWidthPx else buttonSizePx
+    val currentHeightPx = if (expanded) barHeightPx else buttonSizePx
+
     Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(bottom = 32.dp),
-        contentAlignment = Alignment.BottomCenter
+            .offset { IntOffset(
+                (offsetX.value - currentWidthPx / 2 + (if (!expanded) driftAnimatableX.value else 0f)).roundToInt(),
+                (offsetY.value - currentHeightPx / 2 + (if (!expanded) driftAnimatableY.value else 0f)).roundToInt()
+            )}
+            .then(
+                if (!expanded) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                // Stop drift when manually dragging
+                                driftAnimatableX.stop()
+                                driftAnimatableY.stop()
+                                val newX = (offsetX.value + dragAmount.x).coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f)
+                                val newY = (offsetY.value + dragAmount.y).coerceIn(buttonSizePx / 2f, screenHeightPx - buttonSizePx / 2f)
+                                offsetX.snapTo(newX)
+                                offsetY.snapTo(newY)
+                            }
+                        }
+                    }
+                } else Modifier
+            )
     ) {
         AnimatedContent(
             targetState = expanded,
             transitionSpec = {
-                (fadeIn(animationSpec = tween(500, easing = PremiumEasing)) + scaleIn(initialScale = 0.8f))
-                    .togetherWith(fadeOut(animationSpec = tween(500, easing = PremiumEasing)) + scaleOut(targetScale = 0.8f))
+                (fadeIn(animationSpec = tween(500, easing = PremiumEasing)) + scaleIn(initialScale = 0.8f, transformOrigin = TransformOrigin.Center))
+                    .togetherWith(fadeOut(animationSpec = tween(500, easing = PremiumEasing)) + scaleOut(targetScale = 0.8f, transformOrigin = TransformOrigin.Center))
             },
             label = "nav_expansion"
         ) { isExpanded ->
             if (isExpanded) {
                 Surface(
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp)
-                        .height(80.dp),
+                    modifier = Modifier.widthIn(min = 150.dp).height(64.dp), // Reverted to original dimensions, with reduced height
                     shape = RoundedCornerShape(40.dp),
                     color = Color.Black.copy(alpha = 0.9f),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
                     tonalElevation = 12.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 24.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp), // Reduced horizontal padding
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(32.dp)
+                        horizontalArrangement = Arrangement.SpaceEvenly // Changed to SpaceEvenly to fit
                     ) {
                         EasyTouchNavItem(
                             icon = Icons.Outlined.Public,
@@ -375,21 +449,20 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                         
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(32.dp) // Reduced size
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.1f))
                                 .clickable { expanded = false }, 
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) // Reduced icon size
                         }
                     }
                 }
             } else {
-                // iPhone Style Assistive Touch Button
                 Surface(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(buttonSizePx.dp) // Use calculated button size here
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -397,13 +470,13 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                         ),
                     shape = CircleShape,
                     color = Color(0xAA333333),
-                    border = BorderStroke(2.dp, Color.White.copy(alpha = 0.3f)),
+                    border = BorderStroke(2.dp, midnightPurpleGradient),
                     tonalElevation = 8.dp
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(32.dp) // Reduced inner circle size
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.2f))
                                 .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
@@ -423,7 +496,7 @@ private fun EasyTouchNavItem(
     onClick: () -> Unit
 ) {
     val color by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFE50914) else Color.White,
+        targetValue = if (isSelected) BookVerseTheme.colors.primary else Color.White,
         animationSpec = tween(600, easing = PremiumEasing)
     )
     
@@ -434,19 +507,20 @@ private fun EasyTouchNavItem(
                 indication = null,
                 onClick = onClick
             ),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = color,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(24.dp) // Reduced icon size
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp)) // Reduced spacer
         Text(
             text = label,
             color = color,
-            fontSize = 10.sp,
+            fontSize = 9.sp, // Reduced font size
             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
             letterSpacing = 1.sp
         )
