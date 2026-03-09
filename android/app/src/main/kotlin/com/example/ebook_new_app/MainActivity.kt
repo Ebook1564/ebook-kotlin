@@ -188,8 +188,8 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, cu
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
                 0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
-                1 -> SearchScreen(viewModel = homeViewModel)
-                2 -> LibraryScreen(onProfileClick = onProfileClick)
+                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
+                2 -> LibraryScreen(onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(currentPage, themeMode) { }
@@ -218,8 +218,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
             ) { page ->
                 when (page) {
                     0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
-                    1 -> SearchScreen(viewModel = homeViewModel)
-                    2 -> LibraryScreen(onProfileClick = onProfileClick)
+                    1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
+                    2 -> LibraryScreen(onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
                 }
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {

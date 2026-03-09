@@ -1,13 +1,19 @@
 package com.example.ebook_new_app.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ebook_new_app.EbookApp
+import com.example.ebook_new_app.db.toBook
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.repository.BookRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+data class HomeSection(
+    val title: String,
+    val books: List<Book>
+)
 
 data class InitialBounds(
     val left: Float,
@@ -18,18 +24,17 @@ data class InitialBounds(
 
 data class HomeUiState(
     val billboardBook: Book? = null,
-    val trendingBooks: List<Book> = emptyList(),
-    val continueReading: List<Book> = emptyList(),
-    val newReleases: List<Book> = emptyList(),
+    val sections: List<HomeSection> = emptyList(),
     val isLoading: Boolean = false,
     val transitionBook: Book? = null,
     val initialBounds: InitialBounds? = null,
     val userName: String = "Reader",
-    val selectedCategoryForSearch: String? = null // Navigation trigger
+    val selectedCategoryForSearch: String? = null
 )
 
-class HomeViewModel : ViewModel() {
-    private val repository = BookRepository()
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = (application as EbookApp).database
+    private val bookDao = database.bookDao()
     
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -38,21 +43,34 @@ class HomeViewModel : ViewModel() {
         loadHomeData()
     }
 
-    fun loadHomeData() {
+    private fun loadHomeData() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val allBooks = repository.getAllBooksAcrossCategories()
+            _uiState.update { it.copy(isLoading = true) }
             
-            if (allBooks.isNotEmpty()) {
-                _uiState.value = _uiState.value.copy(
-                    billboardBook = allBooks.firstOrNull(),
-                    trendingBooks = allBooks.shuffled().take(7),
-                    continueReading = allBooks.take(3),
-                    newReleases = allBooks.reversed().take(7),
-                    isLoading = false
+            // Collect categories and books reactively
+            combine(
+                bookDao.getAllCategories(),
+                bookDao.getAllBooks()
+            ) { categories, allBooks ->
+                if (allBooks.isEmpty()) return@combine null
+
+                val sections = categories.map { category ->
+                    HomeSection(
+                        title = category.name,
+                        books = allBooks.filter { it.categoryCode == category.code }.map { it.toBook() }
+                    )
+                }.filter { it.books.isNotEmpty() }
+
+                val billboard = allBooks.shuffled().firstOrNull()?.toBook()
+
+                HomeUiState(
+                    billboardBook = billboard,
+                    sections = sections,
+                    isLoading = false,
+                    userName = "Aayush"
                 )
-            } else {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+            }.filterNotNull().collect { newState ->
+                _uiState.value = newState
             }
         }
     }

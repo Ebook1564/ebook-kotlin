@@ -10,7 +10,9 @@ data class Book(
     val description: String = "",
     val categories: List<String> = emptyList(),
     val fileUrl: String? = null,
-    val originalFileName: String? = null
+    val originalFileName: String? = null,
+    val sourceFolder: String? = null,
+    val epubFileName: String? = null
 ) {
     companion object {
         fun fromDoc(doc: DocumentSnapshot): Book {

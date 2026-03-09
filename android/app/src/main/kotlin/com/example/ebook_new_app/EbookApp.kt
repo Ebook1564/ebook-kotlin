@@ -1,6 +1,7 @@
 package com.example.ebook_new_app
 
 import android.app.Application
+import com.example.ebook_new_app.db.AppDatabase
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
@@ -10,6 +11,7 @@ class EbookApp : Application() {
 
     lateinit var assetRetriever: AssetRetriever
     lateinit var publicationOpener: PublicationOpener
+    val database by lazy { AppDatabase.getDatabase(this) }
 
     override fun onCreate() {
         super.onCreate()

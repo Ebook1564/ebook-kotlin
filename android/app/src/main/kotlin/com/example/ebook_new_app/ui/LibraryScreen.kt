@@ -46,7 +46,8 @@ import kotlin.math.absoluteValue
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onBookClick: (Book) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var expandedTier by remember { mutableStateOf<String?>(null) }
@@ -162,7 +163,14 @@ fun LibraryScreen(
             exit = fadeOut(animationSpec = tween(400)) + scaleOut(targetScale = 1.1f, animationSpec = tween(400))
         ) {
             inspectedBook?.let { book ->
-                PickedBookInspection(book = book, onDismiss = { inspectedBook = null })
+                PickedBookInspection(
+                    book = book, 
+                    onDismiss = { inspectedBook = null },
+                    onReadNow = {
+                        inspectedBook = null
+                        onBookClick(book)
+                    }
+                )
             }
         }
     }
@@ -411,7 +419,7 @@ fun TransitioningShelfBooks(
 }
 
 @Composable
-fun PickedBookInspection(book: Book, onDismiss: () -> Unit) {
+fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition()
     val autoRotation by infiniteTransition.animateFloat(
         initialValue = -35f,
@@ -476,7 +484,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit) {
             Spacer(modifier = Modifier.height(48.dp))
             
             Button(
-                onClick = { /* TODO */ },
+                onClick = onReadNow,
                 colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
                 shape = RoundedCornerShape(30.dp),
                 modifier = Modifier.height(60.dp).width(220.dp).shadow(20.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)

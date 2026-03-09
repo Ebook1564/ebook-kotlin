@@ -80,24 +80,16 @@ fun HomeScreen(
                     }
                 }
 
-                val categories = listOf(
-                    "Continue Reading" to uiState.continueReading,
-                    "Trending Now" to uiState.trendingBooks,
-                    "New Releases" to uiState.newReleases
-                )
-
-                categories.forEach { (title, books) ->
-                    if (books.isNotEmpty()) {
-                        item {
-                            CategoryRow(
-                                title = title, 
-                                books = books,
-                                onBookClick = { 
-                                    selectedBook = it
-                                    showSheet = true
-                                }
-                            )
-                        }
+                uiState.sections.forEach { section ->
+                    item {
+                        CategoryRow(
+                            title = section.title, 
+                            books = section.books,
+                            onBookClick = { 
+                                selectedBook = it
+                                showSheet = true
+                            }
+                        )
                     }
                 }
             }

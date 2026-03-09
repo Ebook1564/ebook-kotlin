@@ -54,7 +54,10 @@ import kotlin.math.hypot
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
+fun SearchScreen(
+    viewModel: HomeViewModel = viewModel(),
+    onBookClick: (Book) -> Unit
+) {
     val colors = BookVerseTheme.colors
     val uiState by viewModel.uiState.collectAsState()
     
@@ -64,9 +67,9 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
 
     val allCategories = listOf("Fiction", "History", "Science", "Romance", "Fantasy", "Mystery", "Biography", "Adventure")
     
-    // FETCH REAL DATA
-    val allBooks = remember(uiState.trendingBooks, uiState.newReleases) {
-        (uiState.trendingBooks + uiState.newReleases + uiState.continueReading).distinctBy { it.id }
+    // FETCH REAL DATA from unified sections
+    val allBooks = remember(uiState.sections) {
+        uiState.sections.flatMap { it.books }.distinctBy { it.id }
     }
 
     val filteredBooks = allBooks.filter { book ->
@@ -132,7 +135,7 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
                     exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
                 ) {
                     selectedCategory?.let { category ->
-                        DetailsDrawer(category = category, books = filteredBooks)
+                        DetailsDrawer(category = category, books = filteredBooks, onBookClick = onBookClick)
                     }
                 }
 
@@ -142,14 +145,14 @@ fun SearchScreen(viewModel: HomeViewModel = viewModel()) {
                     exit = fadeOut()
                 ) {
                     if (searchQuery.isEmpty()) {
-                        RandomRecommendations(books = allBooks.shuffled())
+                        RandomRecommendations(books = allBooks.shuffled(), onBookClick = onBookClick)
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 140.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            items(filteredBooks) { book -> SearchResultItem(book) }
+                            items(filteredBooks) { book -> SearchResultItem(book, onBookClick = onBookClick) }
                         }
                     }
                 }
@@ -390,7 +393,7 @@ fun CategoryStencilArt(category: String, modifier: Modifier = Modifier, alpha: F
 }
 
 @Composable
-fun DetailsDrawer(category: String, books: List<Book>) {
+fun DetailsDrawer(category: String, books: List<Book>, onBookClick: (Book) -> Unit) {
     val woodyBrush = Brush.verticalGradient(listOf(Color(0xFF3E2723), Color(0xFF2D1B18)))
     
     // DRAWER BOX PERSPECTIVE
@@ -408,9 +411,8 @@ fun DetailsDrawer(category: String, books: List<Book>) {
                 .border(2.dp, Color(0xFF1A0F0E), RoundedCornerShape(4.dp))
                 .padding(16.dp)
         ) {
-            // INNER RIM SHADOW (Creates the 'looking down into a box' effect)
+            // INNER RIM SHADOW
             Box(modifier = Modifier.fillMaxSize()) {
-                // Interior shadows
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -438,13 +440,12 @@ fun DetailsDrawer(category: String, books: List<Book>) {
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                         contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 100.dp)
                     ) {
-                        items(books) { book -> ArchiveCardItem(book) }
+                        items(books) { book -> ArchiveCardItem(book, onClick = { onBookClick(book) }) }
                     }
                 }
             }
         }
         
-        // BOX TOP RIM HIGHLIGHT
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -455,9 +456,9 @@ fun DetailsDrawer(category: String, books: List<Book>) {
 }
 
 @Composable
-fun ArchiveCardItem(book: Book) {
+fun ArchiveCardItem(book: Book, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.width(100.dp).clickable { /* Inspect */ },
+        modifier = Modifier.width(100.dp).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AsyncImage(
@@ -482,10 +483,10 @@ fun ArchiveCardItem(book: Book) {
 }
 
 @Composable
-fun SearchResultItem(book: Book) {
+fun SearchResultItem(book: Book, onBookClick: (Book) -> Unit) {
     val colors = BookVerseTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { }.padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onBookClick(book) }.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
@@ -503,13 +504,13 @@ fun SearchResultItem(book: Book) {
 }
 
 @Composable
-fun RandomRecommendations(books: List<Book>) {
+fun RandomRecommendations(books: List<Book>, onBookClick: (Book) -> Unit) {
     val colors = BookVerseTheme.colors
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Text("DISCOVER", style = BookVerseTheme.typography.label, color = colors.textSecondary, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(books) { book -> SearchResultItem(book) }
+            items(books) { book -> SearchResultItem(book, onBookClick = onBookClick) }
         }
     }
 }
@@ -530,7 +531,6 @@ fun AuthorsSection(allBooks: List<Book>, onClose: () -> Unit) {
     val alphabet = ('A'..'Z').toList()
 
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        // Header stays full width at the top
         Row(
             modifier = Modifier.fillMaxWidth().padding(24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -542,7 +542,6 @@ fun AuthorsSection(allBooks: List<Book>, onClose: () -> Unit) {
             }
         }
 
-        // Row containing the search/list and the scroller starting below the header
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 TextField(
@@ -575,7 +574,6 @@ fun AuthorsSection(allBooks: List<Book>, onClose: () -> Unit) {
                 }
             }
 
-            // Scroller starts here, parallel with the search bar
             AlphabetScroller(
                 alphabet = alphabet,
                 onLetterSelected = { letter ->
