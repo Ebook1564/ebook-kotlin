@@ -104,8 +104,8 @@ fun BookVerseTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val CSRovian = remember {
-        FontFamily(Font(assetManager = context.assets, path = "fonts/CSRovian-Regular_demo-BF699c126e68bd4.otf"))
+    val spaceFont = remember {
+        FontFamily(Font(assetManager = context.assets, path = "fonts/Michroma-Regular.ttf"))
     }
 
     val colors = when (themeMode) {
@@ -117,9 +117,9 @@ fun BookVerseTheme(
         AppThemeMode.DAY -> DayTypography
         AppThemeMode.NIGHT -> NightTypography
         AppThemeMode.SPACE -> SpaceTypography.copy(
-            headline = SpaceTypography.headline.copy(fontFamily = CSRovian),
-            body = SpaceTypography.body.copy(fontFamily = CSRovian),
-            label = SpaceTypography.label.copy(fontFamily = CSRovian)
+            headline = SpaceTypography.headline.copy(fontFamily = spaceFont),
+            body = SpaceTypography.body.copy(fontFamily = spaceFont),
+            label = SpaceTypography.label.copy(fontFamily = spaceFont)
         )
     }
 

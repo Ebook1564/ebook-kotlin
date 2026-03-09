@@ -337,10 +337,10 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     
-    val buttonSizePx = with(density) { 48.dp.toPx() } // Reduced button size
-    val barWidthPx = with(density) { 280.dp.toPx() } // Reduced bar width
-    val barHeightPx = with(density) { 64.dp.toPx() } // Reduced bar height
-    val safeMarginPx = with(density) { 8.dp.toPx() } // Reduced safe margin for better fit
+    val buttonSizePx = with(density) { 32.dp.toPx() } // Reduced button size
+    val barWidthPx = with(density) { 320.dp.toPx() }
+    val barHeightPx = with(density) { 72.dp.toPx() }
+    val safeMarginPx = with(density) { 8.dp.toPx() }
 
     val offsetX = remember { Animatable(screenWidthPx / 2f) }
     val offsetY = remember { Animatable(screenHeightPx - buttonSizePx * 2.5f) }
@@ -355,22 +355,34 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                 val targetX = (Random.nextFloat() * 0.1f - 0.05f) * screenWidthPx // drift 5% of screen width
                 val targetY = (Random.nextFloat() * 0.1f - 0.05f) * screenHeightPx // drift 5% of screen height
                 
-                driftAnimatableX.animateTo(targetX, animationSpec = tween(durationMillis = 15000, easing = LinearEasing))
-                driftAnimatableY.animateTo(targetY, animationSpec = tween(durationMillis = 15000, easing = LinearEasing))
+                driftAnimatableX.animateTo(targetX, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
+                driftAnimatableY.animateTo(targetY, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
             }
         }
     }
 
-    // Auto-shift to center when expanded
+    // Auto-shift to be visible when expanded
     LaunchedEffect(expanded) {
         if (expanded) {
             // Stop any ongoing drift animation immediately
             driftAnimatableX.stop()
             driftAnimatableY.stop()
 
-            // Animate to center of the screen
-            offsetX.animateTo(screenWidthPx / 2f, animationSpec = tween(400, easing = PremiumEasing))
-            offsetY.animateTo(screenHeightPx / 2f, animationSpec = tween(400, easing = PremiumEasing))
+            val targetX = offsetX.value.coerceIn(
+                barWidthPx / 2f + safeMarginPx,
+                screenWidthPx - barWidthPx / 2f - safeMarginPx
+            )
+            val targetY = offsetY.value.coerceIn(
+                barHeightPx / 2f + safeMarginPx,
+                screenHeightPx - barHeightPx / 2f - safeMarginPx
+            )
+
+            scope.launch {
+                offsetX.animateTo(targetX, animationSpec = tween(400, easing = PremiumEasing))
+            }
+            scope.launch {
+                offsetY.animateTo(targetY, animationSpec = tween(400, easing = PremiumEasing))
+            }
         }
     }
 
@@ -391,7 +403,23 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
             .then(
                 if (!expanded) {
                     Modifier.pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
+                        detectDragGestures(
+                            onDragEnd = {
+                                // Animate to current position after drag ends
+                                scope.launch {
+                                    offsetX.animateTo(
+                                        targetValue = offsetX.value.coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f),
+                                        animationSpec = tween(durationMillis = 200) // Short animation
+                                    )
+                                }
+                                scope.launch {
+                                    offsetY.animateTo(
+                                        targetValue = offsetY.value.coerceIn(buttonSizePx / 2f, screenHeightPx - buttonSizePx / 2f),
+                                        animationSpec = tween(durationMillis = 200) // Short animation
+                                    )
+                                }
+                            }
+                        ) { change, dragAmount ->
                             change.consume()
                             scope.launch {
                                 // Stop drift when manually dragging
@@ -417,7 +445,7 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
         ) { isExpanded ->
             if (isExpanded) {
                 Surface(
-                    modifier = Modifier.widthIn(min = 150.dp).height(64.dp), // Reverted to original dimensions, with reduced height
+                    modifier = Modifier.widthIn(min = 300.dp).height(72.dp), // Reverted to original dimensions, with reduced height
                     shape = RoundedCornerShape(40.dp),
                     color = Color.Black.copy(alpha = 0.9f),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
