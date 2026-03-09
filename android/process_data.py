@@ -37,7 +37,6 @@ def create_database(output_path):
             FOREIGN KEY (category_code) REFERENCES categories (code) ON UPDATE NO ACTION ON DELETE NO ACTION
         )
     ''')
-    # Add multiple categories to enable the multi-section layout
     cursor.executemany('INSERT INTO categories (code, name, icon, color) VALUES (?, ?, ?, ?)', [
         ('K', 'Legal Classics', '⚖️', '#2196F3'),
         ('H', 'Historical Law', '📜', '#FF9800'),
@@ -46,6 +45,32 @@ def create_database(output_path):
     ])
     conn.commit()
     return conn
+
+def find_best_cover(folder, book_id, title):
+    # Potential patterns in order of preference
+    patterns = [
+        f"{book_id}_{book_id}-cover.png",
+        f"{book_id}_cover.jpg",
+        f"{book_id}_cover.png",
+        f"{title}_cover.{book_id}",
+        f"{book_id}_icover.jpg",
+        f"{book_id}_fcover.jpg"
+    ]
+    
+    for p in patterns:
+        if os.path.exists(os.path.join(folder, p)):
+            return p
+            
+    # If no exact match, do a fuzzy search for the ID
+    try:
+        files = os.listdir(folder)
+        for f in files:
+            if f.startswith(f"{book_id}_") and ("cover" in f.lower()):
+                return f
+    except:
+        pass
+        
+    return None
 
 def run_seeder():
     db_path = 'library.db'
@@ -67,11 +92,11 @@ def run_seeder():
             author = book[1]
             book_id = str(book[3])
             
-            # Use the actual naming pattern found in the law folder
-            cover_name = f"{book_id}_{book_id}-cover.png"
+            # Use intelligent detection
+            cover_name = find_best_cover(folder, book_id, title)
             epub_name = f"{title}.{book_id}.epub"
             
-            # Distribute books across sections for a better UI
+            # Distribute books across sections
             cat_code = 'K'
             if "Trial" in title or "Court" in title: cat_code = 'T'
             elif i % 4 == 0: cat_code = 'P'
@@ -88,7 +113,7 @@ def run_seeder():
         
     conn.commit()
     conn.close()
-    print(f"Success! Generated {db_path} with multi-section data and fixed cover names.")
+    print(f"Success! Generated {db_path} with intelligent cover detection.")
 
 if __name__ == "__main__":
     run_seeder()
