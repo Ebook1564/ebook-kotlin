@@ -45,6 +45,7 @@ import org.readium.r2.shared.publication.services.search.SearchIterator
 import org.readium.r2.shared.util.Try
 
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
 
 import androidx.compose.runtime.*
@@ -283,16 +284,36 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             
             if (textToSpeak.isEmpty()) {
                 val resource = publication.get(locator.href)
-                val content = resource?.read()?.getOrNull()
-                if (content != null) {
-                    val html = String(content, Charsets.UTF_8)
-                    textToSpeak = parseHtmlToTextSimple(html)
+                if (resource != null) {
+                    val content = resource.read().getOrNull()
+                    if (content != null) {
+                        val html = String(content, Charsets.UTF_8)
+                        textToSpeak = parseHtmlToTextSimple(html)
+                    }
                 }
             }
             
+            // Fallback to locator title if everything else is empty
+            if (textToSpeak.isEmpty()) {
+                textToSpeak = locator.title ?: ""
+            }
+            
             if (textToSpeak.isNotEmpty()) {
-                tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "ReaderTTS")
-                isTtsPlaying = true
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = true }
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
+                    }
+                })
+                
+                val params = Bundle()
+                params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ReaderTTS")
+                tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "ReaderTTS")
             } else {
                 Toast.makeText(context, "No text found to read on this page.", Toast.LENGTH_SHORT).show()
             }
@@ -310,8 +331,15 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             isTtsInitialized = true
-            tts?.language = Locale.US
-            speakCurrentPage()
+            val result = tts?.setLanguage(Locale.US)
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("TTS", "Language not supported or missing data")
+            } else {
+                // If it was already active when init finished, start speaking
+                if (isTtsActive) speakCurrentPage()
+            }
+        } else {
+            Log.e("TTS", "Initialization failed")
         }
     }
 
@@ -605,8 +633,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                                horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column {
                                     Text("Vertical Scrolling", style = MaterialTheme.typography.bodyLarge, color = Color.White)
                                     Text("Enable continuous scroll mode", style = MaterialTheme.typography.bodySmall, color = Color.Gray)

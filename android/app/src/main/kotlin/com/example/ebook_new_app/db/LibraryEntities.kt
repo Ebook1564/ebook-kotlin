@@ -4,6 +4,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
+import androidx.room.Index
+import com.example.ebook_new_app.models.ReadingStatus
 
 @Entity(tableName = "categories")
 data class CategoryEntity(
@@ -21,22 +23,28 @@ data class CategoryEntity(
             parentColumns = ["code"],
             childColumns = ["category_code"]
         )
-    ]
+    ],
+    indices = [Index(value = ["category_code"])]
 )
 data class BookEntity(
     @PrimaryKey val id: String,
     val title: String,
     val author: String,
+    val description: String?,
     @ColumnInfo(name = "category_code") val categoryCode: String,
     @ColumnInfo(name = "source_folder") val sourceFolder: String,
     @ColumnInfo(name = "cover_image_name") val coverImageName: String?,
     @ColumnInfo(name = "epub_file_name") val epubFileName: String?,
-    @ColumnInfo(name = "is_downloaded") val isDownloaded: Boolean = false
+    @ColumnInfo(name = "is_downloaded") val isDownloaded: Boolean = false,
+    @ColumnInfo(name = "reading_status") val readingStatus: ReadingStatus = ReadingStatus.NONE,
+    @ColumnInfo(name = "date_started") val dateStarted: Long? = null,
+    @ColumnInfo(name = "last_opened") val lastOpened: Long? = null,
+    @ColumnInfo(name = "date_finished") val dateFinished: Long? = null
 )
 
 fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
     // CHANGE THIS TO YOUR PC'S IP FOR PHYSICAL DEVICE (e.g., "192.168.1.15")
-    val serverIp = "192.168.1.23"
+    val serverIp = "10.0.2.2" 
     val coverUrl = if (!coverImageName.isNullOrEmpty()) {
         "http://$serverIp:8080/${android.net.Uri.encode(coverImageName)}"
     } else ""
@@ -45,8 +53,13 @@ fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
         id = id,
         title = title,
         author = author,
+        description = description ?: "",
         coverImageUrl = coverUrl,
         sourceFolder = sourceFolder,
-        epubFileName = epubFileName
+        epubFileName = epubFileName,
+        readingStatus = readingStatus,
+        dateStarted = dateStarted,
+        lastOpened = lastOpened,
+        dateFinished = dateFinished
     )
 }

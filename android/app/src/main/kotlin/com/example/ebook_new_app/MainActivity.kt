@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,10 +58,12 @@ import com.example.ebook_new_app.ui.*
 import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
+import com.example.ebook_new_app.viewmodel.LibraryViewModel
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 // PREMIUM CONSTANTS
 val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
@@ -78,6 +81,7 @@ class CircularRevealShape(private val radius: Float, private val center: Offset)
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels()
     private val appViewModel: AppViewModel by viewModels()
+    private val libraryViewModel: LibraryViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,7 +118,7 @@ class MainActivity : ComponentActivity() {
                         initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
                     )
                     BookVerseTheme(previousTheme!!) {
-                        StaticAppLayout(homeViewModel, appViewModel, pagerState.currentPage, dummyScrollState, onProfileClick = { showProfile = true })
+                        StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, onProfileClick = { showProfile = true })
                     }
                 }
 
@@ -145,6 +149,7 @@ class MainActivity : ComponentActivity() {
                         BookVerseApp(
                             homeViewModel, 
                             appViewModel, 
+                            libraryViewModel,
                             pagerState, 
                             homeScrollState, 
                             isInteractive = !isTransitioning,
@@ -182,14 +187,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, currentPage: Int, homeScrollState: LazyListState, onProfileClick: () -> Unit) {
+fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, onProfileClick: () -> Unit) {
     val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
-                0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
+                0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState, onBookClick = { homeViewModel.startReadTransition(it) })
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
-                2 -> LibraryScreen(onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
+                2 -> LibraryScreen(viewModel = libraryViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(currentPage, themeMode) { }
@@ -198,15 +203,32 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, cu
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pagerState: PagerState, homeScrollState: LazyListState, isInteractive: Boolean, onProfileClick: () -> Unit) {
+fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, isInteractive: Boolean, onProfileClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
+    val libraryUiState by libraryViewModel.uiState.collectAsState()
     val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
     val themeColor = readerSettingsRepo.getThemeColor()
     val textColor = readerSettingsRepo.getTextColor()
+
+    var selectedBookForSheet by remember { mutableStateOf<com.example.ebook_new_app.models.Book?>(null) }
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    
+    // TRACK INSPECTION STATE FOR UI ADJUSTMENTS
+    var isInspectingByShelf by remember { mutableStateOf(false) }
+
+    fun onReadClick(book: com.example.ebook_new_app.models.Book, bounds: com.example.ebook_new_app.viewmodel.InitialBounds?) {
+        showSheet = false
+        homeViewModel.startReadTransition(book, bounds)
+    }
+
+    // Hide NavBar when inspecting OR when a "See All" sub-page is open
+    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null
 
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -214,21 +236,80 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
                 state = pagerState, 
                 modifier = Modifier.fillMaxSize(), 
                 beyondViewportPageCount = 1, 
-                userScrollEnabled = isInteractive
+                // Expert Tip: Disable swipe whenever an overlay or inspection is active
+                userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
             ) { page ->
                 when (page) {
-                    0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState)
-                    1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
-                    2 -> LibraryScreen(onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
+                    0 -> HomeScreen(
+                        viewModel = homeViewModel, 
+                        appViewModel = appViewModel, 
+                        scrollState = homeScrollState,
+                        onBookClick = { book ->
+                            selectedBookForSheet = book
+                            showSheet = true
+                        }
+                    )
+                    1 -> SearchScreen(
+                        viewModel = homeViewModel, 
+                        onBookClick = { book ->
+                            selectedBookForSheet = book
+                            showSheet = true
+                        }
+                    )
+                    2 -> LibraryScreen(
+                        viewModel = libraryViewModel, 
+                        onProfileClick = onProfileClick, 
+                        onBookClick = { homeViewModel.startReadTransition(it) },
+                        onInspectStateChange = { isInspectingByShelf = it }
+                    )
                 }
             }
-            Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                    if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+            
+            // GRACEFUL NAVBAR ANIMATION
+            AnimatedVisibility(
+                visible = !shouldHideNavBar,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(
+                    initialOffsetY = { it }, 
+                    animationSpec = tween(600, easing = PremiumEasing)
+                ) + fadeIn(animationSpec = tween(400)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it }, 
+                    animationSpec = tween(600, easing = PremiumEasing)
+                ) + fadeOut(animationSpec = tween(400))
+            ) {
+                Box(modifier = Modifier.then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
+                    ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
+                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                    }
                 }
             }
         }
         
+        if (showSheet && selectedBookForSheet != null) {
+            ModalBottomSheet(
+                onDismissRequest = { showSheet = false },
+                sheetState = sheetState,
+                containerColor = BookVerseTheme.colors.surface,
+                contentColor = BookVerseTheme.colors.textPrimary,
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+            ) {
+                BookDetailContent(
+                    book = selectedBookForSheet!!,
+                    isLoading = false,
+                    onReadClick = { bounds -> onReadClick(selectedBookForSheet!!, bounds) },
+                    onCategoryClick = { category ->
+                        showSheet = false
+                        homeViewModel.navigateToCategory(category)
+                    },
+                    onAddToReadingList = { status ->
+                        libraryViewModel.updateReadingStatus(selectedBookForSheet!!, status)
+                    },
+                    onClose = { showSheet = false }
+                )
+            }
+        }
+
         if (homeUiState.transitionBook != null) {
             BookTransitionOverlay(
                 book = homeUiState.transitionBook, 

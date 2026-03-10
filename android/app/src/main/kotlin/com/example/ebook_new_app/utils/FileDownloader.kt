@@ -16,7 +16,7 @@ object FileDownloader {
     private const val TAG = "FileDownloader"
     
     // CHANGE THIS TO YOUR PC'S IP FOR PHYSICAL DEVICE (e.g., "192.168.1.15")
-    private const val LOCAL_SERVER_IP = "192.168.1.23"
+    private const val LOCAL_SERVER_IP = "10.0.2.2"
     private const val LOCAL_SERVER_URL = "http://$LOCAL_SERVER_IP:8080"
     
     private val okHttpClient = OkHttpClient.Builder()

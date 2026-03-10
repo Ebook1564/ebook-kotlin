@@ -26,7 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "library.db"
                 )
                 .createFromAsset("library.db")
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
                 instance

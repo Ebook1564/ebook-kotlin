@@ -12,7 +12,11 @@ data class Book(
     val fileUrl: String? = null,
     val originalFileName: String? = null,
     val sourceFolder: String? = null,
-    val epubFileName: String? = null
+    val epubFileName: String? = null,
+    val readingStatus: ReadingStatus = ReadingStatus.NONE,
+    val dateStarted: Long? = null,
+    val lastOpened: Long? = null,
+    val dateFinished: Long? = null
 ) {
     companion object {
         fun fromDoc(doc: DocumentSnapshot): Book {

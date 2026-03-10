@@ -6,9 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
+import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.viewmodel.InitialBounds
 
 @Composable
@@ -33,11 +37,13 @@ fun BookDetailContent(
     isLoading: Boolean,
     onReadClick: (InitialBounds?) -> Unit,
     onCategoryClick: (String) -> Unit,
+    onAddToReadingList: (ReadingStatus) -> Unit,
     onClose: () -> Unit
 ) {
     var coverBounds by remember { mutableStateOf<InitialBounds?>(null) }
     val colors = BookVerseTheme.colors
     val typography = BookVerseTheme.typography
+    var showStatusMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -45,9 +51,10 @@ fun BookDetailContent(
             .background(colors.surface)
             .padding(horizontal = 24.dp)
             .padding(bottom = 48.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Row(modifier = Modifier.fillMaxWidth()) {
             // Book Cover
             Box(
@@ -82,99 +89,123 @@ fun BookDetailContent(
                     text = book.title,
                     style = typography.headline,
                     color = colors.textPrimary,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 22.sp,
-                    lineHeight = 26.sp
+                    fontSize = 20.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = book.author,
+                    text = "by ${book.author}",
                     style = typography.body,
                     color = colors.textSecondary,
-                    fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                // CATEGORY TAGS
-                if (book.categories.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                // Add to Reading List Button
+                Box {
+                    Button(
+                        onClick = { showStatusMenu = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (book.readingStatus != ReadingStatus.NONE) colors.primary.copy(alpha = 0.1f) else colors.surface,
+                            contentColor = if (book.readingStatus != ReadingStatus.NONE) colors.primary else colors.textPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
-                        items(book.categories) { cat ->
-                            Surface(
-                                modifier = Modifier.clickable { onCategoryClick(cat) },
-                                color = colors.primary.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.3f))
-                            ) {
-                                Text(
-                                    text = cat.uppercase(),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = colors.primary,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
+                        Icon(
+                            if (book.readingStatus != ReadingStatus.NONE) Icons.Default.Check else Icons.Default.Add, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when(book.readingStatus) {
+                                ReadingStatus.CURRENTLY_READING -> "READING"
+                                ReadingStatus.COMPLETED -> "FINISHED"
+                                ReadingStatus.WISHLIST -> "WISHLIST"
+                                else -> "ADD TO LIST"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    DropdownMenu(
+                        expanded = showStatusMenu,
+                        onDismissRequest = { showStatusMenu = false },
+                        modifier = Modifier.background(colors.surface)
+                    ) {
+                        ReadingStatus.values().filter { it != ReadingStatus.NONE }.forEach { status ->
+                            DropdownMenuItem(
+                                text = { 
+                                    Text(
+                                        when(status) {
+                                            ReadingStatus.CURRENTLY_READING -> "Currently Reading"
+                                            ReadingStatus.COMPLETED -> "Completed"
+                                            ReadingStatus.WISHLIST -> "Want to Read"
+                                            else -> ""
+                                        },
+                                        color = colors.textPrimary
+                                    ) 
+                                },
+                                onClick = {
+                                    onAddToReadingList(status)
+                                    showStatusMenu = false
+                                },
+                                trailingIcon = {
+                                    if (book.readingStatus == status) Icon(Icons.Default.Check, null, tint = colors.primary)
+                                }
+                            )
+                        }
+                        if (book.readingStatus != ReadingStatus.NONE) {
+                            HorizontalDivider(color = colors.textSecondary.copy(alpha = 0.2f))
+                            DropdownMenuItem(
+                                text = { Text("Remove from List", color = Color.Red.copy(alpha = 0.7f)) },
+                                onClick = {
+                                    onAddToReadingList(ReadingStatus.NONE)
+                                    showStatusMenu = false
+                                }
+                            )
                         }
                     }
-                } else {
-                    Text(
-                        text = "EPUB • High Quality",
-                        style = typography.label,
-                        color = colors.textSecondary.copy(alpha = 0.7f)
-                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Action Buttons
-        Button(
-            onClick = { onReadClick(coverBounds) },
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.primary, 
-                contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(8.dp),
-            enabled = !isLoading
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Read Now", fontWeight = FontWeight.ExtraBold, style = typography.label, fontSize = 16.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = { /* TODO: Add to library logic */ },
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            border = BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.3f)),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textPrimary)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add to My Library", fontWeight = FontWeight.Bold, style = typography.label)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         Text(
-            text = book.description.ifEmpty { "A captivating journey through the pages of ${book.title}. Dive into this masterpiece and explore new horizons of thought and imagination." },
+            text = "Description",
+            style = typography.headline,
+            color = colors.textPrimary,
+            fontSize = 18.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = book.description,
             style = typography.body,
-            color = colors.textPrimary.copy(alpha = 0.8f),
+            color = colors.textSecondary,
             lineHeight = 20.sp,
             fontSize = 14.sp
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Read Now Button
+        Button(
+            onClick = { onReadClick(coverBounds) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("READ NOW", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
     }
 }

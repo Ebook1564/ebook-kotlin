@@ -13,8 +13,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,25 +37,16 @@ import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.InitialBounds
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     appViewModel: AppViewModel = viewModel(),
-    scrollState: LazyListState = rememberLazyListState()
+    scrollState: LazyListState = rememberLazyListState(),
+    onBookClick: (Book) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val backgroundColor = BookVerseTheme.colors.background
     
-    var selectedBook by remember { mutableStateOf<Book?>(null) }
-    var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
-
-    fun onReadClick(book: Book, bounds: InitialBounds?) {
-        showSheet = false
-        viewModel.startReadTransition(book, bounds)
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -75,7 +66,7 @@ fun HomeScreen(
                     item {
                         BillboardSection(
                             book = book, 
-                            onReadClick = { onReadClick(book, null) }
+                            onReadClick = { onBookClick(book) }
                         )
                     }
                 }
@@ -85,34 +76,10 @@ fun HomeScreen(
                         CategoryRow(
                             title = section.title, 
                             books = section.books,
-                            onBookClick = { 
-                                selectedBook = it
-                                showSheet = true
-                            }
+                            onBookClick = onBookClick
                         )
                     }
                 }
-            }
-        }
-
-        if (showSheet && selectedBook != null) {
-            ModalBottomSheet(
-                onDismissRequest = { showSheet = false },
-                sheetState = sheetState,
-                containerColor = BookVerseTheme.colors.surface,
-                contentColor = BookVerseTheme.colors.textPrimary,
-                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
-            ) {
-                BookDetailContent(
-                    book = selectedBook!!,
-                    isLoading = false,
-                    onReadClick = { bounds -> onReadClick(selectedBook!!, bounds) },
-                    onCategoryClick = { category ->
-                        showSheet = false
-                        viewModel.navigateToCategory(category)
-                    },
-                    onClose = { showSheet = false }
-                )
             }
         }
     }
@@ -148,10 +115,7 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
 
 @Composable
 fun DynamicGreeting(userName: String) {
-    val calendar = java.util.Calendar.getInstance()
-    val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-    
-    val greeting = when (hour) {
+    val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
         in 0..11 -> "Good Morning"
         in 12..16 -> "Good Afternoon"
         else -> "Good Evening"
@@ -289,11 +253,9 @@ fun BookPoster(book: Book, onClick: () -> Unit) {
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Default.MenuBook,
+                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
                     contentDescription = null,
-                    modifier = Alignment.Center.let { modifier ->
-                        Modifier.padding(24.dp)
-                    },
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
                     tint = BookVerseTheme.colors.textSecondary
                 )
             }

@@ -8,7 +8,6 @@ import android.view.MotionEvent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.graphics.toArgb
-import androidx.core.view.GestureDetectorCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.ebook_new_app.EbookApp
 import com.example.ebook_new_app.R
@@ -19,7 +18,7 @@ import java.io.File
 
 class ReaderActivity : AppCompatActivity() {
 
-    private lateinit var gestureDetector: GestureDetectorCompat
+    private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,7 +39,7 @@ class ReaderActivity : AppCompatActivity() {
         val app = application as EbookApp
         val url = file.toUrl()
         
-        gestureDetector = GestureDetectorCompat(this, object : GestureDetector.SimpleOnGestureListener() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapUp(e: MotionEvent): Boolean {
                 Log.d("ReaderActivity", "onSingleTapUp detected")
                 val fragment = supportFragmentManager.findFragmentById(R.id.reader_container) as? ReaderFragment
