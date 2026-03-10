@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
@@ -61,7 +63,6 @@ fun LibraryScreen(
     var expandedTier by remember { mutableStateOf<String?>(null) }
     var inspectedBook by remember { mutableStateOf<Book?>(null) }
 
-    // Notify parent about inspection state for NavBar animation
     LaunchedEffect(inspectedBook) {
         onInspectStateChange(inspectedBook != null)
     }
@@ -190,19 +191,14 @@ fun LibraryScreen(
             }
         }
 
-        // Dedicated See All Page
+        // Dedicated See All Page (NOW USING PAGING)
         AnimatedVisibility(
             visible = uiState.seeAllStatus != null,
             enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(500, easing = PremiumEasing)) + fadeIn(),
             exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(500, easing = PremiumEasing)) + fadeOut()
         ) {
             uiState.seeAllStatus?.let { status ->
-                val books = when(status) {
-                    ReadingStatus.CURRENTLY_READING -> uiState.currentlyReading
-                    ReadingStatus.COMPLETED -> uiState.completed
-                    ReadingStatus.WISHLIST -> uiState.wishlist
-                    else -> emptyList()
-                }
+                val pagedBooks = viewModel.getPagedBooks(status).collectAsLazyPagingItems()
                 SeeAllPage(
                     title = when(status) {
                         ReadingStatus.CURRENTLY_READING -> "Currently Reading"
@@ -210,7 +206,7 @@ fun LibraryScreen(
                         ReadingStatus.WISHLIST -> "Wishlist"
                         else -> ""
                     },
-                    books = books,
+                    books = pagedBooks,
                     onBack = { viewModel.setSeeAll(null) },
                     onBookClick = { 
                         viewModel.setSeeAll(null)
@@ -225,7 +221,7 @@ fun LibraryScreen(
 @Composable
 fun SeeAllPage(
     title: String,
-    books: List<Book>,
+    books: LazyPagingItems<Book>,
     onBack: () -> Unit,
     onBookClick: (Book) -> Unit
 ) {
@@ -254,18 +250,15 @@ fun SeeAllPage(
             )
         }
 
-        if (books.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No books in this list yet", color = colors.textSecondary)
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                items(books) { book ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            items(books.itemCount) { index ->
+                val book = books[index]
+                if (book != null) {
                     Column(
                         modifier = Modifier.clickable { onBookClick(book) },
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -571,10 +564,19 @@ fun TransitioningShelfBooks(
 fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition()
     val autoRotation by infiniteTransition.animateFloat(
-        initialValue = -35f,
-        targetValue = 35f,
+        initialValue = -45f,
+        targetValue = 45f,
         animationSpec = infiniteRepeatable(
-            animation = tween(6000, easing = LinearOutSlowInEasing),
+            animation = tween(8000, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+    
+    val breatheAnim by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         )
     )
@@ -584,7 +586,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.94f))
+            .background(Color.Black.copy(alpha = 0.96f))
             .clickable { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
@@ -594,9 +596,9 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.15f), Color.Transparent),
+                        colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent),
                         center = Offset.Unspecified,
-                        radius = 1200f
+                        radius = 1400f
                     )
                 )
         )
@@ -609,11 +611,11 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
                 coverUrl = book.coverImageUrl,
                 currentRotationY = autoRotation,
                 modifier = Modifier
-                    .width(200.dp)
-                    .height(300.dp)
+                    .width(220.dp)
+                    .height(330.dp)
             )
             
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
             
             Text(
                 text = book.title,
@@ -650,18 +652,18 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
             
             Button(
                 onClick = onReadNow,
                 colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
                 shape = RoundedCornerShape(30.dp),
-                modifier = Modifier.height(50.dp).width(180.dp).shadow(20.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)
+                modifier = Modifier.height(54.dp).width(200.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)
             ) {
-                Text("READ NOW", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 12.sp)
+                Text("READ NOW", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 13.sp)
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
             
             Text("TAP ANYWHERE TO RETURN", style = BookVerseTheme.typography.label, color = Color.White.copy(alpha = 0.3f), letterSpacing = 2.sp, fontSize = 10.sp)
         }
@@ -682,13 +684,13 @@ fun Realistic3DBook(
     currentRotationY: Float,
     modifier: Modifier = Modifier
 ) {
-    val thickness = 30.dp 
+    val thickness = 40.dp 
     
     Box(
         modifier = modifier
             .graphicsLayer {
                 rotationY = currentRotationY
-                rotationX = 15f
+                rotationX = 12f
                 cameraDistance = 20f * density
                 transformOrigin = TransformOrigin(0.5f, 0.5f)
             },
@@ -697,7 +699,7 @@ fun Realistic3DBook(
         // 1. THE PAGES DEPTH (Right Side)
         Box(
             modifier = Modifier
-                .fillMaxHeight(0.99f)
+                .fillMaxHeight(0.98f)
                 .width(thickness)
                 .align(Alignment.CenterEnd)
                 .graphicsLayer {
@@ -706,15 +708,15 @@ fun Realistic3DBook(
                 }
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFFE8E8E8), Color(0xFFF9F9F9), Color(0xFFDCDCDC))
+                        listOf(Color(0xFFE0E0E0), Color(0xFFF5F5F5), Color(0xFFBDBDBD))
                     )
                 )
         ) {
             androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 1.5.dp.toPx()
+                val step = 2.dp.toPx()
                 for (i in 0..(size.height / step).toInt()) {
                     drawLine(
-                        color = Color.Black.copy(alpha = 0.1f),
+                        color = Color.Black.copy(alpha = 0.08f),
                         start = Offset(0f, i * step),
                         end = Offset(size.width, i * step),
                         strokeWidth = 1f
@@ -735,42 +737,49 @@ fun Realistic3DBook(
                 }
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF150B0A), Color(0xFF3E2723), Color(0xFF150B0A))
+                        listOf(Color(0xFF0D0D0D), Color(0xFF3E2723), Color(0xFF0D0D0D))
                     )
                 )
-        )
+        ) {
+            // Spine Ribs for realism
+            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                repeat(3) {
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(0.1f)))
+                }
+            }
+        }
 
         // 3. TOP PAGES
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.99f)
+                .fillMaxWidth(0.98f)
                 .height(thickness)
                 .align(Alignment.TopCenter)
                 .graphicsLayer {
                     rotationX = 90f
                     transformOrigin = TransformOrigin(0.5f, 0f)
                 }
-                .background(Color(0xFFF9F9F9))
+                .background(Color(0xFFF5F5F5))
         )
 
         // 4. BOTTOM PAGES
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.99f)
+                .fillMaxWidth(0.98f)
                 .height(thickness)
                 .align(Alignment.BottomCenter)
                 .graphicsLayer {
                     rotationX = -90f
                     transformOrigin = TransformOrigin(0.5f, 1f)
                 }
-                .background(Color(0xFFE0E0E0))
+                .background(Color(0xFFD6D6D6))
         )
 
         // 5. FRONT COVER
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(40.dp, RoundedCornerShape(4.dp))
+                .shadow(30.dp, RoundedCornerShape(3.dp))
         ) {
             AsyncImage(
                 model = coverUrl,
@@ -778,16 +787,21 @@ fun Realistic3DBook(
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(3.dp))
+                    .border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(3.dp))
             )
             
+            // Dynamic Reflection Overlay
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.linearGradient(
-                            listOf(Color.White.copy(alpha = 0.08f), Color.Transparent, Color.Black.copy(alpha = 0.15f)),
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.12f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.15f)
+                            ),
                             start = Offset(0f, 0f),
                             end = Offset.Infinite
                         )

@@ -59,6 +59,7 @@ import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
+import com.example.ebook_new_app.models.ReadingStatus
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -192,7 +193,13 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
-                0 -> HomeScreen(viewModel = homeViewModel, appViewModel = appViewModel, scrollState = homeScrollState, onBookClick = { homeViewModel.startReadTransition(it) })
+                0 -> HomeScreen(
+                    viewModel = homeViewModel, 
+                    appViewModel = appViewModel, 
+                    scrollState = homeScrollState, 
+                    onBookClick = { homeViewModel.startReadTransition(it) },
+                    onAddClick = {}
+                )
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
@@ -217,9 +224,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
 
     var selectedBookForSheet by remember { mutableStateOf<com.example.ebook_new_app.models.Book?>(null) }
     var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
     
-    // TRACK INSPECTION STATE FOR UI ADJUSTMENTS
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    
     var isInspectingByShelf by remember { mutableStateOf(false) }
 
     fun onReadClick(book: com.example.ebook_new_app.models.Book, bounds: com.example.ebook_new_app.viewmodel.InitialBounds?) {
@@ -227,7 +234,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
         homeViewModel.startReadTransition(book, bounds)
     }
 
-    // Hide NavBar when inspecting OR when a "See All" sub-page is open
     val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null
 
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
@@ -236,7 +242,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                 state = pagerState, 
                 modifier = Modifier.fillMaxSize(), 
                 beyondViewportPageCount = 1, 
-                // Expert Tip: Disable swipe whenever an overlay or inspection is active
                 userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
             ) { page ->
                 when (page) {
@@ -247,6 +252,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                         onBookClick = { book ->
                             selectedBookForSheet = book
                             showSheet = true
+                        },
+                        onAddClick = { book ->
+                            libraryViewModel.updateReadingStatus(book, ReadingStatus.WISHLIST)
                         }
                     )
                     1 -> SearchScreen(
@@ -265,7 +273,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                 }
             }
             
-            // GRACEFUL NAVBAR ANIMATION
             AnimatedVisibility(
                 visible = !shouldHideNavBar,
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -290,9 +297,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
             ModalBottomSheet(
                 onDismissRequest = { showSheet = false },
                 sheetState = sheetState,
-                containerColor = BookVerseTheme.colors.surface,
+                containerColor = Color.Transparent, 
                 contentColor = BookVerseTheme.colors.textPrimary,
-                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+                dragHandle = null 
             ) {
                 BookDetailContent(
                     book = selectedBookForSheet!!,

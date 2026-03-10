@@ -1,19 +1,17 @@
 package com.example.ebook_new_app.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ebook_new_app.EbookApp
 import com.example.ebook_new_app.db.toBook
 import com.example.ebook_new_app.models.Book
-import com.example.ebook_new_app.repository.BookRepository
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-
-data class HomeSection(
-    val title: String,
-    val books: List<Book>
-)
 
 data class InitialBounds(
     val left: Float,
@@ -22,20 +20,25 @@ data class InitialBounds(
     val height: Float
 )
 
+data class HomeSection(
+    val title: String,
+    val books: List<Book>
+)
+
 data class HomeUiState(
+    val userName: String = "Aayush",
     val billboardBook: Book? = null,
     val sections: List<HomeSection> = emptyList(),
     val isLoading: Boolean = false,
+    val selectedCategoryForSearch: String? = null,
     val transitionBook: Book? = null,
-    val initialBounds: InitialBounds? = null,
-    val userName: String = "Reader",
-    val selectedCategoryForSearch: String? = null
+    val initialBounds: InitialBounds? = null
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()
-    
+
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -45,42 +48,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadHomeData() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.value = _uiState.value.copy(isLoading = true)
             
-            // Collect categories and books reactively
-            combine(
-                bookDao.getAllCategories(),
-                bookDao.getAllBooks()
-            ) { categories, allBooks ->
-                if (allBooks.isEmpty()) return@combine null
+            // Observe Categories
+            bookDao.getAllCategories().collectLatest { categoryEntities ->
+                val sections = mutableListOf<HomeSection>()
+                
+                // For each category, fetch only a few books (LIMIT 15)
+                categoryEntities.forEach { cat ->
+                    val books = bookDao.getBooksByCategoryLimit(cat.code, 15).map { it.toBook() }
+                    if (books.isNotEmpty()) {
+                        sections.add(HomeSection(cat.name, books))
+                    }
+                }
 
-                val sections = categories.map { category ->
-                    HomeSection(
-                        title = category.name,
-                        books = allBooks.filter { it.categoryCode == category.code }.map { it.toBook() }
-                    )
-                }.filter { it.books.isNotEmpty() }
-
-                val billboard = allBooks.shuffled().firstOrNull()?.toBook()
-
-                HomeUiState(
-                    billboardBook = billboard,
+                _uiState.value = _uiState.value.copy(
                     sections = sections,
-                    isLoading = false,
-                    userName = "Aayush"
+                    billboardBook = sections.firstOrNull()?.books?.shuffled()?.firstOrNull(),
+                    isLoading = false
                 )
-            }.filterNotNull().collect { newState ->
-                _uiState.value = newState
             }
         }
     }
 
     fun navigateToCategory(category: String) {
         _uiState.value = _uiState.value.copy(selectedCategoryForSearch = category)
-    }
-
-    fun clearCategoryNavigation() {
-        _uiState.value = _uiState.value.copy(selectedCategoryForSearch = null)
     }
 
     fun startReadTransition(book: Book, bounds: InitialBounds? = null) {

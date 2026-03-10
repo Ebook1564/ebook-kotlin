@@ -1,22 +1,31 @@
 package com.example.ebook_new_app.db
 
 import androidx.room.*
+import androidx.paging.PagingSource
 import com.example.ebook_new_app.models.ReadingStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BookDao {
-    @Query("SELECT * FROM books")
-    fun getAllBooks(): Flow<List<BookEntity>>
+    // HOME SCREEN: Fetch small batches per category
+    @Query("SELECT * FROM books WHERE category_code = :categoryCode LIMIT :limit")
+    suspend fun getBooksByCategoryLimit(categoryCode: String, limit: Int = 15): List<BookEntity>
 
-    @Query("SELECT * FROM books WHERE category_code = :categoryCode")
-    fun getBooksByCategory(categoryCode: String): Flow<List<BookEntity>>
-
+    // SEARCH & SEE ALL: High-performance Paging
     @Query("SELECT * FROM books WHERE title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%'")
-    fun searchBooks(query: String): Flow<List<BookEntity>>
+    fun searchBooksPaging(query: String): PagingSource<Int, BookEntity>
+
+    @Query("SELECT * FROM books WHERE reading_status = :status ORDER BY last_opened DESC")
+    fun getBooksByStatusPaging(status: ReadingStatus): PagingSource<Int, BookEntity>
 
     @Query("SELECT * FROM categories")
     fun getAllCategories(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM books")
+    fun getAllBooks(): Flow<List<BookEntity>>
+
+    @Query("SELECT * FROM books WHERE title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%' LIMIT 50")
+    suspend fun searchBooksLimit(query: String): List<BookEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBooks(books: List<BookEntity>)

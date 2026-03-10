@@ -82,10 +82,16 @@ dependencies {
     // Image Loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Paging 3 (Production Scale Lists)
+    val pagingVersion = "3.3.2"
+    implementation("androidx.paging:paging-runtime-ktx:$pagingVersion")
+    implementation("androidx.paging:paging-compose:$pagingVersion")
+
     // Local Storage (Room - replacement for Hive)
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
+    implementation("androidx.room:room-paging:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // Readium

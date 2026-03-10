@@ -1,6 +1,7 @@
 package com.example.ebook_new_app.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material3.*
@@ -24,6 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,7 +46,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     appViewModel: AppViewModel = viewModel(),
     scrollState: LazyListState = rememberLazyListState(),
-    onBookClick: (Book) -> Unit
+    onBookClick: (Book) -> Unit,
+    onAddClick: (Book) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val backgroundColor = BookVerseTheme.colors.background
@@ -58,15 +63,14 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
-                item {
-                    HeaderSection(appViewModel, uiState.userName)
-                }
+                item { HeaderSection(appViewModel, uiState.userName) }
 
                 uiState.billboardBook?.let { book ->
                     item {
                         BillboardSection(
                             book = book, 
-                            onReadClick = { onBookClick(book) }
+                            onReadClick = { onBookClick(book) },
+                            onAddClick = { onAddClick(book) }
                         )
                     }
                 }
@@ -140,64 +144,137 @@ fun DynamicGreeting(userName: String) {
 }
 
 @Composable
-fun BillboardSection(book: Book, onReadClick: () -> Unit) {
+fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition()
+    val floatAnim by infiniteTransition.animateFloat(
+        initialValue = -8f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(400.dp)
+            .height(500.dp), // INCREASED HEIGHT to fit buttons
+        contentAlignment = Alignment.Center
     ) {
-        AsyncImage(
-            model = book.coverImageUrl.ifEmpty { "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1000" },
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-        
+        // BACKDROP GRADIENT
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            BookVerseTheme.colors.background.copy(alpha = 0.5f),
-                            BookVerseTheme.colors.background
-                        )
+                        listOf(Color.Transparent, BookVerseTheme.colors.background)
                     )
                 )
         )
 
         Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(bottom = 20.dp)
         ) {
+            // THE STAND / SHADOW
+            Box(contentAlignment = Alignment.Center) {
+                // Ground Shadow
+                Box(
+                    modifier = Modifier
+                        .padding(top = 260.dp)
+                        .width(180.dp)
+                        .height(20.dp)
+                        .graphicsLayer {
+                            rotationX = 80f
+                            scaleX = 1.2f + (floatAnim / 40f)
+                        }
+                        .background(
+                            Brush.radialGradient(
+                                listOf(Color.Black.copy(0.4f), Color.Transparent)
+                            )
+                        )
+                )
+
+                // THE BOOK WITH 3D TILT
+                Box(
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(270.dp)
+                        .graphicsLayer {
+                            rotationY = -25f
+                            rotationX = 10f
+                            rotationZ = floatAnim / 4f
+                            translationY = floatAnim
+                            cameraDistance = 12f * density
+                        }
+                        .shadow(24.dp, RoundedCornerShape(4.dp))
+                ) {
+                    AsyncImage(
+                        model = book.coverImageUrl.ifEmpty { "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1000" },
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(4.dp))
+                            .border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(4.dp))
+                    )
+                    
+                    // Side Light
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color.White.copy(0.1f), Color.Transparent, Color.Black.copy(0.2f))
+                                )
+                            )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text(
                 text = book.title,
                 style = BookVerseTheme.typography.headline,
                 color = BookVerseTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 40.dp),
+                fontSize = 24.sp
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
                 modifier = Modifier.padding(horizontal = 24.dp),
-                fontSize = 32.sp
-            )
-            Text(
-                text = book.author,
-                style = BookVerseTheme.typography.body,
-                color = BookVerseTheme.colors.textSecondary
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onReadClick,
-                colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.width(160.dp).height(48.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("READ NOW", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                Button(
+                    onClick = onReadClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
+                    shape = RoundedCornerShape(30.dp),
+                    modifier = Modifier.weight(1f).height(48.dp).shadow(12.dp, RoundedCornerShape(30.dp))
+                ) {
+                    Text("READ NOW", color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onAddClick,
+                    shape = RoundedCornerShape(30.dp),
+                    border = borderStroke(1.dp, BookVerseTheme.colors.primary.copy(0.5f)),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BookVerseTheme.colors.textPrimary)
+                ) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("MY LIBRARY", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
+
+private fun borderStroke(width: androidx.compose.ui.unit.Dp, color: Color) = BorderStroke(width, color)
 
 @Composable
 fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {

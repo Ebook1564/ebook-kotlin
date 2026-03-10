@@ -267,6 +267,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         isTtsActive = false
         isTtsPlaying = false
         ttsControlComposeView.visibility = View.GONE
+        topBar.visibility = View.VISIBLE
+        bottomBar.visibility = View.VISIBLE
     }
 
     private fun speakCurrentPage() {
@@ -283,17 +285,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             var textToSpeak = locator.text.highlight ?: ""
             
             if (textToSpeak.isEmpty()) {
-                val resource = publication.get(locator.href)
-                if (resource != null) {
-                    val content = resource.read().getOrNull()
+                try {
+                    val resource = publication.get(locator.href)
+                    val content = resource?.read()?.getOrNull()
                     if (content != null) {
                         val html = String(content, Charsets.UTF_8)
                         textToSpeak = parseHtmlToTextSimple(html)
                     }
+                } catch (e: Exception) {
+                    Log.e("TTS", "Extraction failed", e)
                 }
             }
             
-            // Fallback to locator title if everything else is empty
             if (textToSpeak.isEmpty()) {
                 textToSpeak = locator.title ?: ""
             }
@@ -335,7 +338,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.e("TTS", "Language not supported or missing data")
             } else {
-                // If it was already active when init finished, start speaking
                 if (isTtsActive) speakCurrentPage()
             }
         } else {
