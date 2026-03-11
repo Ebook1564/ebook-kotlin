@@ -175,7 +175,7 @@ fun DynamicGreeting(userName: String) {
             text = "$greeting, Aayush",
             style = BookVerseTheme.typography.headline,
             color = BookVerseTheme.colors.textPrimary,
-            fontSize = 22.sp,
+            fontSize = 19.sp,
             fontWeight = FontWeight.Black
         )
         Text(
