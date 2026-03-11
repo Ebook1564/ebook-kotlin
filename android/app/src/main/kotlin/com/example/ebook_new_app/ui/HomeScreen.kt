@@ -11,13 +11,16 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +29,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -35,11 +37,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
-import com.example.ebook_new_app.viewmodel.InitialBounds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 
 @Composable
 fun HomeScreen(
@@ -47,7 +51,7 @@ fun HomeScreen(
     appViewModel: AppViewModel = viewModel(),
     scrollState: LazyListState = rememberLazyListState(),
     onBookClick: (Book) -> Unit,
-    onAddClick: (Book) -> Unit = {}
+    onReadNowClick: (Book) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val backgroundColor = BookVerseTheme.colors.background
@@ -65,12 +69,12 @@ fun HomeScreen(
             ) {
                 item { HeaderSection(appViewModel, uiState.userName) }
 
-                uiState.billboardBook?.let { book ->
+                if (uiState.billboardBooks.isNotEmpty()) {
                     item {
-                        BillboardSection(
-                            book = book, 
-                            onReadClick = { onBookClick(book) },
-                            onAddClick = { onAddClick(book) }
+                        BillboardCarousel(
+                            books = uiState.billboardBooks,
+                            onReadClick = onReadNowClick,
+                            onInfoClick = onBookClick
                         )
                     }
                 }
@@ -144,7 +148,68 @@ fun DynamicGreeting(userName: String) {
 }
 
 @Composable
-fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit) {
+fun BillboardCarousel(
+    books: List<Book>,
+    onReadClick: (Book) -> Unit,
+    onInfoClick: (Book) -> Unit
+) {
+    val pagerState = rememberPagerState(pageCount = { books.size })
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            yield()
+            delay(5000)
+            if (pagerState.pageCount > 0) {
+                val nextNextPage = (pagerState.currentPage + 1) % pagerState.pageCount
+                pagerState.animateScrollToPage(nextNextPage)
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(480.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp)
+        ) { page ->
+            BillboardItem(
+                book = books[page],
+                onReadClick = { onReadClick(books[page]) },
+                onInfoClick = { onInfoClick(books[page]) },
+                pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction
+            )
+        }
+        
+        Row(
+            Modifier
+                .height(20.dp)
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            repeat(books.size) { iteration ->
+                val color = if (pagerState.currentPage == iteration) BookVerseTheme.colors.primary else BookVerseTheme.colors.primary.copy(alpha = 0.3f)
+                Box(
+                    modifier = Modifier
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .size(if (pagerState.currentPage == iteration) 8.dp else 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BillboardItem(
+    book: Book,
+    onReadClick: () -> Unit,
+    onInfoClick: () -> Unit,
+    pagerOffset: Float
+) {
     val infiniteTransition = rememberInfiniteTransition()
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = -8f,
@@ -156,12 +221,9 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
     )
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(500.dp), // INCREASED HEIGHT to fit buttons
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        // BACKDROP GRADIENT
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -174,11 +236,14 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 20.dp)
+            modifier = Modifier
+                .padding(bottom = 20.dp)
+                .graphicsLayer {
+                    alpha = 1f - (kotlin.math.abs(pagerOffset) * 0.5f)
+                    translationX = pagerOffset * 300f
+                }
         ) {
-            // THE STAND / SHADOW
             Box(contentAlignment = Alignment.Center) {
-                // Ground Shadow
                 Box(
                     modifier = Modifier
                         .padding(top = 260.dp)
@@ -195,13 +260,12 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
                         )
                 )
 
-                // THE BOOK WITH 3D TILT
                 Box(
                     modifier = Modifier
                         .width(180.dp)
                         .height(270.dp)
                         .graphicsLayer {
-                            rotationY = -25f
+                            rotationY = -25f + (pagerOffset * 10f)
                             rotationX = 10f
                             rotationZ = floatAnim / 4f
                             translationY = floatAnim
@@ -209,17 +273,37 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
                         }
                         .shadow(24.dp, RoundedCornerShape(4.dp))
                 ) {
-                    AsyncImage(
-                        model = book.coverImageUrl.ifEmpty { "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1000" },
+                    val serverIp = "10.0.2.2"
+                    var fallbackStage by remember { mutableIntStateOf(0) }
+                    
+                    // START with the URL generated by toBook() which handles the law folder pattern
+                    val imageUrl = when(fallbackStage) {
+                        0 -> book.coverImageUrl
+                        1 -> if (book.coverImageUrl.contains("cover.")) "http://$serverIp:8080/${book.id}_${book.id}-cover.png" else "http://$serverIp:8080/${android.net.Uri.encode(book.title)}_cover.${book.id}"
+                        2 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.jpg"
+                        else -> ""
+                    }
+
+                    SubcomposeAsyncImage(
+                        model = imageUrl,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(4.dp))
-                            .border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(4.dp))
+                            .border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(4.dp)),
+                        error = {
+                            if (fallbackStage < 2) {
+                                LaunchedEffect(imageUrl) { fallbackStage++ }
+                                Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
+                            } else {
+                                Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = BookVerseTheme.colors.textSecondary)
+                                }
+                            }
+                        }
                     )
                     
-                    // Side Light
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -240,7 +324,8 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
                 color = BookVerseTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 40.dp),
-                fontSize = 24.sp
+                fontSize = 24.sp,
+                maxLines = 2
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -255,26 +340,26 @@ fun BillboardSection(book: Book, onReadClick: () -> Unit, onAddClick: () -> Unit
                     shape = RoundedCornerShape(30.dp),
                     modifier = Modifier.weight(1f).height(48.dp).shadow(12.dp, RoundedCornerShape(30.dp))
                 ) {
+                    Icon(Icons.Default.PlayArrow, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
                     Text("READ NOW", color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                 }
 
                 OutlinedButton(
-                    onClick = onAddClick,
+                    onClick = onInfoClick,
                     shape = RoundedCornerShape(30.dp),
-                    border = borderStroke(1.dp, BookVerseTheme.colors.primary.copy(0.5f)),
+                    border = BorderStroke(1.dp, BookVerseTheme.colors.primary.copy(0.5f)),
                     modifier = Modifier.weight(1f).height(48.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = BookVerseTheme.colors.textPrimary)
                 ) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("MY LIBRARY", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Info, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("MORE INFO", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
-
-private fun borderStroke(width: androidx.compose.ui.unit.Dp, color: Color) = BorderStroke(width, color)
 
 @Composable
 fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
@@ -300,6 +385,15 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
 @Composable
 fun BookPoster(book: Book, onClick: () -> Unit) {
     val isDark = BookVerseTheme.colors.isDark
+    val serverIp = "10.0.2.2"
+    var fallbackStage by remember { mutableIntStateOf(0) }
+    
+    val imageUrl = when(fallbackStage) {
+        0 -> book.coverImageUrl
+        1 -> if (book.coverImageUrl.contains("cover.")) "http://$serverIp:8080/${book.id}_${book.id}-cover.png" else "http://$serverIp:8080/${android.net.Uri.encode(book.title)}_cover.${book.id}"
+        2 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.jpg"
+        else -> ""
+    }
     
     Column(
         modifier = Modifier
@@ -321,21 +415,22 @@ fun BookPoster(book: Book, onClick: () -> Unit) {
                 )
                 .background(BookVerseTheme.colors.surface)
         ) {
-            if (book.coverImageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = book.coverImageUrl,
-                    contentDescription = book.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                    contentDescription = null,
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    tint = BookVerseTheme.colors.textSecondary
-                )
-            }
+            SubcomposeAsyncImage(
+                model = imageUrl,
+                contentDescription = book.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    if (fallbackStage < 2) {
+                        LaunchedEffect(imageUrl) { fallbackStage++ }
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
+                    } else {
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = BookVerseTheme.colors.textSecondary)
+                        }
+                    }
+                }
+            )
         }
     }
 }

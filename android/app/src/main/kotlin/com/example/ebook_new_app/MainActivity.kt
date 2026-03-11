@@ -23,9 +23,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -198,7 +195,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     appViewModel = appViewModel, 
                     scrollState = homeScrollState, 
                     onBookClick = { homeViewModel.startReadTransition(it) },
-                    onAddClick = {}
+                    onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
@@ -253,8 +250,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                             selectedBookForSheet = book
                             showSheet = true
                         },
-                        onAddClick = { book ->
-                            libraryViewModel.updateReadingStatus(book, ReadingStatus.WISHLIST)
+                        onReadNowClick = { book ->
+                            homeViewModel.startReadTransition(book)
                         }
                     )
                     1 -> SearchScreen(

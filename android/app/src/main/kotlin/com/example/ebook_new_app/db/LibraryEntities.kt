@@ -21,13 +21,14 @@ data class CategoryEntity(
         ForeignKey(
             entity = CategoryEntity::class,
             parentColumns = ["code"],
-            childColumns = ["category_code"]
+            childColumns = ["category_code"],
+            onDelete = ForeignKey.NO_ACTION,
+            onUpdate = ForeignKey.NO_ACTION
         )
     ],
     indices = [
-        Index(value = ["category_code"], name = "index_books_category_code"),
-        Index(value = ["category_code"], name = "idx_book_category"),
-        Index(value = ["title"], name = "idx_book_title")
+        Index(value = ["title"], name = "idx_book_title"),
+        Index(value = ["category_code"], name = "idx_book_category")
     ]
 )
 data class BookEntity(
@@ -47,17 +48,29 @@ data class BookEntity(
 )
 
 fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
-    val serverIp = "10.0.2.2" 
-    val coverUrl = if (!coverImageName.isNullOrEmpty()) {
+    val serverIp = "192.168.1.23"
+    
+    // Pattern 1: ID_ID-cover.png (Most common)
+    val primaryCoverUrl = "http://$serverIp:8080/${id}_${id}-cover.png"
+    
+    // Pattern 2: Title_cover.ID (Found in law folder)
+    val titleEncoded = android.net.Uri.encode(title)
+    val secondaryCoverUrl = "http://$serverIp:8080/${titleEncoded}_cover.${id}"
+
+    // Pattern 3: Explicit name if it exists in DB (legacy support)
+    val dbCoverUrl = if (!coverImageName.isNullOrEmpty()) {
         "http://$serverIp:8080/${android.net.Uri.encode(coverImageName)}"
     } else ""
+
+    // We'll pass the most likely one, but HomeScreen/BookPoster should handle failure
+    val finalUrl = if (sourceFolder == "law") secondaryCoverUrl else primaryCoverUrl
 
     return com.example.ebook_new_app.models.Book(
         id = id,
         title = title,
         author = author,
         description = description ?: "",
-        coverImageUrl = coverUrl,
+        coverImageUrl = finalUrl, 
         sourceFolder = sourceFolder,
         epubFileName = epubFileName,
         readingStatus = readingStatus,

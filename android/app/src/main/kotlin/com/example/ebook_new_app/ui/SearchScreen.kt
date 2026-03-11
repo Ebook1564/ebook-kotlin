@@ -8,18 +8,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -43,8 +42,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.draw.alpha
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.viewmodel.HomeViewModel
@@ -60,27 +65,14 @@ fun SearchScreen(
 ) {
     val colors = BookVerseTheme.colors
     val uiState by viewModel.uiState.collectAsState()
+    val pagingItems = viewModel.searchResults.collectAsLazyPagingItems()
     
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
     var showAuthors by remember { mutableStateOf(false) }
 
     val allCategories = listOf("Fiction", "History", "Science", "Romance", "Fantasy", "Mystery", "Biography", "Adventure")
     
-    // FETCH REAL DATA from unified sections
-    val allBooks = remember(uiState.sections) {
-        uiState.sections.flatMap { it.books }.distinctBy { it.id }
-    }
-
-    val filteredBooks = allBooks.filter { book ->
-        val matchesQuery = book.title.contains(searchQuery, ignoreCase = true) || book.author.contains(searchQuery, ignoreCase = true)
-        val matchesCategory = selectedCategory == null || book.categories.contains(selectedCategory)
-        matchesQuery && matchesCategory
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            // --- HEADER ---
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 24.dp, top = 16.dp, end = 24.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,13 +90,19 @@ fun SearchScreen(
                 }
             }
 
-            // --- SEARCH BAR ---
             TextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 0.dp),
-                placeholder = { Text("Search titles or authors...", color = colors.textSecondary.copy(alpha = 0.5f)) },
+                value = uiState.searchQuery,
+                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                placeholder = { Text("Search 60,000+ books...", color = colors.textSecondary.copy(alpha = 0.5f)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = colors.primary) },
+                trailingIcon = {
+                    if (uiState.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Text("Clear", color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = colors.surface,
@@ -118,86 +116,152 @@ fun SearchScreen(
                 shape = RoundedCornerShape(16.dp)
             )
 
-            // --- CATEGORY DRAWERS ---
             CategoryDrawerRow(
                 categories = allCategories,
-                selectedCategory = selectedCategory,
+                selectedCategory = uiState.selectedCategoryForSearch,
                 onCategoryClick = { category ->
-                    selectedCategory = if (selectedCategory == category) null else category
+                    if (uiState.selectedCategoryForSearch == category) {
+                        viewModel.onSearchQueryChanged("")
+                        viewModel.navigateToCategory("") 
+                    } else {
+                        viewModel.navigateToCategory(category)
+                    }
                 }
             )
 
-            // --- CONTENT AREA ---
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = selectedCategory != null,
-                    enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-                ) {
-                    selectedCategory?.let { category ->
-                        DetailsDrawer(category = category, books = filteredBooks, onBookClick = onBookClick)
+                if (uiState.searchQuery.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Search, 
+                            null, 
+                            modifier = Modifier.size(64.dp).alpha(0.2f),
+                            tint = colors.textPrimary
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Discover your next story", 
+                            color = colors.textSecondary,
+                            style = BookVerseTheme.typography.label
+                        )
                     }
-                }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 140.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(
+                            count = pagingItems.itemCount,
+                            key = pagingItems.itemKey { it.id }
+                        ) { index ->
+                            val book = pagingItems[index]
+                            if (book != null) {
+                                SearchResultItem(book, onBookClick = onBookClick)
+                            }
+                        }
 
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = selectedCategory == null,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    if (searchQuery.isEmpty()) {
-                        RandomRecommendations(books = allBooks.shuffled(), onBookClick = onBookClick)
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 140.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(filteredBooks) { book -> SearchResultItem(book, onBookClick = onBookClick) }
+                        when {
+                            pagingItems.loadState.refresh is LoadState.Loading -> {
+                                item { 
+                                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = colors.primary)
+                                    }
+                                }
+                            }
+                            pagingItems.loadState.append is LoadState.Loading -> {
+                                item { 
+                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.primary)
+                                    }
+                                }
+                            }
+                            pagingItems.itemCount == 0 && pagingItems.loadState.refresh is LoadState.NotLoading -> {
+                                item {
+                                    Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                                        Text("No books found for \"${uiState.searchQuery}\"", color = colors.textSecondary)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // --- AUTHORS OVERLAY (Circular Reveal Animation) ---
         AuthorsRevealOverlay(
             visible = showAuthors,
-            allBooks = allBooks,
             onClose = { showAuthors = false }
         )
     }
 }
 
 @Composable
-fun AuthorsRevealOverlay(
-    visible: Boolean,
-    allBooks: List<Book>,
-    onClose: () -> Unit
-) {
-    val config = androidx.compose.ui.platform.LocalConfiguration.current
-    val density = LocalDensity.current
-    val maxRadius = hypot(with(density) { config.screenWidthDp.dp.toPx() }, with(density) { config.screenHeightDp.dp.toPx() })
-    
-    val radius = animateFloatAsState(
-        targetValue = if (visible) maxRadius * 1.5f else 0f,
-        animationSpec = tween(if (visible) 800 else 600, easing = PremiumEasing),
-        label = "reveal_radius"
-    )
-
-    if (radius.value > 0f) {
+fun SearchResultItem(book: Book, onBookClick: (Book) -> Unit) {
+    val colors = BookVerseTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onBookClick(book) }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    clip = true
-                    shape = com.example.ebook_new_app.CircularRevealShape(
-                        radius.value, 
-                        Offset(size.width - 40.dp.toPx(), 60.dp.toPx())
-                    )
-                }
-                .background(BookVerseTheme.colors.background)
+                .size(60.dp, 90.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.surface)
         ) {
-            AuthorsSection(allBooks = allBooks, onClose = onClose)
+            val serverIp = "10.0.2.2"
+            var fallbackStage by remember { mutableIntStateOf(0) }
+            val imageUrl = when(fallbackStage) {
+                0 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.png"
+                1 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.jpg"
+                2 -> "http://$serverIp:8080/${android.net.Uri.encode(book.title)}_cover.${book.id}"
+                else -> ""
+            }
+
+            SubcomposeAsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    if (fallbackStage < 2) {
+                        LaunchedEffect(imageUrl) { fallbackStage++ }
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
+                    } else {
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = colors.textSecondary.copy(0.3f))
+                        }
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column {
+            Text(
+                book.title, 
+                style = BookVerseTheme.typography.body, 
+                color = colors.textPrimary, 
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                book.author, 
+                style = BookVerseTheme.typography.label, 
+                color = colors.textSecondary,
+                fontSize = 12.sp
+            )
         }
     }
 }
@@ -209,9 +273,9 @@ fun CategoryDrawerRow(
     onCategoryClick: (String) -> Unit
 ) {
     LazyRow(
-        modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 24.dp, end = 0.dp, bottom = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 0.dp, bottom = 0.dp)
+        contentPadding = PaddingValues(horizontal = 24.dp)
     ) {
         items(categories) { category ->
             DrawerFrontPanel(
@@ -226,18 +290,8 @@ fun CategoryDrawerRow(
 @Composable
 fun DrawerFrontPanel(title: String, isOpen: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    
-    val animatedOffsetY by animateDpAsState(
-        targetValue = if (isOpen) 20.dp else 0.dp,
-        animationSpec = tween(500, easing = PremiumEasing),
-        label = "drawer_pull"
-    )
-    
-    val animatedRotationX by animateFloatAsState(
-        targetValue = if (isOpen) -12f else 0f,
-        animationSpec = tween(500, easing = PremiumEasing),
-        label = "drawer_tilt"
-    )
+    val animatedOffsetY by animateDpAsState(targetValue = if (isOpen) 20.dp else 0.dp, animationSpec = tween(500, easing = PremiumEasing), label = "offset")
+    val animatedRotationX by animateFloatAsState(targetValue = if (isOpen) -12f else 0f, animationSpec = tween(500, easing = PremiumEasing), label = "rotation")
     
     val drawerColor = when (title) {
         "Fiction" -> Color(0xFF5D4037)
@@ -251,34 +305,12 @@ fun DrawerFrontPanel(title: String, isOpen: Boolean, onClick: () -> Unit) {
         else -> Color(0xFF4E342E)
     }
 
-    // OUTER CABINET HOLE
     Box(
-        modifier = Modifier
-            .width(140.dp)
-            .height(140.dp)
-            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-            .border(2.dp, Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+        modifier = Modifier.width(140.dp).height(140.dp).background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center
     ) {
-        // INTERNAL SHADED FRAME (Thickness depth)
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(2.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Black.offset(0.5f), Color.Transparent, Color.Black.offset(0.3f))
-                    ),
-                    RoundedCornerShape(10.dp)
-                )
-        )
-
-        // DRAWER FACE (Slightly smaller to sit inside frame)
-        Box(
-            modifier = Modifier
-                .offset(y = animatedOffsetY)
-                .width(134.dp)
-                .height(134.dp)
+            modifier = Modifier.offset(y = animatedOffsetY).width(134.dp).height(134.dp)
                 .graphicsLayer {
                     rotationX = animatedRotationX
                     cameraDistance = 12f * density
@@ -290,23 +322,12 @@ fun DrawerFrontPanel(title: String, isOpen: Boolean, onClick: () -> Unit) {
                 .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
         ) {
             CategoryStencilArt(category = title, modifier = Modifier.fillMaxSize(), alpha = 0.25f)
-
-            // Top edge bevel highlight
-            Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.1f)))
-
             Column(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Bottom
             ) {
-                Text(
-                    text = title.uppercase(),
-                    style = BookVerseTheme.typography.label,
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp,
-                    fontSize = 10.sp
-                )
+                Text(title.uppercase(), color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Black, fontSize = 10.sp)
                 Spacer(modifier = Modifier.height(12.dp))
                 VintageDrawerKnob()
             }
@@ -314,29 +335,9 @@ fun DrawerFrontPanel(title: String, isOpen: Boolean, onClick: () -> Unit) {
     }
 }
 
-// Helper extension for darkening/lightening colors for depth
-fun Color.offset(amount: Float): Color {
-    return Color(
-        red = (red - amount).coerceIn(0f, 1f),
-        green = (green - amount).coerceIn(0f, 1f),
-        blue = (blue - amount).coerceIn(0f, 1f),
-        alpha = alpha
-    )
-}
-
 @Composable
 fun VintageDrawerKnob() {
-    Box(
-        modifier = Modifier
-            .size(26.dp)
-            .shadow(6.dp, CircleShape)
-            .background(
-                Brush.radialGradient(listOf(Color(0xFFD4AF37), Color(0xFF8B4513))),
-                CircleShape
-            )
-            .border(1.5.dp, Color.White.copy(alpha = 0.3f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.size(26.dp).shadow(6.dp, CircleShape).background(Brush.radialGradient(listOf(Color(0xFFD4AF37), Color(0xFF8B4513))), CircleShape), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.size(8.dp).background(Color.Black.copy(0.2f), CircleShape))
     }
 }
@@ -347,45 +348,16 @@ fun CategoryStencilArt(category: String, modifier: Modifier = Modifier, alpha: F
         val path = Path()
         val color = Color.White.copy(alpha = alpha)
         val stroke = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-
         when (category) {
             "Fiction" -> {
-                path.moveTo(size.width * 0.2f, size.height * 0.8f)
-                path.lineTo(size.width * 0.2f, size.height * 0.2f)
-                path.lineTo(size.width * 0.8f, size.height * 0.2f)
-                path.lineTo(size.width * 0.8f, size.height * 0.8f)
-                path.close()
-                path.moveTo(size.width * 0.5f, size.height * 0.2f)
-                path.lineTo(size.width * 0.5f, size.height * 0.8f)
-            }
-            "History" -> {
-                path.addOval(androidx.compose.ui.geometry.Rect(center, size.width * 0.45f))
-                path.moveTo(center.x, center.y - size.height * 0.3f)
-                path.lineTo(center.x, center.y + size.height * 0.3f)
-            }
-            "Science" -> {
-                path.addOval(androidx.compose.ui.geometry.Rect(center, size.width * 0.4f))
-                path.addOval(androidx.compose.ui.geometry.Rect(center, size.width * 0.15f))
+                path.moveTo(size.width * 0.2f, size.height * 0.8f); path.lineTo(size.width * 0.2f, size.height * 0.2f)
+                path.lineTo(size.width * 0.8f, size.height * 0.2f); path.lineTo(size.width * 0.8f, size.height * 0.8f); path.close()
+                path.moveTo(size.width * 0.5f, size.height * 0.2f); path.lineTo(size.width * 0.5f, size.height * 0.8f)
             }
             "Romance" -> {
                 path.moveTo(size.width / 2, size.height * 0.8f)
                 path.cubicTo(0f, size.height * 0.3f, size.width * 0.2f, 0f, size.width / 2, size.height * 0.2f)
                 path.cubicTo(size.width * 0.8f, 0f, size.width, size.height * 0.3f, size.width / 2, size.height * 0.8f)
-            }
-            "Fantasy" -> {
-                path.moveTo(center.x, center.y - size.height * 0.4f)
-                path.lineTo(center.x + size.width * 0.1f, center.y - size.height * 0.1f)
-                path.lineTo(center.x + size.width * 0.4f, center.y)
-                path.lineTo(center.x + size.width * 0.1f, center.y + size.height * 0.1f)
-                path.lineTo(center.x, center.y + size.height * 0.4f)
-                path.lineTo(center.x - size.width * 0.1f, center.y + size.height * 0.1f)
-                path.lineTo(center.x - size.width * 0.4f, center.y)
-                path.lineTo(center.x - size.width * 0.1f, center.y - size.height * 0.1f)
-                path.close()
-            }
-            else -> {
-                path.moveTo(0f, 0f)
-                path.lineTo(size.width, size.height)
             }
         }
         drawPath(path, color, style = stroke)
@@ -393,326 +365,27 @@ fun CategoryStencilArt(category: String, modifier: Modifier = Modifier, alpha: F
 }
 
 @Composable
-fun DetailsDrawer(category: String, books: List<Book>, onBookClick: (Book) -> Unit) {
-    val woodyBrush = Brush.verticalGradient(listOf(Color(0xFF3E2723), Color(0xFF2D1B18)))
-    
-    // DRAWER BOX PERSPECTIVE
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF1A0F0E)) // Cabinet interior color
-            .padding(8.dp) // The thickness of the outer cabinet
-    ) {
-        // THE DRAWER BOX ITSELF
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(woodyBrush, RoundedCornerShape(4.dp))
-                .border(2.dp, Color(0xFF1A0F0E), RoundedCornerShape(4.dp))
-                .padding(16.dp)
-        ) {
-            // INNER RIM SHADOW
-            Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color.Black.copy(0.4f), Color.Transparent, Color.Black.copy(0.2f)),
-                                startY = 0f,
-                                endY = 100f
-                            )
-                        )
-                )
-
-                Column {
-                    Text(
-                        text = "ARCHIVE: ${category.uppercase()}",
-                        style = BookVerseTheme.typography.label,
-                        color = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(start = 8.dp, bottom = 16.dp),
-                        letterSpacing = 2.sp
-                    )
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 100.dp)
-                    ) {
-                        items(books) { book -> ArchiveCardItem(book, onClick = { onBookClick(book) }) }
-                    }
-                }
-            }
-        }
-        
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-        )
-    }
-}
-
-@Composable
-fun ArchiveCardItem(book: Book, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(100.dp).clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        AsyncImage(
-            model = book.coverImageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .aspectRatio(0.7f)
-                .clip(RoundedCornerShape(4.dp))
-                .shadow(8.dp)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = book.title,
-            style = BookVerseTheme.typography.label,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            fontSize = 11.sp
-        )
-    }
-}
-
-@Composable
-fun SearchResultItem(book: Book, onBookClick: (Book) -> Unit) {
-    val colors = BookVerseTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onBookClick(book) }.padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(
-            model = book.coverImageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(60.dp, 90.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, fontWeight = FontWeight.Bold)
-            Text(book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary)
-        }
-    }
-}
-
-@Composable
-fun RandomRecommendations(books: List<Book>, onBookClick: (Book) -> Unit) {
-    val colors = BookVerseTheme.colors
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Text("DISCOVER", style = BookVerseTheme.typography.label, color = colors.textSecondary, letterSpacing = 2.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(books) { book -> SearchResultItem(book, onBookClick = onBookClick) }
-        }
-    }
-}
-
-@Composable
-fun AuthorsSection(allBooks: List<Book>, onClose: () -> Unit) {
-    val colors = BookVerseTheme.colors
-    var authorSearchQuery by remember { mutableStateOf("") }
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-
-    val authors = remember(allBooks) {
-        allBooks.map { it.author }.distinct().sorted()
-    }
-    
-    val filteredAuthors = authors.filter { it.contains(authorSearchQuery, ignoreCase = true) }
-    
-    val alphabet = ('A'..'Z').toList()
-
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("AUTHORS", style = BookVerseTheme.typography.headline, color = colors.textPrimary)
-            TextButton(onClick = onClose) { 
-                Text("CLOSE", color = colors.primary, fontWeight = FontWeight.Bold) 
-            }
-        }
-
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                TextField(
-                    value = authorSearchQuery,
-                    onValueChange = { authorSearchQuery = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    placeholder = { Text("Search authors...", color = colors.textSecondary.copy(alpha = 0.5f)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = colors.primary) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = colors.surface,
-                        unfocusedContainerColor = colors.surface,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 100.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(filteredAuthors) { name ->
-                        AuthorItem(name)
-                    }
-                }
-            }
-
-            AlphabetScroller(
-                alphabet = alphabet,
-                onLetterSelected = { letter ->
-                    val index = filteredAuthors.indexOfFirst { it.startsWith(letter, ignoreCase = true) }
-                    if (index != -1) {
-                        scope.launch { listState.scrollToItem(index) }
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun AuthorItem(name: String) {
-    val colors = BookVerseTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(12.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(48.dp).background(colors.primary.copy(0.2f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(name.take(1), color = colors.primary, fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(name, style = BookVerseTheme.typography.body, color = colors.textPrimary, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-fun AlphabetScroller(
-    alphabet: List<Char>,
-    onLetterSelected: (Char) -> Unit
-) {
-    val colors = BookVerseTheme.colors
-    val haptic = LocalHapticFeedback.current
-    var selectedLetter by remember { mutableStateOf<Char?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
+fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit) {
+    val config = androidx.compose.ui.platform.LocalConfiguration.current
     val density = LocalDensity.current
+    val maxRadius = hypot(with(density) { config.screenWidthDp.dp.toPx() }, with(density) { config.screenHeightDp.dp.toPx() })
+    val radius = animateFloatAsState(targetValue = if (visible) maxRadius * 1.5f else 0f, animationSpec = tween(if (visible) 800 else 600, easing = PremiumEasing), label = "radius")
 
-    Box(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(56.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { offset ->
-                        dragOffsetY = offset.y
-                    },
-                    onDragEnd = { selectedLetter = null },
-                    onDragCancel = { selectedLetter = null },
-                    onVerticalDrag = { change, _ ->
-                        dragOffsetY = change.position.y
-                    }
-                )
-            },
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(vertical = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly
+    if (radius.value > 0f) {
+        Box(
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                clip = true
+                shape = com.example.ebook_new_app.CircularRevealShape(radius.value, Offset(size.width - 40.dp.toPx(), 60.dp.toPx()))
+            }.background(BookVerseTheme.colors.background)
         ) {
-            alphabet.forEachIndexed { index, letter ->
-                val itemHeightPx = with(density) { 20.dp.toPx() }
-                val itemCenterY = index * itemHeightPx + with(density) { 32.dp.toPx() }
-                val distance = abs(dragOffsetY - itemCenterY)
-                
-                val scale by animateFloatAsState(
-                    targetValue = if (selectedLetter != null) {
-                        (1.5f - (distance / 300f)).coerceIn(1f, 1.5f)
-                    } else 1f,
-                    label = "letter_scale"
-                )
-                
-                val offsetX by animateDpAsState(
-                    targetValue = if (selectedLetter != null) {
-                        (-(20 * (1f - (distance / 400f).coerceIn(0f, 1f))).dp)
-                    } else 0.dp,
-                    label = "letter_offset"
-                )
-
-                LaunchedEffect(dragOffsetY) {
-                    if (distance < itemHeightPx / 2) {
-                        if (selectedLetter != letter) {
-                            selectedLetter = letter
-                            onLetterSelected(letter)
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                    }
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("AUTHORS", style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary)
+                    TextButton(onClick = onClose) { Text("CLOSE", color = BookVerseTheme.colors.primary, fontWeight = FontWeight.Bold) }
                 }
-
-                Text(
-                    text = letter.toString(),
-                    style = BookVerseTheme.typography.label,
-                    color = if (selectedLetter == letter) colors.primary else colors.textSecondary.copy(alpha = 0.5f),
-                    fontSize = 10.sp,
-                    fontWeight = if (selectedLetter == letter) FontWeight.Black else FontWeight.Bold,
-                    modifier = Modifier
-                        .offset(x = offsetX)
-                        .scale(scale)
-                        .padding(vertical = 1.dp)
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = selectedLetter != null,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier.offset { 
-                IntOffset(
-                    x = (-60.dp.toPx()).toInt(), 
-                    y = dragOffsetY.toInt() - 150.dp.roundToPx()
-                ) 
-            }
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .shadow(12.dp, CircleShape)
-                    .background(colors.primary, CircleShape)
-                    .border(2.dp, Color.White.copy(0.2f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = selectedLetter?.toString() ?: "",
-                    style = BookVerseTheme.typography.headline,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black
-                )
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Author Index (Paging 3 Coming Soon)", color = BookVerseTheme.colors.textSecondary)
+                }
             }
         }
     }

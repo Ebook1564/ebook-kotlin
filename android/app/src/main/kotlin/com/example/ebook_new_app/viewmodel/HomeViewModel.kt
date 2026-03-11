@@ -4,13 +4,12 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.*
 import com.example.ebook_new_app.EbookApp
 import com.example.ebook_new_app.db.toBook
 import com.example.ebook_new_app.models.Book
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class InitialBounds(
@@ -27,9 +26,10 @@ data class HomeSection(
 
 data class HomeUiState(
     val userName: String = "Aayush",
-    val billboardBook: Book? = null,
+    val billboardBooks: List<Book> = emptyList(),
     val sections: List<HomeSection> = emptyList(),
     val isLoading: Boolean = false,
+    val searchQuery: String = "",
     val selectedCategoryForSearch: String? = null,
     val transitionBook: Book? = null,
     val initialBounds: InitialBounds? = null
@@ -42,6 +42,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    
+    @OptIn(FlowPreview::class)
+    val searchResults: Flow<PagingData<Book>> = _searchQuery
+        .debounce(300)
+        .flatMapLatest { query ->
+            Pager(
+                config = PagingConfig(
+                    pageSize = 30,
+                    enablePlaceholders = true,
+                    initialLoadSize = 30
+                )
+            ) {
+                bookDao.searchBooksPaging(query)
+            }.flow.map { pagingData ->
+                pagingData.map { it.toBook() }
+            }
+        }
+        .cachedIn(viewModelScope)
+
     init {
         loadHomeData()
     }
@@ -50,11 +70,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             
-            // Observe Categories
             bookDao.getAllCategories().collectLatest { categoryEntities ->
                 val sections = mutableListOf<HomeSection>()
                 
-                // For each category, fetch only a few books (LIMIT 15)
                 categoryEntities.forEach { cat ->
                     val books = bookDao.getBooksByCategoryLimit(cat.code, 15).map { it.toBook() }
                     if (books.isNotEmpty()) {
@@ -62,17 +80,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
+                val featured = sections.flatMap { it.books }.shuffled().take(6)
+
                 _uiState.value = _uiState.value.copy(
                     sections = sections,
-                    billboardBook = sections.firstOrNull()?.books?.shuffled()?.firstOrNull(),
+                    billboardBooks = featured,
                     isLoading = false
                 )
             }
         }
     }
 
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+    }
+
     fun navigateToCategory(category: String) {
         _uiState.value = _uiState.value.copy(selectedCategoryForSearch = category)
+        onSearchQueryChanged(category)
     }
 
     fun startReadTransition(book: Book, bounds: InitialBounds? = null) {

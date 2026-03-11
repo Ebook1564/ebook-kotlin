@@ -33,3 +33,4 @@ google-services.json
 *.hprof
 /android/app/src/main/assets/epubs
 /android/law
+/android/all_extracted
