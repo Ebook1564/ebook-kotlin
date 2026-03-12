@@ -1,5 +1,6 @@
 package com.example.ebook_new_app.ui
 
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -9,15 +10,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,8 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,15 +38,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
+import com.example.ebook_new_app.viewmodel.AppThemeMode
+import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
+import kotlinx.coroutines.isActive
 import kotlin.math.absoluteValue
 
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
+    appViewModel: AppViewModel = viewModel(),
     onProfileClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currentTheme by appViewModel.themeMode
     var expandedTier by remember { mutableStateOf<String?>(null) }
     var inspectedBook by remember { mutableStateOf<Book?>(null) }
 
@@ -127,6 +130,7 @@ fun LibraryScreen(
                     ShelfTier(
                         title = "Currently Reading",
                         books = uiState.currentlyReading,
+                        themeMode = currentTheme,
                         isExpanded = expandedTier == "current",
                         onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
                         onInspectBook = { inspectedBook = it }
@@ -137,6 +141,7 @@ fun LibraryScreen(
                     ShelfTier(
                         title = "Finished",
                         books = uiState.completed,
+                        themeMode = currentTheme,
                         isExpanded = expandedTier == "finished",
                         onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
                         onInspectBook = { inspectedBook = it }
@@ -147,6 +152,7 @@ fun LibraryScreen(
                     ShelfTier(
                         title = "Want to Read",
                         books = uiState.wishlist,
+                        themeMode = currentTheme,
                         isExpanded = expandedTier == "wishlist",
                         onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
                         onInspectBook = { inspectedBook = it }
@@ -172,13 +178,37 @@ fun LibraryScreen(
 fun ShelfTier(
     title: String,
     books: List<Book>,
+    themeMode: AppThemeMode,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onInspectBook: (Book) -> Unit
 ) {
-    val shelfColor = Color(0xFF3E2723) 
-    val shelfWallColor = Color(0xFF2D1B18)
-    
+    val cornerRadius = 12.dp
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isExpanded) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
+        animationSpec = tween(1200, easing = PremiumEasing)
+    )
+
+    val starshipProgress = remember { Animatable(0f) }
+
+    if (themeMode == AppThemeMode.SPACE) {
+        LaunchedEffect(isExpanded) {
+            starshipProgress.stop()
+            while (isActive) {
+                starshipProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = ((1f - starshipProgress.value) * (if (isExpanded) 60000 else 20000)).toInt(),
+                        easing = LinearEasing
+                    )
+                )
+                starshipProgress.snapTo(0f)
+            }
+        }
+    }
+
+    val pathMeasure = remember { PathMeasure() }
+
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
         Text(
             text = title.uppercase(),
@@ -191,22 +221,51 @@ fun ShelfTier(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // THE HEAD-ON 3D SHELF
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp) 
+                .height(200.dp)
                 .clickable { onToggle() }
         ) {
-            // 1. BACK WALL
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = 20.dp)
-                    .background(shelfWallColor, RoundedCornerShape(2.dp))
+                    .drawWithContent {
+                        drawContent()
+
+                        if (themeMode == AppThemeMode.SPACE) {
+                            val path = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        rect = Rect(Offset.Zero, size),
+                                        cornerRadius = CornerRadius(cornerRadius.toPx())
+                                    )
+                                )
+                            }
+                            pathMeasure.setPath(path, false)
+                            val distance = pathMeasure.length * starshipProgress.value
+                            val offset = pathMeasure.getPosition(distance)
+                            
+                            withTransform({
+                                translate(left = offset.x, top = offset.y)
+                            }) {
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color.White, Color(0xFF87CEEB).copy(alpha = 0.5f), Color.Transparent),
+                                        center = Offset.Zero,
+                                        radius = 8.dp.toPx()
+                                    ),
+                                    radius = 8.dp.toPx(),
+                                    center = Offset.Zero
+                                )
+                            }
+                        }
+                    }
+                    .background(Color.Transparent, RoundedCornerShape(cornerRadius))
+                    .border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
             )
             
-            // 2. THE FLOOR
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -218,17 +277,15 @@ fun ShelfTier(
                         transformOrigin = TransformOrigin(0.5f, 1f)
                     }
                     .background(
-                        brush = Brush.verticalGradient(listOf(shelfColor, Color.Black.copy(0.4f))),
-                        shape = RoundedCornerShape(2.dp)
+                        brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)),
+                        shape = RoundedCornerShape(cornerRadius)
                     )
-                    .shadow(16.dp)
             )
-
-            // 3. THE BOOKS / CAROUSEL
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 24.dp), 
+                    .padding(bottom = 24.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 if (books.isNotEmpty()) {
@@ -243,8 +300,8 @@ fun ShelfTier(
 
         AnimatedVisibility(
             visible = isExpanded,
-            enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-            exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+            enter = expandVertically(animationSpec = tween(1200, easing = PremiumEasing)) + fadeIn(animationSpec = tween(1200)),
+            exit = shrinkVertically(animationSpec = tween(1200, easing = PremiumEasing)) + fadeOut(animationSpec = tween(1200))
         ) {
             Column(modifier = Modifier.padding(top = 24.dp)) {
                 books.forEach { book ->
@@ -327,33 +384,29 @@ fun TransitioningShelfBooks(
         displayBooks.forEachIndexed { index, book ->
             val relativeIndex = index - (total - 1) / 2f
             
-            // 1. FAN CALCULATIONS (OPEN STATE)
             val openRotationZ = relativeIndex * 12f
             val openXOffset = relativeIndex * 40.dp.value
-            val openYOffset = -20.dp.value // RAISED UP (Requirement 2)
+            val openYOffset = -20.dp.value
             val openRotationY = -20f
             val openRotationX = 0f
 
-            // 2. UPRIGHT CALCULATIONS (CLOSED STATE - Requirement 1)
             val leanAngle = when(index % 3) {
                 0 -> -4f
                 1 -> 3f
                 else -> 0f
             }
             val closedRotationZ = leanAngle
-            val closedXOffset = relativeIndex * 50.dp.value // Original spacing
-            val closedYOffset = 0.dp.value // Higher than before
+            val closedXOffset = relativeIndex * 50.dp.value
+            val closedYOffset = 0.dp.value
             val closedRotationY = -20f
             val closedRotationX = 0f
 
-            // 3. INTERPOLATED VALUES
             val currentRotationZ = lerp(closedRotationZ, openRotationZ, expansionProgress)
             val currentXOffset = lerp(closedXOffset, openXOffset, expansionProgress)
             val currentYOffset = lerp(closedYOffset, openYOffset, expansionProgress)
             val currentRotationY = lerp(closedRotationY, openRotationY, expansionProgress)
             val currentRotationX = lerp(closedRotationX, openRotationX, expansionProgress)
             
-            // Staggered Floating (Only when expanded)
             val staggeredFloat = if (expansionProgress > 0.8f) {
                 (floatAnim * (index % 3 + 1) * 4f * (expansionProgress - 0.8f) * 5f).dp
             } else 0.dp
@@ -393,7 +446,6 @@ fun TransitioningShelfBooks(
                         )
                 )
                 
-                // Dynamic Edge Lighting based on state
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -429,7 +481,6 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit) {
             .clickable { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
-        // Spotlight
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -497,7 +548,7 @@ fun Realistic3DBook(
     currentRotationY: Float,
     modifier: Modifier = Modifier
 ) {
-    val thickness = 40.dp // INCREASED THICKNESS
+    val thickness = 40.dp
     
     Box(
         modifier = modifier
@@ -509,7 +560,6 @@ fun Realistic3DBook(
             },
         contentAlignment = Alignment.Center
     ) {
-        // 1. THE PAGES DEPTH (Right Side)
         Box(
             modifier = Modifier
                 .fillMaxHeight(0.99f)
@@ -538,7 +588,6 @@ fun Realistic3DBook(
             }
         }
 
-        // 2. THE SPINE (Left Side)
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -555,7 +604,6 @@ fun Realistic3DBook(
                 )
         )
 
-        // 3. TOP PAGES
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.99f)
@@ -568,7 +616,6 @@ fun Realistic3DBook(
                 .background(Color(0xFFF9F9F9))
         )
 
-        // 4. BOTTOM PAGES
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.99f)
@@ -581,7 +628,6 @@ fun Realistic3DBook(
                 .background(Color(0xFFE0E0E0))
         )
 
-        // 5. FRONT COVER
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -661,7 +707,7 @@ fun UprightBookRow(books: List<Book>) {
                         .align(Alignment.CenterStart)
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color.Black.copy(0.45f), Color.Transparent)
+                                listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)
                             )
                         )
                 )

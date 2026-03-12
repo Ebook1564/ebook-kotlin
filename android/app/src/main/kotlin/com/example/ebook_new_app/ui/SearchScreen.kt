@@ -186,7 +186,7 @@ fun CelestialNavigation(
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(60.dp),
         contentPadding = PaddingValues(horizontal = 24.dp)
     ) {
         items(planetSystems) { system ->
@@ -221,11 +221,12 @@ fun rememberPlanetSystems(categories: List<String>): List<PlanetSystem> {
             PlanetSystem(
                 planet = planetData,
                 orbitingPlanets = List(3) {
+                    val orbitingColor = planetData.mainColor.copy(alpha = 1f)
                     OrbitingPlanet(
                         data = PlanetData(
                             name = "",
-                            mainColor = Color.Transparent,
-                            accentColors = listOf(planetData.accentColors.random(), planetData.accentColors.random()),
+                            mainColor = orbitingColor,
+                            accentColors = listOf(orbitingColor, Color.White),
                             radius = Random.nextDouble(3.0, 8.0).dp
                         ),
                         orbitRadius = Random.nextDouble(planetData.radius.value + 10.0, planetData.radius.value + 20.0).dp,
@@ -245,15 +246,15 @@ data class PlanetSystem(
 
 fun planetForCategory(category: String): PlanetData {
     return when (category) {
-        "Fiction" -> PlanetData("Fiction", Color(0xFFC70039), listOf(Color(0xFFC70039), Color(0xFF900C3F)), 30.dp)
-        "History" -> PlanetData("History", Color(0xFF00A8CC), listOf(Color(0xFF00A8CC), Color(0xFF007A99)), 28.dp)
-        "Science" -> PlanetData("Science", Color(0xFF9B59B6), listOf(Color(0xFF9B59B6), Color(0xFF8E44AD)), 32.dp)
-        "Romance" -> PlanetData("Romance", Color(0xFFE91E63), listOf(Color(0xFFE91E63), Color(0xFFC2185B)), 29.dp)
-        "Fantasy" -> PlanetData("Fantasy", Color(0xFF2ECC71), listOf(Color(0xFF2ECC71), Color(0xFF27AE60)), 35.dp)
-        "Mystery" -> PlanetData("Mystery", Color(0xFF34495E), listOf(Color(0xFF34495E), Color(0xFF2C3E50)), 31.dp)
-        "Biography" -> PlanetData("Biography", Color(0xFFF1C40F), listOf(Color(0xFFF1C40F), Color(0xFFF39C12)), 28.dp)
-        "Adventure" -> PlanetData("Adventure", Color(0xFFE67E22), listOf(Color(0xFFE67E22), Color(0xFFD35400)), 34.dp)
-        else -> PlanetData("Default", Color(0xFF7F8C8D), listOf(Color(0xFF7F8C8D), Color(0xFF95A5A6)), 25.dp)
+        "Fiction" -> PlanetData("Fiction", Color(0xFFC70039), listOf(Color(0xFFC70039), Color(0xFF900C3F)), 20.dp)
+        "History" -> PlanetData("History", Color(0xFF00A8CC), listOf(Color(0xFF00A8CC), Color(0xFF007A99)), 18.dp)
+        "Science" -> PlanetData("Science", Color(0xFF9B59B6), listOf(Color(0xFF9B59B6), Color(0xFF8E44AD)), 22.dp)
+        "Romance" -> PlanetData("Romance", Color(0xFFE91E63), listOf(Color(0xFFE91E63), Color(0xFFC2185B)), 19.dp)
+        "Fantasy" -> PlanetData("Fantasy", Color(0xFF2ECC71), listOf(Color(0xFF2ECC71), Color(0xFF27AE60)), 25.dp)
+        "Mystery" -> PlanetData("Mystery", Color(0xFF34495E), listOf(Color(0xFF34495E), Color(0xFF2C3E50)), 21.dp)
+        "Biography" -> PlanetData("Biography", Color(0xFFF1C40F), listOf(Color(0xFFF1C40F), Color(0xFFF39C12)), 18.dp)
+        "Adventure" -> PlanetData("Adventure", Color(0xFFE67E22), listOf(Color(0xFFE67E22), Color(0xFFD35400)), 24.dp)
+        else -> PlanetData("Default", Color(0xFF7F8C8D), listOf(Color(0xFF7F8C8D), Color(0xFF95A5A6)), 15.dp)
     }
 }
 

@@ -105,7 +105,7 @@ fun BookVerseTheme(
 ) {
     val context = LocalContext.current
     val spaceFont = remember {
-        FontFamily(Font(assetManager = context.assets, path = "fonts/Michroma-Regular.ttf"))
+        FontFamily(Font(assetManager = context.assets, path = "fonts/SpaceGrotesk-VariableFont_wght.ttf"))
     }
 
     val colors = when (themeMode) {

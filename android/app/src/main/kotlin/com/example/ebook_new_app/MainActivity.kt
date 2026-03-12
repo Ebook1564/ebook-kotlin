@@ -251,9 +251,11 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, pager
         }
         
         if (themeMode == AppThemeMode.SPACE) {
+            Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
             SpaceEasyTouchNav(pagerState.currentPage) { index ->
                 if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
             }
+        }
         } else {
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
@@ -337,13 +339,17 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     
-    val buttonSizePx = with(density) { 32.dp.toPx() } // Reduced button size
+    val bottomNavInset = WindowInsets.navigationBars.getBottom(density)
+
+    val buttonSizePx = with(density) { 32.dp.toPx() }
     val barWidthPx = with(density) { 320.dp.toPx() }
     val barHeightPx = with(density) { 72.dp.toPx() }
     val safeMarginPx = with(density) { 8.dp.toPx() }
 
+    val offsetYMax = screenHeightPx - bottomNavInset
+
     val offsetX = remember { Animatable(screenWidthPx / 2f) }
-    val offsetY = remember { Animatable(screenHeightPx - buttonSizePx * 2.5f) }
+    val offsetY = remember { Animatable(offsetYMax - buttonSizePx * 1.5f) }
 
     val driftAnimatableX = remember { Animatable(0f) }
     val driftAnimatableY = remember { Animatable(0f) }
@@ -364,7 +370,6 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
     // Auto-shift to be visible when expanded
     LaunchedEffect(expanded) {
         if (expanded) {
-            // Stop any ongoing drift animation immediately
             driftAnimatableX.stop()
             driftAnimatableY.stop()
 
@@ -374,7 +379,7 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
             )
             val targetY = offsetY.value.coerceIn(
                 barHeightPx / 2f + safeMarginPx,
-                screenHeightPx - barHeightPx / 2f - safeMarginPx
+                offsetYMax - barHeightPx / 2f - safeMarginPx
             )
 
             scope.launch {
@@ -414,7 +419,7 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                                 }
                                 scope.launch {
                                     offsetY.animateTo(
-                                        targetValue = offsetY.value.coerceIn(buttonSizePx / 2f, screenHeightPx - buttonSizePx / 2f),
+                                        targetValue = offsetY.value.coerceIn(buttonSizePx / 2f, offsetYMax - buttonSizePx / 2f),
                                         animationSpec = tween(durationMillis = 200) // Short animation
                                     )
                                 }
@@ -422,11 +427,10 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                         ) { change, dragAmount ->
                             change.consume()
                             scope.launch {
-                                // Stop drift when manually dragging
                                 driftAnimatableX.stop()
                                 driftAnimatableY.stop()
                                 val newX = (offsetX.value + dragAmount.x).coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f)
-                                val newY = (offsetY.value + dragAmount.y).coerceIn(buttonSizePx / 2f, screenHeightPx - buttonSizePx / 2f)
+                                val newY = (offsetY.value + dragAmount.y).coerceIn(buttonSizePx / 2f, offsetYMax - buttonSizePx / 2f)
                                 offsetX.snapTo(newX)
                                 offsetY.snapTo(newY)
                             }
@@ -445,16 +449,16 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
         ) { isExpanded ->
             if (isExpanded) {
                 Surface(
-                    modifier = Modifier.widthIn(min = 300.dp).height(72.dp), // Reverted to original dimensions, with reduced height
+                    modifier = Modifier.widthIn(min = 300.dp).height(72.dp),
                     shape = RoundedCornerShape(40.dp),
                     color = Color.Black.copy(alpha = 0.9f),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
                     tonalElevation = 12.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp), // Reduced horizontal padding
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceEvenly // Changed to SpaceEvenly to fit
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         EasyTouchNavItem(
                             icon = Icons.Outlined.Public,
@@ -477,20 +481,20 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                         
                         Box(
                             modifier = Modifier
-                                .size(32.dp) // Reduced size
+                                .size(32.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.1f))
                                 .clickable { expanded = false }, 
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) // Reduced icon size
+                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             } else {
                 Surface(
                     modifier = Modifier
-                        .size(buttonSizePx.dp) // Use calculated button size here
+                        .size(buttonSizePx.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -504,7 +508,7 @@ fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                     Box(contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp) // Reduced inner circle size
+                                .size(32.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.2f))
                                 .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)

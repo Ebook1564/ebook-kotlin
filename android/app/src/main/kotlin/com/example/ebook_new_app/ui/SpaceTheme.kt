@@ -81,29 +81,20 @@ fun CelestialBody(
                     orbitRadiusPx * cos(Math.toRadians(angle.toDouble())).toFloat(),
                     orbitRadiusPx * sin(Math.toRadians(angle.toDouble())).toFloat()
                 )
-                
-                rotate(degrees = angle, pivot = center) {
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.1f),
-                        radius = orbitRadiusPx,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                    )
-                }
+
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.1f),
+                    radius = orbitRadiusPx,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                )
 
                 this.center.let {
                     val planetCenter = it + centerOffset
-                    with(drawContext.canvas.nativeCanvas) {
-                        val checkPoint = saveLayer(null, null)
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = orbitingPlanet.data.accentColors,
-                                center = planetCenter
-                            ),
-                            radius = orbitingPlanet.data.radius.toPx(),
-                            center = planetCenter
-                        )
-                        restoreToCount(checkPoint)
-                    }
+                    drawCircle(
+                        color = orbitingPlanet.data.mainColor,
+                        radius = orbitingPlanet.data.radius.toPx(),
+                        center = planetCenter
+                    )
                 }
             }
         }
