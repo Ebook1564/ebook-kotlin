@@ -1,28 +1,38 @@
 package com.example.ebook_new_app.models
 
+import android.os.Parcelable
 import com.google.firebase.firestore.DocumentSnapshot
+import kotlinx.parcelize.Parcelize
 
+enum class ReadingStatus {
+    NONE,
+    WISHLIST,
+    CURRENTLY_READING,
+    COMPLETED
+}
+
+@Parcelize
 data class Book(
     val id: String = "",
     val title: String = "No Title",
     val author: String = "Unknown Author",
-    val coverImageUrl: String = "",
     val description: String = "",
+    val coverImageUrl: String = "",
+    val externalCoverUrl: String? = null, // Cached High-Res URL from API
     val categories: List<String> = emptyList(),
+    val subjects: List<String> = emptyList(),
     val fileUrl: String? = null,
     val originalFileName: String? = null,
     val sourceFolder: String? = null,
     val epubFileName: String? = null,
     val readingStatus: ReadingStatus = ReadingStatus.NONE,
+    val dateAdded: Long? = null,
     val dateStarted: Long? = null,
     val lastOpened: Long? = null,
     val dateFinished: Long? = null
-) {
+) : Parcelable {
     companion object {
         fun fromDoc(doc: DocumentSnapshot): Book {
-            val data = doc.data ?: emptyMap<String, Any>()
-            
-            // 1. Author Parsing
             val authorData = doc.get("author")
             val authorName = when (authorData) {
                 is List<*> -> {
@@ -37,39 +47,21 @@ data class Book(
                 else -> "Unknown Author"
             }
 
-            // 2. Categories Parsing
             val cats = when (val catData = doc.get("categories") ?: doc.get("tags") ?: doc.get("genre")) {
                 is List<*> -> catData.filterIsInstance<String>()
                 is String -> listOf(catData)
                 else -> emptyList<String>()
             }
 
-            // 3. Metadata with Case-Insensitive Fallbacks
-            val url = doc.getString("fileUrl") 
-                ?: doc.getString("file_url") 
-                ?: doc.getString("url") 
-                ?: doc.getString("fileURL")
-
-            val asset = doc.getString("originalFileName") 
-                ?: doc.getString("original_file_name") 
-                ?: doc.getString("fileName") 
-                ?: doc.getString("filename")
-
-            // 4. Image with Fallbacks
-            val image = doc.getString("coverImageUrl") 
-                ?: doc.getString("image") 
-                ?: doc.getString("cover_image") 
-                ?: ""
-
             return Book(
                 id = doc.id,
-                title = doc.getString("title") ?: doc.getString("name") ?: "No Title",
+                title = doc.getString("title") ?: "No Title",
                 author = authorName,
-                coverImageUrl = image,
+                coverImageUrl = doc.getString("coverImageUrl") ?: "",
                 description = doc.getString("description") ?: "",
                 categories = cats,
-                fileUrl = url,
-                originalFileName = asset
+                fileUrl = doc.getString("fileUrl"),
+                originalFileName = doc.getString("originalFileName")
             )
         }
     }

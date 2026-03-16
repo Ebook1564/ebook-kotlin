@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.gms.google-services")
     id("com.google.devtools.ksp") version "2.0.21-1.0.25"
+    id("kotlin-parcelize")
 }
 
 android {
@@ -86,6 +87,9 @@ dependencies {
     val pagingVersion = "3.3.2"
     implementation("androidx.paging:paging-runtime-ktx:$pagingVersion")
     implementation("androidx.paging:paging-compose:$pagingVersion")
+
+    // JSON Parsing
+    implementation("com.google.code.gson:gson:2.11.0")
 
     // Local Storage (Room - replacement for Hive)
     val roomVersion = "2.6.1"

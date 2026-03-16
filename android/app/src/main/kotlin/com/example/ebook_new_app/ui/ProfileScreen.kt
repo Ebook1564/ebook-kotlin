@@ -15,7 +15,16 @@ import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onBackClick: () -> Unit = {}) {
+fun ProfileScreen(userName: String, onBackClick: () -> Unit = {}) {
+    val initials = if (userName.isNotEmpty()) {
+        val parts = userName.split(" ")
+        if (parts.size >= 2) {
+            "${parts[0].firstOrNull() ?: ""}${parts.last().firstOrNull() ?: ""}".uppercase()
+        } else {
+            userName.take(2).uppercase()
+        }
+    } else "GU"
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,11 +56,11 @@ fun ProfileScreen(onBackClick: () -> Unit = {}) {
                 color = Color(0xFF1A1A1A)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("JD", color = Color.White, style = MaterialTheme.typography.displayMedium)
+                    Text(initials, color = Color.White, style = MaterialTheme.typography.displayMedium)
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
-            Text("John Doe", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(userName, style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
             Text("Premium Member", color = Color(0xFFE50914), fontWeight = FontWeight.Bold)
             
             Spacer(modifier = Modifier.height(40.dp))

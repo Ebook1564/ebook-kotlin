@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.ebook_new_app.reader.ReaderActivity
 import com.example.ebook_new_app.repository.ReaderSettingsRepository
 import com.example.ebook_new_app.ui.*
@@ -57,6 +58,7 @@ import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
 import com.example.ebook_new_app.models.ReadingStatus
+import com.example.ebook_new_app.viewmodel.InitialBounds
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,6 +92,7 @@ class MainActivity : ComponentActivity() {
             val previousTheme by appViewModel.previousThemeMode
             val transitionTrigger by appViewModel.themeTransitionTrigger
             val isTransitioning by appViewModel.isTransitioning
+            val userProfile by appViewModel.userProfile.collectAsState()
             
             var showProfile by remember { mutableStateOf(false) }
             
@@ -99,80 +102,92 @@ class MainActivity : ComponentActivity() {
                 WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = (themeMode == AppThemeMode.DAY)
             }
 
-            val pagerState = rememberPagerState(pageCount = { 3 })
-            val homeScrollState = rememberLazyListState()
-            val homeUiState by homeViewModel.uiState.collectAsState()
-
-            LaunchedEffect(homeUiState.selectedCategoryForSearch) {
-                homeUiState.selectedCategoryForSearch?.let {
-                    pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing))
-                }
-            }
-
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (previousTheme != null) {
-                    val dummyScrollState = rememberLazyListState(
-                        initialFirstVisibleItemIndex = homeScrollState.firstVisibleItemIndex,
-                        initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
-                    )
-                    BookVerseTheme(previousTheme!!) {
-                        StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, onProfileClick = { showProfile = true })
-                    }
-                }
-
-                val config = LocalConfiguration.current
-                val density = LocalDensity.current
-                val maxRadius = hypot(with(density) { config.screenWidthDp.dp.toPx() }, with(density) { config.screenHeightDp.dp.toPx() })
-                val radius = remember(transitionTrigger) { Animatable(if (previousTheme != null) 0f else maxRadius * 1.5f) }
-                
-                LaunchedEffect(transitionTrigger) {
-                    if (previousTheme != null) {
-                        radius.animateTo(
-                            targetValue = maxRadius * 1.5f, 
-                            animationSpec = tween(PremiumDuration, easing = PremiumEasing)
-                        )
-                        appViewModel.endTransition()
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            clip = true
-                            shape = CircularRevealShape(radius.value, Offset(size.width - 40.dp.toPx(), 60.dp.toPx()))
+            if (!userProfile.isOnboarded) {
+                BookVerseTheme(AppThemeMode.NIGHT) {
+                    OnboardingScreen(
+                        onFinish = { name, theme ->
+                            appViewModel.setTheme(theme)
+                            appViewModel.completeOnboarding(name)
                         }
-                ) {
-                    BookVerseTheme(themeMode) {
-                        BookVerseApp(
-                            homeViewModel, 
-                            appViewModel, 
-                            libraryViewModel,
-                            pagerState, 
-                            homeScrollState, 
-                            isInteractive = !isTransitioning,
-                            onProfileClick = { showProfile = true }
-                        )
+                    )
+                }
+            } else {
+                val pagerState = rememberPagerState(pageCount = { 3 })
+                val homeScrollState = rememberLazyListState()
+                val homeUiState by homeViewModel.uiState.collectAsState()
+
+                LaunchedEffect(homeUiState.selectedCategoryForSearch) {
+                    homeUiState.selectedCategoryForSearch?.let {
+                        pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing))
                     }
                 }
 
-                if (isTransitioning) {
-                    Box(modifier = Modifier.fillMaxSize().clickable(enabled = true, onClick = {}, interactionSource = remember { MutableInteractionSource() }, indication = null))
-                }
-                
-                AnimatedVisibility(
-                    visible = showProfile,
-                    enter = slideInHorizontally(
-                        initialOffsetX = { it }, 
-                        animationSpec = tween(700, easing = PremiumEasing)
-                    ) + fadeIn(),
-                    exit = slideOutHorizontally(
-                        targetOffsetX = { it }, 
-                        animationSpec = tween(700, easing = PremiumEasing)
-                    ) + fadeOut()
-                ) {
-                    BackHandler { showProfile = false }
-                    ProfileScreen(onBackClick = { showProfile = false })
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (previousTheme != null) {
+                        val dummyScrollState = rememberLazyListState(
+                            initialFirstVisibleItemIndex = homeScrollState.firstVisibleItemIndex,
+                            initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
+                        )
+                        BookVerseTheme(previousTheme!!) {
+                            StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, userProfile.name, onProfileClick = { showProfile = true })
+                        }
+                    }
+
+                    val config = LocalConfiguration.current
+                    val density = LocalDensity.current
+                    val maxRadius = hypot(with(density) { config.screenWidthDp.dp.toPx() }, with(density) { config.screenHeightDp.dp.toPx() })
+                    val radius = remember(transitionTrigger) { Animatable(if (previousTheme != null) 0f else maxRadius * 1.5f) }
+                    
+                    LaunchedEffect(transitionTrigger) {
+                        if (previousTheme != null) {
+                            radius.animateTo(
+                                targetValue = maxRadius * 1.5f, 
+                                animationSpec = tween(PremiumDuration, easing = PremiumEasing)
+                            )
+                            appViewModel.endTransition()
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                clip = true
+                                shape = CircularRevealShape(radius.value, Offset(size.width - 40.dp.toPx(), 60.dp.toPx()))
+                            }
+                    ) {
+                        BookVerseTheme(themeMode) {
+                            BookVerseApp(
+                                homeViewModel, 
+                                appViewModel, 
+                                libraryViewModel,
+                                pagerState, 
+                                homeScrollState, 
+                                userProfile.name,
+                                isInteractive = !isTransitioning,
+                                onProfileClick = { showProfile = true }
+                            )
+                        }
+                    }
+
+                    if (isTransitioning) {
+                        Box(modifier = Modifier.fillMaxSize().clickable(enabled = true, onClick = {}, interactionSource = remember { MutableInteractionSource() }, indication = null))
+                    }
+                    
+                    AnimatedVisibility(
+                        visible = showProfile,
+                        enter = slideInHorizontally(
+                            initialOffsetX = { it }, 
+                            animationSpec = tween(700, easing = PremiumEasing)
+                        ) + fadeIn(),
+                        exit = slideOutHorizontally(
+                            targetOffsetX = { it }, 
+                            animationSpec = tween(700, easing = PremiumEasing)
+                        ) + fadeOut()
+                    ) {
+                        BackHandler { showProfile = false }
+                        ProfileScreen(userName = userProfile.name, onBackClick = { showProfile = false })
+                    }
                 }
             }
         }
@@ -185,7 +200,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, onProfileClick: () -> Unit) {
+fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
     val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -194,11 +209,12 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     viewModel = homeViewModel, 
                     appViewModel = appViewModel, 
                     scrollState = homeScrollState, 
+                    userName = userName,
                     onBookClick = { homeViewModel.startReadTransition(it) },
                     onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
-                2 -> LibraryScreen(viewModel = libraryViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
+                2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
                 ElegantNavBar(currentPage, themeMode) { }
@@ -209,7 +225,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, isInteractive: Boolean, onProfileClick: () -> Unit) {
+fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, userName: String, isInteractive: Boolean, onProfileClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
@@ -231,7 +247,18 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
         homeViewModel.startReadTransition(book, bounds)
     }
 
-    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null
+    fun onBookClick(book: com.example.ebook_new_app.models.Book) {
+        selectedBookForSheet = book
+        showSheet = true
+        // TRIGGER BACKGROUND FETCH
+        homeViewModel.fetchMetadataForBook(book) { updatedBook ->
+            if (selectedBookForSheet?.id == updatedBook.id) {
+                selectedBookForSheet = updatedBook
+            }
+        }
+    }
+
+    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null || homeUiState.currentCollection != null
 
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -246,25 +273,21 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                         viewModel = homeViewModel, 
                         appViewModel = appViewModel, 
                         scrollState = homeScrollState,
-                        onBookClick = { book ->
-                            selectedBookForSheet = book
-                            showSheet = true
-                        },
+                        userName = userName,
+                        onBookClick = { onBookClick(it) },
                         onReadNowClick = { book ->
                             homeViewModel.startReadTransition(book)
                         }
                     )
                     1 -> SearchScreen(
                         viewModel = homeViewModel, 
-                        onBookClick = { book ->
-                            selectedBookForSheet = book
-                            showSheet = true
-                        }
+                        onBookClick = { onBookClick(it) }
                     )
                     2 -> LibraryScreen(
                         viewModel = libraryViewModel, 
+                        homeViewModel = homeViewModel,
                         onProfileClick = onProfileClick, 
-                        onBookClick = { homeViewModel.startReadTransition(it) },
+                        onBookClick = { onBookClick(it) },
                         onInspectStateChange = { isInspectingByShelf = it }
                     )
                 }
@@ -300,11 +323,11 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
             ) {
                 BookDetailContent(
                     book = selectedBookForSheet!!,
-                    isLoading = false,
+                    isLoading = homeUiState.isMetadataLoading,
                     onReadClick = { bounds -> onReadClick(selectedBookForSheet!!, bounds) },
-                    onCategoryClick = { category ->
+                    onCategoryClick = { tag ->
                         showSheet = false
-                        homeViewModel.navigateToCategory(category)
+                        homeViewModel.openCollection(tag)
                     },
                     onAddToReadingList = { status ->
                         libraryViewModel.updateReadingStatus(selectedBookForSheet!!, status)
@@ -314,13 +337,38 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
             }
         }
 
+        // CURATED COLLECTION PAGE OVERLAY
+        AnimatedVisibility(
+            visible = homeUiState.currentCollection != null,
+            enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+        ) {
+            homeUiState.currentCollection?.let { collection ->
+                val books = homeViewModel.curatedCollectionBooks.collectAsLazyPagingItems()
+                BackHandler { homeViewModel.closeCollection() }
+                CollectionPage(
+                    collection = collection,
+                    books = books,
+                    onBack = { homeViewModel.closeCollection() },
+                    onBookClick = { onBookClick(it) }
+                )
+            }
+        }
+
         if (homeUiState.transitionBook != null) {
             BookTransitionOverlay(
-                book = homeUiState.transitionBook, 
+                book = homeUiState.transitionBook!!, 
                 initialBounds = homeUiState.initialBounds, 
                 themeColor = themeColor, 
                 textColor = textColor, 
                 onAnimationFinished = { file ->
+                    // Update First Opened Date
+                    (context.applicationContext as EbookApp).database.bookDao().let { dao ->
+                        scope.launch {
+                            dao.updateFirstOpened(homeUiState.transitionBook!!.id, System.currentTimeMillis())
+                        }
+                    }
+
                     val intent = Intent(context, ReaderActivity::class.java).apply {
                         putExtra("FILE_PATH", file.absolutePath)
                         putExtra("BOOK_TITLE", homeUiState.transitionBook!!.title)

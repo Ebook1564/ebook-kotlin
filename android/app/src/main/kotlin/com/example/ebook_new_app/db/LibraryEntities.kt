@@ -5,7 +5,34 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.TypeConverter
 import com.example.ebook_new_app.models.ReadingStatus
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+class Converters {
+    @TypeConverter
+    fun fromString(value: String?): List<String> {
+        if (value == null || value == "undefined") return emptyList()
+        val listType = object : TypeToken<List<String>>() {}.type
+        return try {
+            Gson().fromJson(value, listType) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    @TypeConverter
+    fun fromList(list: List<String>?): String {
+        return Gson().toJson(list ?: emptyList<String>())
+    }
+
+    @TypeConverter
+    fun toReadingStatus(value: String) = enumValueOf<ReadingStatus>(value)
+
+    @TypeConverter
+    fun fromReadingStatus(status: ReadingStatus) = status.name
+}
 
 @Entity(tableName = "categories")
 data class CategoryEntity(
@@ -42,40 +69,37 @@ data class BookEntity(
     @ColumnInfo(name = "epub_file_name") val epubFileName: String?,
     @ColumnInfo(name = "is_downloaded", defaultValue = "0") val isDownloaded: Boolean = false,
     @ColumnInfo(name = "reading_status", defaultValue = "NONE") val readingStatus: ReadingStatus = ReadingStatus.NONE,
+    @ColumnInfo(name = "date_added") val dateAdded: Long? = null,
     @ColumnInfo(name = "date_started") val dateStarted: Long? = null,
     @ColumnInfo(name = "last_opened") val lastOpened: Long? = null,
-    @ColumnInfo(name = "date_finished") val dateFinished: Long? = null
+    @ColumnInfo(name = "date_finished") val dateFinished: Long? = null,
+    @ColumnInfo(name = "subjects", defaultValue = "[]") val subjects: List<String> = emptyList(),
+    @ColumnInfo(name = "external_cover_url") val externalCoverUrl: String? = null
 )
 
 fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
-    val serverIp = "192.168.1.23"
+    val serverIp = "192.168.1.23" 
     
-    // Pattern 1: ID_ID-cover.png (Most common)
+    // RESTORED ROBUST LOCAL URL LOGIC
     val primaryCoverUrl = "http://$serverIp:8080/${id}_${id}-cover.png"
-    
-    // Pattern 2: Title_cover.ID (Found in law folder)
     val titleEncoded = android.net.Uri.encode(title)
     val secondaryCoverUrl = "http://$serverIp:8080/${titleEncoded}_cover.${id}"
-
-    // Pattern 3: Explicit name if it exists in DB (legacy support)
-    val dbCoverUrl = if (!coverImageName.isNullOrEmpty()) {
-        "http://$serverIp:8080/${android.net.Uri.encode(coverImageName)}"
-    } else ""
-
-    // We'll pass the most likely one, but HomeScreen/BookPoster should handle failure
-    val finalUrl = if (sourceFolder == "law") secondaryCoverUrl else primaryCoverUrl
+    val localUrl = if (sourceFolder == "law") secondaryCoverUrl else primaryCoverUrl
 
     return com.example.ebook_new_app.models.Book(
         id = id,
         title = title,
         author = author,
         description = description ?: "",
-        coverImageUrl = finalUrl, 
+        coverImageUrl = localUrl, 
+        externalCoverUrl = externalCoverUrl,
         sourceFolder = sourceFolder,
         epubFileName = epubFileName,
         readingStatus = readingStatus,
+        dateAdded = dateAdded,
         dateStarted = dateStarted,
         lastOpened = lastOpened,
-        dateFinished = dateFinished
+        dateFinished = dateFinished,
+        subjects = subjects
     )
 }

@@ -1,5 +1,6 @@
 package com.example.ebook_new_app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -27,12 +28,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,14 +53,17 @@ import coil.compose.AsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.models.ReadingStatus
+import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.absoluteValue
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
+    homeViewModel: HomeViewModel = viewModel(),
     onProfileClick: () -> Unit,
     onBookClick: (Book) -> Unit,
     onInspectStateChange: (Boolean) -> Unit = {}
@@ -65,6 +74,13 @@ fun LibraryScreen(
 
     LaunchedEffect(inspectedBook) {
         onInspectStateChange(inspectedBook != null)
+    }
+
+    // BACK NAVIGATION HANDLERS
+    if (inspectedBook != null) {
+        BackHandler { inspectedBook = null }
+    } else if (uiState.selectedAuthor != null || uiState.selectedTag != "All") {
+        BackHandler { viewModel.selectTag("All") }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -86,7 +102,8 @@ fun LibraryScreen(
                     "My Collection",
                     style = BookVerseTheme.typography.headline,
                     color = BookVerseTheme.colors.textPrimary,
-                    fontSize = 28.sp
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black
                 )
                 IconButton(
                     onClick = onProfileClick,
@@ -98,7 +115,7 @@ fun LibraryScreen(
                 }
             }
 
-            // GENRE PILLS
+            // DYNAMIC PILLS
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,10 +123,28 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(uiState.genres) { genre ->
-                    val isSelected = uiState.selectedGenre == genre
+                // Authors special tag
+                item {
+                    val isSelected = uiState.selectedAuthor != null
                     Surface(
-                        onClick = { viewModel.selectGenre(genre) },
+                        onClick = { /* Could open author selection */ },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.surface,
+                        border = if (!isSelected) BorderStroke(1.dp, BookVerseTheme.colors.textSecondary.copy(alpha = 0.2f)) else null,
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.People, null, modifier = Modifier.size(14.dp), tint = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Authors", color = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                items(uiState.dynamicTags) { tag ->
+                    val isSelected = uiState.selectedTag == tag && uiState.selectedAuthor == null
+                    Surface(
+                        onClick = { homeViewModel.openCollection(tag) },
                         shape = RoundedCornerShape(20.dp),
                         color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.surface,
                         border = if (!isSelected) BorderStroke(1.dp, BookVerseTheme.colors.textSecondary.copy(alpha = 0.2f)) else null,
@@ -117,7 +152,7 @@ fun LibraryScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
                             Text(
-                                text = genre,
+                                text = tag,
                                 color = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary,
                                 style = BookVerseTheme.typography.label,
                                 fontSize = 13.sp,
@@ -133,42 +168,79 @@ fun LibraryScreen(
                     CircularProgressIndicator(color = BookVerseTheme.colors.primary)
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 140.dp)
-                ) {
-                    ShelfTier(
-                        title = "Currently Reading",
-                        books = uiState.currentlyReading,
-                        isExpanded = expandedTier == "current",
-                        onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
-                        onInspectBook = { inspectedBook = it },
-                        onSeeAll = { viewModel.setSeeAll(ReadingStatus.CURRENTLY_READING) }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(40.dp))
-                    
-                    ShelfTier(
-                        title = "Finished",
-                        books = uiState.completed,
-                        isExpanded = expandedTier == "finished",
-                        onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
-                        onInspectBook = { inspectedBook = it },
-                        onSeeAll = { viewModel.setSeeAll(ReadingStatus.COMPLETED) }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(40.dp))
-                    
-                    ShelfTier(
-                        title = "Want to Read",
-                        books = uiState.wishlist,
-                        isExpanded = expandedTier == "wishlist",
-                        onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
-                        onInspectBook = { inspectedBook = it },
-                        onSeeAll = { viewModel.setSeeAll(ReadingStatus.WISHLIST) }
-                    )
+                val isFiltered = uiState.selectedAuthor != null || uiState.selectedTag != "All"
+                
+                if (!isFiltered) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 140.dp)
+                    ) {
+                        ShelfTier(
+                            title = "Currently Reading",
+                            books = uiState.currentlyReading,
+                            isExpanded = expandedTier == "current",
+                            onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
+                            onInspectBook = { inspectedBook = it },
+                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.CURRENTLY_READING) }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(40.dp))
+                        
+                        ShelfTier(
+                            title = "Finished",
+                            books = uiState.completed,
+                            isExpanded = expandedTier == "finished",
+                            onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
+                            onInspectBook = { inspectedBook = it },
+                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.COMPLETED) }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(40.dp))
+                        
+                        ShelfTier(
+                            title = "Want to Read",
+                            books = uiState.wishlist,
+                            isExpanded = expandedTier == "wishlist",
+                            onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
+                            onInspectBook = { inspectedBook = it },
+                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.WISHLIST) }
+                        )
+                    }
+                } else {
+                    // Filtered View (Grid)
+                    val filterTitle = uiState.selectedAuthor ?: uiState.selectedTag
+                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+                        Text(filterTitle.uppercase(), color = BookVerseTheme.colors.primary, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 14.sp)
+                        Spacer(Modifier.height(24.dp))
+                        
+                        val filteredBooks = (uiState.currentlyReading + uiState.wishlist + uiState.completed).filter {
+                            if (uiState.selectedAuthor != null) it.author == uiState.selectedAuthor
+                            else it.subjects.contains(uiState.selectedTag) || it.categories.contains(uiState.selectedTag)
+                        }.distinctBy { it.id }
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            verticalArrangement = Arrangement.spacedBy(24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(filteredBooks) { book ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { inspectedBook = book }) {
+                                    Surface(
+                                        modifier = Modifier.aspectRatio(0.7f),
+                                        shape = RoundedCornerShape(4.dp),
+                                        shadowElevation = 8.dp
+                                    ) {
+                                        AsyncImage(model = book.coverImageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BookVerseTheme.colors.textPrimary)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -191,7 +263,7 @@ fun LibraryScreen(
             }
         }
 
-        // Dedicated See All Page (NOW USING PAGING)
+        // Dedicated See All Page
         AnimatedVisibility(
             visible = uiState.seeAllStatus != null,
             enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(500, easing = PremiumEasing)) + fadeIn(),
@@ -246,7 +318,8 @@ fun SeeAllPage(
                 text = title,
                 style = BookVerseTheme.typography.headline,
                 color = colors.textPrimary,
-                fontSize = 24.sp
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
             )
         }
 
@@ -341,14 +414,13 @@ fun ShelfTier(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // THE HEAD-ON 3D SHELF
+        // THE HEAD-ON 3D SHELF (Restored exactly)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp) 
                 .clickable { onToggle() }
         ) {
-            // 1. BACK WALL
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -356,7 +428,6 @@ fun ShelfTier(
                     .background(shelfWallColor, RoundedCornerShape(2.dp))
             )
             
-            // 2. THE FLOOR
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -374,7 +445,6 @@ fun ShelfTier(
                     .shadow(16.dp)
             )
 
-            // 3. THE BOOKS / CAROUSEL
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -453,17 +523,19 @@ fun TransitioningShelfBooks(
 ) {
     val expansionProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = tween(1000, easing = PremiumEasing)
+        animationSpec = tween(1000, easing = PremiumEasing),
+        label = "expand"
     )
 
-    val infiniteTransition = rememberInfiniteTransition()
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = -1f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(3000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
-        )
+        ),
+        label = "float"
     )
 
     val displayCount = 7
@@ -477,14 +549,12 @@ fun TransitioningShelfBooks(
         displayBooks.forEachIndexed { index, book ->
             val relativeIndex = index - (total - 1) / 2f
             
-            // 1. FAN CALCULATIONS (OPEN STATE)
             val openRotationZ = relativeIndex * 12f
             val openXOffset = relativeIndex * 40.dp.value
             val openYOffset = -20.dp.value 
             val openRotationY = -20f
             val openRotationX = 0f
 
-            // 2. UPRIGHT CALCULATIONS (CLOSED STATE)
             val leanAngle = when(index % 3) {
                 0 -> -4f
                 1 -> 3f
@@ -496,14 +566,12 @@ fun TransitioningShelfBooks(
             val closedRotationY = -20f
             val closedRotationX = 0f
 
-            // 3. INTERPOLATED VALUES
             val currentRotationZ = lerp(closedRotationZ, openRotationZ, expansionProgress)
             val currentXOffset = lerp(closedXOffset, openXOffset, expansionProgress)
             val currentYOffset = lerp(closedYOffset, openYOffset, expansionProgress)
             val currentRotationY = lerp(closedRotationY, openRotationY, expansionProgress)
             val currentRotationX = lerp(closedRotationX, openRotationX, expansionProgress)
             
-            // Staggered Floating (Only when expanded)
             val staggeredFloat = if (expansionProgress > 0.8f) {
                 (floatAnim * (index % 3 + 1) * 4f * (expansionProgress - 0.8f) * 5f).dp
             } else 0.dp
@@ -543,7 +611,6 @@ fun TransitioningShelfBooks(
                         )
                 )
                 
-                // Dynamic Edge Lighting based on state
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -562,14 +629,15 @@ fun TransitioningShelfBooks(
 
 @Composable
 fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
-    val infiniteTransition = rememberInfiniteTransition()
+    val infiniteTransition = rememberInfiniteTransition(label = "inspect")
     val autoRotation by infiniteTransition.animateFloat(
         initialValue = -45f,
         targetValue = 45f,
         animationSpec = infiniteRepeatable(
             animation = tween(8000, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
-        )
+        ),
+        label = "rotate"
     )
     
     val breatheAnim by infiniteTransition.animateFloat(
@@ -578,7 +646,8 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
         animationSpec = infiniteRepeatable(
             animation = tween(3000, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
-        )
+        ),
+        label = "breathe"
     )
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
@@ -590,7 +659,6 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
             .clickable { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
-        // Spotlight
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -623,7 +691,8 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 40.dp),
-                fontSize = 24.sp
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
             )
             Text(
                 text = book.author.uppercase(),
@@ -637,19 +706,14 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
             
             Spacer(modifier = Modifier.height(32.dp))
 
-            // STATISTICS
+            // RESTORED STATISTICS (With ADDED)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                if (book.dateStarted != null) {
-                    StatItem(label = "STARTED", value = dateFormat.format(Date(book.dateStarted)))
-                }
-                if (book.dateFinished != null) {
-                    StatItem(label = "FINISHED", value = dateFormat.format(Date(book.dateFinished)))
-                } else if (book.lastOpened != null) {
-                    StatItem(label = "LAST OPENED", value = dateFormat.format(Date(book.lastOpened)))
-                }
+                if (book.dateAdded != null) StatItem("ADDED", dateFormat.format(Date(book.dateAdded)))
+                if (book.dateStarted != null) StatItem("STARTED", dateFormat.format(Date(book.dateStarted)))
+                if (book.dateFinished != null) StatItem("FINISHED", dateFormat.format(Date(book.dateFinished)))
             }
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -658,9 +722,9 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
                 onClick = onReadNow,
                 colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
                 shape = RoundedCornerShape(30.dp),
-                modifier = Modifier.height(54.dp).width(200.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)
+                modifier = Modifier.height(54.dp).width(240.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)
             ) {
-                Text("READ NOW", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 13.sp)
+                Text("CONTINUE READING", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 13.sp, color = Color.White)
             }
             
             Spacer(modifier = Modifier.height(40.dp))

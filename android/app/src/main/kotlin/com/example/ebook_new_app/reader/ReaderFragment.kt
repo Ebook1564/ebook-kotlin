@@ -205,9 +205,13 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         val initialLocator = publication.locatorFromLink(publication.readingOrder.first()) ?: return view
 
         setupNavigator(initialLocator, settings)
-        observeHighlights()
         
         return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        observeHighlights()
     }
 
     private fun setupTtsControls() {
@@ -479,11 +483,14 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         highlightsJob?.cancel()
         highlightsJob = viewLifecycleOwner.lifecycleScope.launch {
             viewModel.getHighlights(bookId).collectLatest { highlights ->
+                val nav = navigator
+                if (nav == null || !nav.isAdded) return@collectLatest
+
                 val decorations = highlights.map { highlight ->
                     val locator = try { Locator.fromJSON(org.json.JSONObject(highlight.locator)) } catch (e: Exception) { null } ?: return@map null
                     Decoration(id = highlight.id.toString(), locator = locator, style = Decoration.Style.Highlight(tint = highlight.color))
                 }.filterNotNull()
-                (navigator as? DecorableNavigator)?.applyDecorations(decorations, "highlights")
+                (nav as? DecorableNavigator)?.applyDecorations(decorations, "highlights")
             }
         }
     }

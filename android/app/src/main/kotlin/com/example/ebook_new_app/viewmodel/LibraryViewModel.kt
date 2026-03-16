@@ -24,8 +24,10 @@ data class LibraryUiState(
     val currentlyReading: List<Book> = emptyList(),
     val completed: List<Book> = emptyList(),
     val wishlist: List<Book> = emptyList(),
-    val genres: List<String> = listOf("All", "Legal Classics", "Historical Law", "Trials", "Popular"),
-    val selectedGenre: String = "All",
+    val dynamicTags: List<String> = listOf("All"),
+    val dynamicAuthors: List<String> = emptyList(),
+    val selectedTag: String = "All",
+    val selectedAuthor: String? = null,
     val isLoading: Boolean = false,
     val seeAllStatus: ReadingStatus? = null
 )
@@ -44,19 +46,26 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private fun observeBooks() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            bookDao.getAllBooks().collectLatest { entities ->
-                val allBooks = entities.map { it.toBook() }
+            
+            bookDao.getLibraryBooksFlow().collectLatest { entities ->
+                android.util.Log.d("LibraryVM", "Received ${entities.size} active books from DB")
+                val libraryBooks = entities.map { it.toBook() }
+                
+                val tags = libraryBooks.flatMap { it.subjects }.distinct().take(10)
+                val authors = libraryBooks.map { it.author }.distinct().sorted()
+
                 _uiState.value = _uiState.value.copy(
-                    currentlyReading = allBooks.filter { it.readingStatus == ReadingStatus.CURRENTLY_READING },
-                    completed = allBooks.filter { it.readingStatus == ReadingStatus.COMPLETED },
-                    wishlist = allBooks.filter { it.readingStatus == ReadingStatus.WISHLIST },
+                    currentlyReading = libraryBooks.filter { it.readingStatus == ReadingStatus.CURRENTLY_READING },
+                    completed = libraryBooks.filter { it.readingStatus == ReadingStatus.COMPLETED },
+                    wishlist = libraryBooks.filter { it.readingStatus == ReadingStatus.WISHLIST },
+                    dynamicTags = listOf("All") + tags,
+                    dynamicAuthors = authors,
                     isLoading = false
                 )
             }
         }
     }
 
-    // PAGING FOR SEE ALL SCREEN
     fun getPagedBooks(status: ReadingStatus): Flow<PagingData<Book>> {
         return Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
@@ -66,14 +75,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }.cachedIn(viewModelScope)
     }
 
-    fun selectGenre(genre: String) {
-        _uiState.value = _uiState.value.copy(selectedGenre = genre)
+    fun selectTag(tag: String) {
+        _uiState.value = _uiState.value.copy(selectedTag = tag, selectedAuthor = null)
+    }
+
+    fun selectAuthor(author: String?) {
+        _uiState.value = _uiState.value.copy(selectedAuthor = author, selectedTag = "All")
     }
 
     fun updateReadingStatus(book: Book, status: ReadingStatus) {
         viewModelScope.launch {
-            val dateStarted = if (status == ReadingStatus.CURRENTLY_READING) System.currentTimeMillis() else book.dateStarted
-            bookDao.updateReadingStatus(book.id, status, dateStarted)
+            val dateAdded = if (status != ReadingStatus.NONE) System.currentTimeMillis() else null
+            bookDao.updateReadingStatus(book.id, status, dateAdded)
         }
     }
 
