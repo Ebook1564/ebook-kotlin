@@ -46,6 +46,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.AppViewModel
+import com.example.ebook_new_app.viewmodel.CuratedCollection
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
@@ -86,6 +87,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val homeSections by viewModel.homeSections.collectAsState()
     val billboardBooks by viewModel.billboardBooks.collectAsState()
+    val curatedCollections = uiState.curatedCollections
     val backgroundColor = BookVerseTheme.colors.background
     
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
@@ -102,6 +104,9 @@ fun HomeScreen(
                 item { HeaderSection(appViewModel, userName) }
                 if (billboardBooks.isNotEmpty()) {
                     item { BillboardCarousel(books = billboardBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick) }
+                }
+                if (curatedCollections.isNotEmpty()) {
+                    item { CuratedCollectionsRow(collections = curatedCollections, onCollectionClick = { viewModel.openCuratedCollection(it) }) }
                 }
                 homeSections.forEach { section ->
                     item { CategoryRow(title = section.title, books = section.books, onBookClick = onBookClick) }
@@ -237,6 +242,90 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
         Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(books) { book -> BookPoster(book, onClick = { onBookClick(book) }) }
+        }
+    }
+}
+
+@Composable
+fun CuratedCollectionsRow(
+    collections: List<CuratedCollection>,
+    onCollectionClick: (CuratedCollection) -> Unit
+) {
+    Column(modifier = Modifier.padding(vertical = 16.dp)) {
+        Text(
+            text = "Curated For You",
+            style = BookVerseTheme.typography.headline,
+            color = BookVerseTheme.colors.textPrimary,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(collections) { collection ->
+                CuratedCollectionCard(
+                    collection = collection,
+                    onClick = { onCollectionClick(collection) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CuratedCollectionCard(
+    collection: CuratedCollection,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(160.dp)
+            .height(100.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = collection.accentColor,
+        shadowElevation = 8.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            collection.accentColor,
+                            collection.accentColor.copy(alpha = 0.8f)
+                        )
+                    )
+                )
+                .padding(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = collection.iconEmoji,
+                    fontSize = 24.sp
+                )
+                Column {
+                    Text(
+                        text = collection.title,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = collection.subtitle,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }

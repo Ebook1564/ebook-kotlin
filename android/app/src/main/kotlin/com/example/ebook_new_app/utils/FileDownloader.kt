@@ -15,10 +15,6 @@ import okio.sink
 object FileDownloader {
     private const val TAG = "FileDownloader"
     
-    // 10.0.2.2 is the special IP for Android Emulator to access host machine
-    private const val LOCAL_SERVER_IP = "192.168.1.23"
-    private const val LOCAL_SERVER_URL = "http://$LOCAL_SERVER_IP:8080"
-    
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -27,7 +23,10 @@ object FileDownloader {
         .followRedirects(true)
         .build()
 
+    private fun getServerUrl(): String = ServerConfig.getServerUrl()
+
     suspend fun ensureCached(context: Context, book: Book): File? = withContext(Dispatchers.IO) {
+        val serverUrl = getServerUrl()
         val cleanId = book.id.replace(Regex("[^a-zA-Z0-9]"), "")
         // Use a safe local filename
         val localFileName = "book_${cleanId}.epub"
@@ -59,11 +58,11 @@ object FileDownloader {
         // Strategy A: Use the stored filename (best for exact matching)
         if (!book.epubFileName.isNullOrEmpty()) {
             val encodedName = android.net.Uri.encode(book.epubFileName)
-            urlsToTry.add("$LOCAL_SERVER_URL/$encodedName")
+            urlsToTry.add("$serverUrl/$encodedName")
         }
         
         // Strategy B: Use the ID fallback (triggers the Smart Server's fuzzy matching)
-        urlsToTry.add("$LOCAL_SERVER_URL/fuzzy_search_${book.id}.epub")
+        urlsToTry.add("$serverUrl/fuzzy_search_${book.id}.epub")
 
         for (url in urlsToTry) {
             try {

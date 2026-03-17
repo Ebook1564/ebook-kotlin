@@ -2,6 +2,7 @@ package com.example.ebook_new_app
 
 import android.app.Application
 import com.example.ebook_new_app.db.AppDatabase
+import com.example.ebook_new_app.utils.ServerConfig
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
@@ -15,6 +16,7 @@ class EbookApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        ServerConfig.initialize(this)
 
         val httpClient = DefaultHttpClient()
         assetRetriever = AssetRetriever(

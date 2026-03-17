@@ -9,25 +9,85 @@ SEARCH_DIRS = ['all_extracted', 'law', 'E:/WSL/all_extracted']
 DB_PATH = 'library.db'
 ASSETS_PATH = 'app/src/main/assets/library.db'
 
+# COMPREHENSIVE LCC GENRE MAP (Updated for User Request)
 GENRE_MAP = {
-    "A": "General Works", "B": "Philosophy & Religion", "BC": "Logic", "BF": "Psychology",
-    "BJ": "Ethics", "BL": "Religions", "BM": "Judaism", "BP": "Islam", "BS": "The Bible",
-    "BT": "Theology", "BV": "Practical Theology", "BX": "Christianity",
-    "C": "Auxiliary Sciences of History", "D": "World History", "DA": "Great Britain History",
-    "DC": "France History", "DE": "Greco-Roman History", "DK": "Russia History",
-    "DS": "Asia History", "DT": "Africa History", "E": "American History",
-    "F": "United States Local History", "G": "Geography & Anthropology", "GV": "Recreation & Leisure",
-    "H": "Social Sciences", "HB": "Economics", "HQ": "Family & Gender Studies",
-    "J": "Political Science", "K": "Law & Legal", "KF": "United States Law",
-    "L": "Education", "M": "Music", "ML": "Literature of Music", "N": "Fine Arts",
-    "NA": "Architecture", "ND": "Painting", "P": "Language & Literature",
-    "PA": "Classical Languages", "PN": "Drama & Poetry", "PQ": "French/Spanish/Italian Literature",
-    "PR": "English Literature", "PS": "American Literature", "PT": "Germanic Literature",
-    "PZ": "Juvenile Fiction", "Q": "Science", "QA": "Mathematics", "QB": "Astronomy",
-    "QC": "Physics", "QD": "Chemistry", "QE": "Geology", "QH": "Natural History",
-    "QK": "Botany", "QL": "Zoology", "QM": "Human Anatomy", "QP": "Physiology",
-    "QR": "Microbiology", "R": "Medicine", "S": "Agriculture", "T": "Technology",
-    "TX": "Home Economics", "U": "Military Science", "V": "Naval Science", "Z": "Library Science"
+    "A": "General Works",
+    "B": "Philosophy & Religion",
+    "BC": "Logic",
+    "BF": "Psychology",
+    "BH": "Aesthetics",
+    "BJ": "Ethics",
+    "BL": "Religions",
+    "BM": "Judaism",
+    "BP": "Islam",
+    "BS": "The Bible",
+    "BT": "Theology",
+    "BV": "Practical Theology",
+    "BX": "Christianity",
+    "C": "Historical Sciences",
+    "D": "World History",
+    "DA": "British History",
+    "DC": "French History",
+    "DE": "Greco-Roman History",
+    "DK": "Russian History",
+    "DS": "Asian History",
+    "DT": "African History",
+    "E": "American History",
+    "F": "History of the Americas", # MERGED
+    "G": "History of the Americas", # MERGED (User stated F & G are history of americas)
+    "GV": "Recreation & Sports",
+    "H": "Social Sciences",
+    "HB": "Economics",
+    "HQ": "Family & Gender",
+    "J": "Political Science",
+    "K": "Law & Legal",
+    "KF": "American Law",
+    "L": "Education",
+    "M": "Music",
+    "ML": "Music Literature",
+    "N": "Fine Arts",
+    "NA": "Architecture",
+    "ND": "Painting",
+    "P": "Language & Literature",
+    "PA": "Classical Literature",
+    "PB": "Modern European Languages",
+    "PC": "Romance Languages",
+    "PD": "Germanic Languages",
+    "PE": "English Language",
+    "PF": "West Germanic",
+    "PG": "Slavic Literature",
+    "PH": "Finno-Ugrian Literature",
+    "PJ": "Oriental Literature",
+    "PK": "Indo-Iranian Literature",
+    "PL": "East Asian Literature",
+    "PM": "Hyperborean Literature",
+    "PN": "Poetry & Drama",
+    "PQ": "Romance Literature",
+    "PR": "English Literature",
+    "PS": "American Literature",
+    "PT": "Germanic Literature",
+    "PZ": "Juvenile Fiction",
+    "Q": "Science",
+    "QA": "Mathematics",
+    "QB": "Astronomy",
+    "QC": "Physics",
+    "QD": "Chemistry",
+    "QE": "Geology",
+    "QH": "Natural History",
+    "QK": "Botany",
+    "QL": "Zoology",
+    "QM": "Human Anatomy",
+    "QP": "Physiology",
+    "QR": "Microbiology",
+    "R": "Medicine",
+    "S": "Agriculture",
+    "T": "Technology",
+    "TX": "Home Economics",
+    "U": "Military Science",
+    "V": "Naval Science",
+    "Z": "Library Science",
+    "GEN": "General Collection",
+    "NONE": "General Collection"
 }
 
 def process_js_file(file_path):
@@ -46,9 +106,8 @@ def init_db(conn):
     cursor.execute("PRAGMA table_info(books)")
     columns = {row[1]: {"notnull": row[3]} for row in cursor.fetchall()}
     
-    # Structural repair if external_cover_url is missing
     if columns and 'external_cover_url' not in columns:
-        print("Migrating schema: Adding external_cover_url...")
+        print("Migrating schema...")
         cursor.execute("ALTER TABLE books RENAME TO books_old")
         cursor.execute('''
             CREATE TABLE books (
@@ -78,7 +137,6 @@ def init_db(conn):
         cursor.execute(f"INSERT INTO books ({col_str}) SELECT {col_str} FROM books_old")
         cursor.execute("DROP TABLE books_old")
 
-    # Ensure table exists
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS books (
             id TEXT NOT NULL PRIMARY KEY,
@@ -109,6 +167,7 @@ def run_seeder():
     conn = sqlite3.connect(DB_PATH)
     init_db(conn)
     cursor = conn.cursor()
+    
     cursor.execute("SELECT filename, last_modified FROM sync_tracker")
     synced = {row[0]: row[1] for row in cursor.fetchall()}
     
@@ -132,8 +191,11 @@ def run_seeder():
                 try:
                     raw_title, author, _, book_id = str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3])
                     cat_code = str(entry[4]) if len(entry) > 4 else 'GEN'
-                    genre = GENRE_MAP.get(cat_code, f"General {cat_code}")
-                    cursor.execute('INSERT OR IGNORE INTO categories VALUES (?, ?, ?, ?)', (cat_code, genre, '📖', '#455A64'))
+                    if not cat_code or cat_code == 'None': cat_code = 'GEN'
+                    
+                    genre = GENRE_MAP.get(cat_code, f"Genre {cat_code}")
+                    cursor.execute('INSERT OR REPLACE INTO categories VALUES (?, ?, ?, ?)', (cat_code, genre, '📖', '#455A64'))
+                    
                     display_title = raw_title.split("$b")[0].strip(" :;,").strip()
                     book_entries.append((book_id, display_title, author, f"A classic text by {author}.", cat_code, os.path.basename(data_dir), f"{book_id}_{book_id}-cover.png", f"{raw_title}.{book_id}.epub", 0, 'NONE', '[]', None))
                 except Exception: continue
@@ -142,6 +204,13 @@ def run_seeder():
                 cursor.executemany('INSERT OR IGNORE INTO books (id, title, author, description, category_code, source_folder, cover_image_name, epub_file_name, is_downloaded, reading_status, subjects, external_cover_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', book_entries)
             cursor.execute("INSERT OR REPLACE INTO sync_tracker VALUES (?, ?)", (js_file, mtime))
             
+    # Final check: Map any generic "Genre X" to LCC if possible
+    for code, name in GENRE_MAP.items():
+        cursor.execute("UPDATE categories SET name = ? WHERE code = ?", (name, code))
+        
+    # User Request: Clean duplicates and ensure history mapping
+    cursor.execute("UPDATE categories SET name = 'History of the Americas' WHERE code IN ('E', 'F', 'G')")
+        
     conn.commit()
     conn.close()
     shutil.copy(DB_PATH, ASSETS_PATH)

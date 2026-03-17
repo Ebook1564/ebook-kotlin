@@ -6,13 +6,10 @@ import sys
 import re
 
 PORT = 8080
-
-# The master dataset is on E:
 DATASET_DIR = r"E:\WSL\all_extracted"
 
 class SmartHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        # 1. Decode requested path
         url_path = urllib.parse.unquote(self.path).lstrip('/')
         requested_filename = os.path.basename(url_path)
         
@@ -22,9 +19,10 @@ class SmartHandler(http.server.SimpleHTTPRequestHandler):
         print("-" * 50)
         print(f"[REQUEST] {requested_filename}")
 
+        # 1. DEFINE PRIORITY SEARCH DIRS
         search_dirs = [
+            os.path.join(DATASET_DIR, 'covers'), # HIGH PRIORITY
             DATASET_DIR,
-            os.path.join(DATASET_DIR, 'covers'),
             os.getcwd(),
             'all_extracted',
             'law'
@@ -32,7 +30,7 @@ class SmartHandler(http.server.SimpleHTTPRequestHandler):
         
         found_path = None
         
-        # Try exact match first
+        # 2. EXACT MATCH
         for d in search_dirs:
             if not os.path.exists(d): continue
             test_path = os.path.join(d, requested_filename)
@@ -40,54 +38,42 @@ class SmartHandler(http.server.SimpleHTTPRequestHandler):
                 found_path = test_path
                 break
         
-        # 3. ADVANCED FUZZY MATCHING (Deep Search)
+        # 3. ADVANCED ID-STRICT MATCHING
         if not found_path:
             match = re.search(r'(\d+)', requested_filename)
             if match:
                 book_id = match.group(1)
                 ext = os.path.splitext(requested_filename)[1].lower()
+                if not ext: ext = ".jpg" # Default to jpg for generic ID reqs
                 
-                print(f"[RETRY] Exact match failed. Searching for ID: {book_id} with extension {ext}")
+                print(f"[RETRY] Searching for strict ID: {book_id}")
                 
                 for d in search_dirs:
                     if not os.path.exists(d): continue
-                    
-                    # Optimization: Get all files in dir once
                     try:
                         files = os.listdir(d)
                     except Exception: continue
 
-                    # Strategy A: Check common image patterns for this ID
-                    if ext in ['.png', '.jpg', '.jpeg']:
-                        # Patterns to prioritize:
-                        # 1. {id}_cover_image.jpg
-                        # 2. {id}_img-cover.jpg
-                        # 3. {id}_img-front.jpg
-                        # 4. {id}_52636-cover.png
-                        patterns = [
-                            f"{book_id}_cover_image",
-                            f"{book_id}_img-cover",
-                            f"{book_id}_img-front",
-                            f"{book_id}_{book_id}-cover",
-                            f"{book_id}_"
-                        ]
-                        
-                        for p in patterns:
-                            for f in files:
-                                if f.lower().startswith(p.lower()) and f.lower().endswith(ext):
-                                    found_path = os.path.join(d, f)
-                                    print(f"[FUZZY FOUND] Matched pattern {p} -> {f}")
-                                    break
-                            if found_path: break
+                    # STAGE A: Priority Patterns (Strict ID prefix)
+                    patterns = [
+                        f"{book_id}_cover_image",
+                        f"{book_id}_img-cover",
+                        f"{book_id}_img-front",
+                        f"{book_id}_{book_id}-cover",
+                        f"{book_id}_"
+                    ]
                     
-                    # Strategy B: Generic ID match if still not found
-                    if not found_path:
+                    for p in patterns:
                         for f in files:
-                            if book_id in f and f.lower().endswith(ext):
-                                if f"{book_id}." in f or f"_{book_id}" in f or f".{book_id}" in f:
-                                    found_path = os.path.join(d, f)
-                                    print(f"[GENERIC FOUND] Matched {f}")
-                                    break
+                            if f.lower().startswith(p.lower()) and f.lower().endswith(ext):
+                                found_path = os.path.join(d, f)
+                                break
+                        if found_path: break
+                    
+                    # STAGE B: Exact ID Match (e.g. 52636.jpg)
+                    if not found_path:
+                        if f"{book_id}{ext}" in files:
+                            found_path = os.path.join(d, f"{book_id}{ext}")
                     
                     if found_path: break
 
@@ -104,7 +90,7 @@ class SmartHandler(http.server.SimpleHTTPRequestHandler):
                 
                 with open(found_path, 'rb') as f:
                     self.wfile.write(f.read())
-                print(f"[SUCCESS] Served: {found_path}")
+                print(f"[SUCCESS] Served from {os.path.basename(os.path.dirname(found_path))}: {found_path}")
                 return
             except Exception as e:
                 print(f"[ERROR] {e}")
@@ -112,9 +98,7 @@ class SmartHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[404] No match for {requested_filename}")
         self.send_error(404, "File not found")
 
-print(f"Smart Server ACTIVE on port {PORT}")
-print(f"Master Dataset: {DATASET_DIR}")
-
+print(f"Ebook Bundle Server ACTIVE on port {PORT}")
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("", PORT), SmartHandler) as httpd:
     try:

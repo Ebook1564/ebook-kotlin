@@ -80,18 +80,30 @@ class ExternalMetadataRepository(private val bookDao: BookDao) {
                         ?.replace("zoom=1", "zoom=0")
                         ?.replace("zoom=5", "zoom=0")
                         ?.replace("&edge=curl", "")
+                        
+                    // IGNORE GOOGLE PLACEHOLDERS (often contain 'blank' or specific IDs)
+                    if (highResUrl?.contains("printsec=frontcover") == false && highResUrl?.contains("img=1") == false) {
+                         // Some placeholders are generic, but usually they have printsec=frontcover. 
+                         // If it doesn't even look like a book cover req, ignore.
+                    }
+                    if (highResUrl?.contains("books/content?id=nopicture") == true) {
+                        highResUrl = null
+                    }
                 }
 
                 val desc = if (info.has("description")) info.getString("description") else book.description
-                val subjects = mutableListOf<String>()
+                val apiSubjects = mutableListOf<String>()
                 if (info.has("categories")) {
                     val cats = info.getJSONArray("categories")
-                    for (i in 0 until cats.length()) subjects.add(cats.getString(i))
+                    for (i in 0 until cats.length()) apiSubjects.add(cats.getString(i))
                 }
+
+                // MERGE: Keep original subjects + add new API subjects (no duplicates)
+                val mergedSubjects = (book.subjects + apiSubjects).distinct()
 
                 return book.copy(
                     description = cleanDescription(desc), 
-                    subjects = if (subjects.isNotEmpty()) subjects else book.subjects,
+                    subjects = mergedSubjects,
                     externalCoverUrl = highResUrl ?: book.externalCoverUrl
                 )
             }
@@ -121,8 +133,19 @@ class ExternalMetadataRepository(private val bookDao: BookDao) {
                     olCover = "https://covers.openlibrary.org/b/id/${doc.getInt("cover_i")}-L.jpg"
                 }
 
+                // Get subjects from OpenLibrary and merge
+                val olSubjects = mutableListOf<String>()
+                if (doc.has("subject")) {
+                    val subj = doc.getJSONArray("subject")
+                    for (i in 0 until minOf(subj.length(), 10)) {
+                        olSubjects.add(subj.getString(i))
+                    }
+                }
+                val mergedSubjects = (book.subjects + olSubjects).distinct()
+
                 return book.copy(
                     description = cleanDescription(desc),
+                    subjects = mergedSubjects,
                     externalCoverUrl = olCover
                 )
             }

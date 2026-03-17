@@ -59,7 +59,6 @@ import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
 import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.viewmodel.InitialBounds
-import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
@@ -86,7 +85,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        FirebaseApp.initializeApp(this)
         setContent {
             val themeMode by appViewModel.themeMode
             val previousTheme by appViewModel.previousThemeMode
@@ -258,7 +256,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
         }
     }
 
-    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null || homeUiState.currentCollection != null
+    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null || homeUiState.currentCollection != null || homeUiState.currentCuratedCollection != null
 
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -348,6 +346,26 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                 BackHandler { homeViewModel.closeCollection() }
                 CollectionPage(
                     collection = collection,
+                    books = books,
+                    onBack = { homeViewModel.closeCollection() },
+                    onBookClick = { onBookClick(it) }
+                )
+            }
+        }
+
+        // CURATED COLLECTION (SPOTIFY-STYLE) PAGE OVERLAY
+        AnimatedVisibility(
+            visible = homeUiState.currentCuratedCollection != null,
+            enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+        ) {
+            homeUiState.currentCuratedCollection?.let { collection ->
+                val books = homeViewModel.curatedCollectionBooksByTag.collectAsLazyPagingItems()
+                BackHandler { homeViewModel.closeCollection() }
+                CollectionPage(
+                    title = collection.title,
+                    description = collection.description,
+                    accentColor = collection.accentColor,
                     books = books,
                     onBack = { homeViewModel.closeCollection() },
                     onBookClick = { onBookClick(it) }

@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.gms.google-services")
     id("com.google.devtools.ksp") version "2.0.21-1.0.25"
     id("kotlin-parcelize")
 }
@@ -23,7 +22,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -73,13 +73,6 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.webkit:webkit:1.12.1")
 
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
-
     // Image Loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 
@@ -105,4 +98,7 @@ dependencies {
     implementation("org.readium.kotlin-toolkit:readium-navigator:$readiumVersion")
     implementation("org.readium.kotlin-toolkit:readium-opds:$readiumVersion")
     implementation("org.readium.kotlin-toolkit:readium-lcp:$readiumVersion")
+
+    // HTML Parsing
+    implementation("org.jsoup:jsoup:1.18.1")
 }

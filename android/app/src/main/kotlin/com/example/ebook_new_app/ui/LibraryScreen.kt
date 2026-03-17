@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,9 +51,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.models.ReadingStatus
+import com.example.ebook_new_app.utils.ServerConfig
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
 import java.text.SimpleDateFormat
@@ -76,7 +79,6 @@ fun LibraryScreen(
         onInspectStateChange(inspectedBook != null)
     }
 
-    // BACK NAVIGATION HANDLERS
     if (inspectedBook != null) {
         BackHandler { inspectedBook = null }
     } else if (uiState.selectedAuthor != null || uiState.selectedTag != "All") {
@@ -90,7 +92,6 @@ fun LibraryScreen(
                 .background(BookVerseTheme.colors.background)
                 .statusBarsPadding()
         ) {
-            // TOP HEADER
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -115,7 +116,6 @@ fun LibraryScreen(
                 }
             }
 
-            // DYNAMIC PILLS
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,11 +123,10 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Authors special tag
                 item {
                     val isSelected = uiState.selectedAuthor != null
                     Surface(
-                        onClick = { /* Could open author selection */ },
+                        onClick = { /* Open authors */ },
                         shape = RoundedCornerShape(20.dp),
                         color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.surface,
                         border = if (!isSelected) BorderStroke(1.dp, BookVerseTheme.colors.textSecondary.copy(alpha = 0.2f)) else null,
@@ -209,7 +208,6 @@ fun LibraryScreen(
                         )
                     }
                 } else {
-                    // Filtered View (Grid)
                     val filterTitle = uiState.selectedAuthor ?: uiState.selectedTag
                     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
                         Text(filterTitle.uppercase(), color = BookVerseTheme.colors.primary, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 14.sp)
@@ -228,13 +226,7 @@ fun LibraryScreen(
                         ) {
                             items(filteredBooks) { book ->
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { inspectedBook = book }) {
-                                    Surface(
-                                        modifier = Modifier.aspectRatio(0.7f),
-                                        shape = RoundedCornerShape(4.dp),
-                                        shadowElevation = 8.dp
-                                    ) {
-                                        AsyncImage(model = book.coverImageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                                    }
+                                    LibraryBookPoster(book)
                                     Spacer(Modifier.height(8.dp))
                                     Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BookVerseTheme.colors.textPrimary)
                                 }
@@ -245,10 +237,9 @@ fun LibraryScreen(
             }
         }
 
-        // Picking Up Animation Overlay (Resident Evil / Silent Hill Style)
         AnimatedVisibility(
             visible = inspectedBook != null,
-            enter = fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.8f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+            enter = fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.8f, animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)),
             exit = fadeOut(animationSpec = tween(400)) + scaleOut(targetScale = 1.1f, animationSpec = tween(400))
         ) {
             inspectedBook?.let { book ->
@@ -263,7 +254,6 @@ fun LibraryScreen(
             }
         }
 
-        // Dedicated See All Page
         AnimatedVisibility(
             visible = uiState.seeAllStatus != null,
             enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(500, easing = PremiumEasing)) + fadeIn(),
@@ -291,87 +281,34 @@ fun LibraryScreen(
 }
 
 @Composable
-fun SeeAllPage(
-    title: String,
-    books: LazyPagingItems<Book>,
-    onBack: () -> Unit,
-    onBookClick: (Book) -> Unit
-) {
-    val colors = BookVerseTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .statusBarsPadding()
+fun LibraryBookPoster(book: Book) {
+    val coversUrl = ServerConfig.getCoversUrl()
+    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
+    Surface(
+        modifier = Modifier.aspectRatio(0.7f).fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        shadowElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                style = BookVerseTheme.typography.headline,
-                color = colors.textPrimary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            items(books.itemCount) { index ->
-                val book = books[index]
-                if (book != null) {
-                    Column(
-                        modifier = Modifier.clickable { onBookClick(book) },
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.7f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .shadow(8.dp)
-                                .background(colors.surface)
-                        ) {
-                            AsyncImage(
-                                model = book.coverImageUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
+        val primaryUrl = book.externalCoverUrl ?: book.coverImageUrl
+        SubcomposeAsyncImage(
+            model = primaryUrl,
+            contentDescription = book.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            error = {
+                SubcomposeAsyncImage(
+                    model = fallbackCoverUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    error = { 
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Book, null, tint = BookVerseTheme.colors.textSecondary.copy(0.3f))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = book.title,
-                            style = BookVerseTheme.typography.body,
-                            color = colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = book.author,
-                            style = BookVerseTheme.typography.label,
-                            color = colors.textSecondary,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
                     }
-                }
+                )
             }
-        }
+        )
     }
 }
 
@@ -403,30 +340,19 @@ fun ShelfTier(
             )
             
             IconButton(onClick = onSeeAll, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward, 
-                    contentDescription = "See All", 
-                    tint = BookVerseTheme.colors.primary,
-                    modifier = Modifier.size(18.dp)
-                )
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, "See All", tint = BookVerseTheme.colors.primary, modifier = Modifier.size(18.dp))
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // THE HEAD-ON 3D SHELF (Restored exactly)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp) 
                 .clickable { onToggle() }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 20.dp)
-                    .background(shelfWallColor, RoundedCornerShape(2.dp))
-            )
+            Box(modifier = Modifier.fillMaxSize().padding(bottom = 20.dp).background(shelfWallColor, RoundedCornerShape(2.dp)))
             
             Box(
                 modifier = Modifier
@@ -452,11 +378,7 @@ fun ShelfTier(
                 contentAlignment = Alignment.BottomCenter
             ) {
                 if (books.isNotEmpty()) {
-                    TransitioningShelfBooks(
-                        books = books,
-                        isExpanded = isExpanded,
-                        onBookClick = onInspectBook
-                    )
+                    TransitioningShelfBooks(books = books, isExpanded = isExpanded, onBookClick = onInspectBook)
                 }
             }
         }
@@ -486,31 +408,13 @@ fun LibraryBookItem(book: Book, onClick: (Book) -> Unit) {
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = book.coverImageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(60.dp, 90.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.surface)
-        )
+        Box(modifier = Modifier.size(60.dp, 90.dp)) {
+            LibraryBookPoster(book)
+        }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = book.title,
-                style = BookVerseTheme.typography.body,
-                color = colors.textPrimary,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = book.author,
-                style = BookVerseTheme.typography.label,
-                color = colors.textSecondary,
-                fontSize = 12.sp
-            )
+            Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -521,107 +425,44 @@ fun TransitioningShelfBooks(
     isExpanded: Boolean,
     onBookClick: (Book) -> Unit
 ) {
-    val expansionProgress by animateFloatAsState(
-        targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = tween(1000, easing = PremiumEasing),
-        label = "expand"
-    )
-
+    val expansionProgress by animateFloatAsState(if (isExpanded) 1f else 0f, animationSpec = tween(1000, easing = PremiumEasing), label = "expand")
     val infiniteTransition = rememberInfiniteTransition(label = "infinite")
-    val floatAnim by infiniteTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "float"
-    )
+    val floatAnim by infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
 
     val displayCount = 7
     val displayBooks = if (books.size > displayCount) books.take(displayCount) else books
     val total = displayBooks.size
 
-    Box(
-        modifier = Modifier.fillMaxWidth().height(200.dp),
-        contentAlignment = Alignment.BottomCenter
-    ) {
+    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.BottomCenter) {
         displayBooks.forEachIndexed { index, book ->
             val relativeIndex = index - (total - 1) / 2f
-            
             val openRotationZ = relativeIndex * 12f
             val openXOffset = relativeIndex * 40.dp.value
             val openYOffset = -20.dp.value 
-            val openRotationY = -20f
-            val openRotationX = 0f
-
-            val leanAngle = when(index % 3) {
-                0 -> -4f
-                1 -> 3f
-                else -> 0f
-            }
-            val closedRotationZ = leanAngle
-            val closedXOffset = relativeIndex * 50.dp.value 
-            val closedYOffset = 0.dp.value 
-            val closedRotationY = -20f
-            val closedRotationX = 0f
-
-            val currentRotationZ = lerp(closedRotationZ, openRotationZ, expansionProgress)
-            val currentXOffset = lerp(closedXOffset, openXOffset, expansionProgress)
-            val currentYOffset = lerp(closedYOffset, openYOffset, expansionProgress)
-            val currentRotationY = lerp(closedRotationY, openRotationY, expansionProgress)
-            val currentRotationX = lerp(closedRotationX, openRotationX, expansionProgress)
+            val leanAngle = when(index % 3) { 0 -> -4f; 1 -> 3f; else -> 0f }
+            val currentRotationZ = lerp(leanAngle, openRotationZ, expansionProgress)
+            val currentXOffset = lerp(relativeIndex * 50.dp.value, openXOffset, expansionProgress)
+            val currentYOffset = lerp(0f, openYOffset, expansionProgress)
             
             val staggeredFloat = if (expansionProgress > 0.8f) {
-                (floatAnim * (index % 3 + 1) * 4f * (expansionProgress - 0.8f) * 5f).dp
+                val animValue = floatAnim * (index % 3 + 1).toFloat() * 20f * (expansionProgress - 0.8f)
+                animValue.dp
             } else 0.dp
+
+            val localDensity = LocalDensity.current
+            val shadowSize = localDensity.run { androidx.compose.ui.util.lerp(6.dp.toPx(), 12.dp.toPx(), expansionProgress).toDp() }
 
             Box(
                 modifier = Modifier
                     .offset(x = currentXOffset.dp, y = (currentYOffset + staggeredFloat.value).dp)
-                    .width(85.dp)
-                    .height(125.dp)
+                    .width(85.dp).height(125.dp)
                     .graphicsLayer {
-                        rotationX = currentRotationX
-                        rotationY = currentRotationY
-                        rotationZ = currentRotationZ
-                        cameraDistance = 15f * density
-                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        rotationY = -20f; rotationZ = currentRotationZ; cameraDistance = 15f * density; transformOrigin = TransformOrigin(0.5f, 1f)
                     }
-                    .shadow(
-                        elevation = with(androidx.compose.ui.platform.LocalDensity.current) {
-                            lerp(6.dp.toPx(), 12.dp.toPx(), expansionProgress).toDp()
-                        },
-                        shape = RoundedCornerShape(2.dp)
-                    )
-                    .clickable(enabled = isExpanded) { onBookClick(book) }
-                    .zIndex(10f - relativeIndex.absoluteValue)
+                    .shadow(shadowSize, RoundedCornerShape(2.dp))
+                    .clickable(enabled = isExpanded) { onBookClick(book) }.zIndex(10f - relativeIndex.absoluteValue)
             ) {
-                AsyncImage(
-                    model = book.coverImageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(2.dp))
-                        .border(
-                            width = 0.5.dp,
-                            color = Color.White.copy(alpha = lerp(0.1f, 0.25f, expansionProgress)),
-                            shape = RoundedCornerShape(2.dp)
-                        )
-                )
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(4.dp)
-                        .align(Alignment.CenterEnd)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f * expansionProgress))
-                            )
-                        )
-                )
+                AsyncImage(model = book.externalCoverUrl ?: book.coverImageUrl, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, Color.White.copy(alpha = androidx.compose.ui.util.lerp(0.1f, 0.25f, expansionProgress)), RoundedCornerShape(2.dp)))
             }
         }
     }
@@ -630,106 +471,53 @@ fun TransitioningShelfBooks(
 @Composable
 fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "inspect")
-    val autoRotation by infiniteTransition.animateFloat(
-        initialValue = -45f,
-        targetValue = 45f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "rotate"
-    )
-    
-    val breatheAnim by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breathe"
-    )
-
+    val autoRotation by infiniteTransition.animateFloat(initialValue = -45f, targetValue = 45f, animationSpec = infiniteRepeatable(tween(8000, easing = LinearOutSlowInEasing), RepeatMode.Reverse), label = "rotate")
+    val breatheAnim by infiniteTransition.animateFloat(initialValue = 0.8f, targetValue = 1.2f, animationSpec = infiniteRepeatable(tween(3000, easing = EaseInOutSine), RepeatMode.Reverse), label = "breathe")
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.96f))
-            .clickable { onDismiss() },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent),
-                        center = Offset.Unspecified,
-                        radius = 1400f
-                    )
-                )
-        )
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Realistic3DBook(
-                coverUrl = book.coverImageUrl,
-                currentRotationY = autoRotation,
-                modifier = Modifier
-                    .width(220.dp)
-                    .height(330.dp)
-            )
-            
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Realistic3DBook(coverUrl = book.externalCoverUrl ?: book.coverImageUrl, currentRotationY = autoRotation, modifier = Modifier.width(220.dp).height(330.dp))
             Spacer(modifier = Modifier.height(48.dp))
-            
-            Text(
-                text = book.title,
-                style = BookVerseTheme.typography.headline,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 40.dp),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                text = book.author.uppercase(),
-                style = BookVerseTheme.typography.label,
-                color = BookVerseTheme.colors.primary,
-                letterSpacing = 4.sp,
-                textAlign = TextAlign.Center,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black
-            )
-            
+            Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
+            Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)
             Spacer(modifier = Modifier.height(32.dp))
-
-            // RESTORED STATISTICS (With ADDED)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (book.dateAdded != null) StatItem("ADDED", dateFormat.format(Date(book.dateAdded)))
                 if (book.dateStarted != null) StatItem("STARTED", dateFormat.format(Date(book.dateStarted)))
                 if (book.dateFinished != null) StatItem("FINISHED", dateFormat.format(Date(book.dateFinished)))
             }
-
             Spacer(modifier = Modifier.height(48.dp))
-            
-            Button(
-                onClick = onReadNow,
-                colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
-                shape = RoundedCornerShape(30.dp),
-                modifier = Modifier.height(54.dp).width(240.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)
-            ) {
+            Button(onClick = onReadNow, colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary), shape = RoundedCornerShape(30.dp), modifier = Modifier.height(54.dp).width(240.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)) {
                 Text("CONTINUE READING", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 13.sp, color = Color.White)
             }
-            
             Spacer(modifier = Modifier.height(40.dp))
-            
             Text("TAP ANYWHERE TO RETURN", style = BookVerseTheme.typography.label, color = Color.White.copy(alpha = 0.3f), letterSpacing = 2.sp, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, onBookClick: (Book) -> Unit) {
+    val colors = BookVerseTheme.colors
+    Column(modifier = Modifier.fillMaxSize().background(colors.background).statusBarsPadding()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = colors.textPrimary) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text = title, style = BookVerseTheme.typography.headline, color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        }
+        LazyVerticalGrid(columns = GridCells.Fixed(2), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            items(books.itemCount) { index ->
+                books[index]?.let { book ->
+                    Column(modifier = Modifier.clickable { onBookClick(book) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        LibraryBookPoster(book)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        Text(text = book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
+                }
+            }
         }
     }
 }
@@ -743,134 +531,27 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun Realistic3DBook(
-    coverUrl: String,
-    currentRotationY: Float,
-    modifier: Modifier = Modifier
-) {
+fun Realistic3DBook(coverUrl: String, currentRotationY: Float, modifier: Modifier = Modifier) {
     val thickness = 40.dp 
-    
-    Box(
-        modifier = modifier
-            .graphicsLayer {
-                rotationY = currentRotationY
-                rotationX = 12f
-                cameraDistance = 20f * density
-                transformOrigin = TransformOrigin(0.5f, 0.5f)
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        // 1. THE PAGES DEPTH (Right Side)
-        Box(
-            modifier = Modifier
-                .fillMaxHeight(0.98f)
-                .width(thickness)
-                .align(Alignment.CenterEnd)
-                .graphicsLayer {
-                    this.rotationY = 90f
-                    transformOrigin = TransformOrigin(1f, 0.5f)
-                }
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(0xFFE0E0E0), Color(0xFFF5F5F5), Color(0xFFBDBDBD))
-                    )
-                )
-        ) {
-            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier.graphicsLayer { rotationY = currentRotationY; rotationX = 12f; cameraDistance = 20f * density; transformOrigin = TransformOrigin(0.5f, 0.5f) }, contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxHeight(0.98f).width(thickness).align(Alignment.CenterEnd).graphicsLayer { this.rotationY = 90f; transformOrigin = TransformOrigin(1f, 0.5f) }.background(Brush.horizontalGradient(listOf(Color(0xFFE0E0E0), Color(0xFFF5F5F5), Color(0xFFBDBDBD))))) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
                 val step = 2.dp.toPx()
                 for (i in 0..(size.height / step).toInt()) {
-                    drawLine(
-                        color = Color.Black.copy(alpha = 0.08f),
-                        start = Offset(0f, i * step),
-                        end = Offset(size.width, i * step),
-                        strokeWidth = 1f
-                    )
+                    drawLine(color = Color.Black.copy(alpha = 0.08f), start = Offset(0f, i * step), end = Offset(size.width, i * step), strokeWidth = 1f)
                 }
             }
         }
-
-        // 2. THE SPINE (Left Side)
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(thickness)
-                .align(Alignment.CenterStart)
-                .graphicsLayer {
-                    this.rotationY = -90f
-                    transformOrigin = TransformOrigin(0f, 0.5f)
-                }
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(0xFF0D0D0D), Color(0xFF3E2723), Color(0xFF0D0D0D))
-                    )
-                )
-        ) {
-            // Spine Ribs for realism
+        Box(modifier = Modifier.fillMaxHeight().width(thickness).align(Alignment.CenterStart).graphicsLayer { this.rotationY = -90f; transformOrigin = TransformOrigin(0f, 0.5f) }.background(Brush.horizontalGradient(listOf(Color(0xFF0D0D0D), Color(0xFF3E2723), Color(0xFF0D0D0D))))) {
             Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-                repeat(3) {
-                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(0.1f)))
-                }
+                repeat(3) { Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(0.1f))) }
             }
         }
-
-        // 3. TOP PAGES
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.98f)
-                .height(thickness)
-                .align(Alignment.TopCenter)
-                .graphicsLayer {
-                    rotationX = 90f
-                    transformOrigin = TransformOrigin(0.5f, 0f)
-                }
-                .background(Color(0xFFF5F5F5))
-        )
-
-        // 4. BOTTOM PAGES
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.98f)
-                .height(thickness)
-                .align(Alignment.BottomCenter)
-                .graphicsLayer {
-                    rotationX = -90f
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                }
-                .background(Color(0xFFD6D6D6))
-        )
-
-        // 5. FRONT COVER
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .shadow(30.dp, RoundedCornerShape(3.dp))
-        ) {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(3.dp))
-                    .border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(3.dp))
-            )
-            
-            // Dynamic Reflection Overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.12f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.15f)
-                            ),
-                            start = Offset(0f, 0f),
-                            end = Offset.Infinite
-                        )
-                    )
-            )
+        Box(modifier = Modifier.fillMaxWidth(0.98f).height(thickness).align(Alignment.TopCenter).graphicsLayer { rotationX = 90f; transformOrigin = TransformOrigin(0.5f, 0f) }.background(Color(0xFFF5F5F5)))
+        Box(modifier = Modifier.fillMaxWidth(0.98f).height(thickness).align(Alignment.BottomCenter).graphicsLayer { rotationX = -90f; transformOrigin = TransformOrigin(0.5f, 1f) }.background(Color(0xFFD6D6D6)))
+        Box(modifier = Modifier.fillMaxSize().shadow(30.dp, RoundedCornerShape(3.dp))) {
+            AsyncImage(model = coverUrl, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)).border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(3.dp)))
+            Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color.White.copy(0.12f), Color.Transparent, Color.Black.copy(0.15f)), start = Offset(0f, 0f), end = Offset.Infinite)))
         }
     }
 }

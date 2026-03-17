@@ -47,6 +47,8 @@ import org.readium.r2.shared.util.Try
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
+import org.jsoup.Jsoup
+import org.jsoup.safety.Safelist
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
@@ -121,6 +123,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     // TTS Compose State
     private var isTtsActive by mutableStateOf(false)
     private var isTtsPlaying by mutableStateOf(false)
+    private var ttsSentences = mutableListOf<String>()
+    private var currentSentenceIndex = 0
+    private var currentResourceLocator: Locator? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -228,8 +233,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { /* Nav previous */ }) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = null)
+                        IconButton(onClick = { prevTts() }) {
+                            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous Sentence")
                         }
                         
                         LargeFloatingActionButton(
@@ -244,8 +249,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             )
                         }
 
-                        IconButton(onClick = { /* Nav next */ }) {
-                            Icon(Icons.Default.SkipNext, contentDescription = null)
+                        IconButton(onClick = { nextTts() }) {
+                            Icon(Icons.Default.SkipNext, contentDescription = "Next Sentence")
                         }
 
                         IconButton(onClick = { stopTts() }) {
@@ -262,7 +267,40 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             tts?.stop()
             isTtsPlaying = false
         } else {
-            speakCurrentPage()
+            if (ttsSentences.isEmpty()) {
+                speakCurrentPage()
+            } else {
+                speakCurrentSentence()
+            }
+        }
+    }
+
+    private fun nextTts() {
+        tts?.stop()
+        if (currentSentenceIndex < ttsSentences.size - 1) {
+            currentSentenceIndex++
+            speakCurrentSentence()
+        } else {
+            // End of section, try to go to next page
+            lifecycleScope.launch {
+                navigator?.goForward(animated = true)
+                delay(500) // Wait for page to load
+                speakCurrentPage()
+            }
+        }
+    }
+
+    private fun prevTts() {
+        tts?.stop()
+        if (currentSentenceIndex > 0) {
+            currentSentenceIndex--
+            speakCurrentSentence()
+        } else {
+            lifecycleScope.launch {
+                navigator?.goBackward(animated = true)
+                delay(500)
+                speakCurrentPage()
+            }
         }
     }
 
@@ -270,6 +308,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         tts?.stop()
         isTtsActive = false
         isTtsPlaying = false
+        ttsSentences.clear()
+        currentSentenceIndex = 0
+        updateTtsHighlight(null) // Clear highlight
         ttsControlComposeView.visibility = View.GONE
         topBar.visibility = View.VISIBLE
         bottomBar.visibility = View.VISIBLE
@@ -284,55 +325,118 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
         lifecycleScope.launch {
             val publication = ReaderRepository.currentPublication ?: return@launch
-            val locator = navigator?.currentLocator?.value ?: return@launch
+            val currentLocator = navigator?.currentLocator?.value ?: return@launch
             
-            var textToSpeak = locator.text.highlight ?: ""
-            
-            if (textToSpeak.isEmpty()) {
-                try {
-                    val resource = publication.get(locator.href)
-                    val content = resource?.read()?.getOrNull()
-                    if (content != null) {
-                        val html = String(content, Charsets.UTF_8)
-                        textToSpeak = parseHtmlToTextSimple(html)
-                    }
-                } catch (e: Exception) {
-                    Log.e("TTS", "Extraction failed", e)
-                }
+            // 1. Get full text of resource
+            val fullText = try {
+                val resource = publication.get(currentLocator.href)
+                val content = resource?.read()?.getOrNull()
+                if (content != null) {
+                    val html = String(content, Charsets.UTF_8)
+                    parseHtmlToTextRobust(html)
+                } else ""
+            } catch (e: Exception) {
+                Log.e("TTS", "Extraction failed", e)
+                ""
             }
             
-            if (textToSpeak.isEmpty()) {
-                textToSpeak = locator.title ?: ""
-            }
-            
-            if (textToSpeak.isNotEmpty()) {
-                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = true }
-                    }
-                    override fun onDone(utteranceId: String?) {
-                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
-                    }
-                    override fun onError(utteranceId: String?) {
-                        lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
-                    }
-                })
+            if (fullText.isNotEmpty()) {
+                // 2. Split into sentences
+                ttsSentences = fullText.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }.toMutableList()
+                currentResourceLocator = currentLocator
                 
-                val params = Bundle()
-                params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ReaderTTS")
-                tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "ReaderTTS")
+                // 3. Find starting sentence based on current location
+                val visibleText = currentLocator.text.highlight ?: ""
+                currentSentenceIndex = if (visibleText.isNotEmpty()) {
+                    val index = ttsSentences.indexOfFirst { it.contains(visibleText, ignoreCase = true) }
+                    if (index != -1) index else 0
+                } else {
+                    0
+                }
+                
+                speakCurrentSentence()
             } else {
                 Toast.makeText(context, "No text found to read on this page.", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun parseHtmlToTextSimple(html: String): String {
-        return html.replace("<style[^>]*>.*?</style>".toRegex(RegexOption.DOT_MATCHES_ALL), "")
-            .replace("<script[^>]*>.*?</script>".toRegex(RegexOption.DOT_MATCHES_ALL), "")
-            .replace("<[^>]+>".toRegex(), " ")
-            .replace("&nbsp;", " ")
-            .replace("\\s+".toRegex(), " ").trim()
+    private fun speakCurrentSentence() {
+        if (currentSentenceIndex !in ttsSentences.indices) return
+        
+        val text = ttsSentences[currentSentenceIndex]
+        
+        // Update highlight for the current sentence
+        updateTtsHighlight(text)
+
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = true }
+            }
+            override fun onDone(utteranceId: String?) {
+                lifecycleScope.launch(Dispatchers.Main) { 
+                    isTtsPlaying = false 
+                    if (isTtsActive) nextTts() // Auto-advance
+                }
+            }
+            override fun onError(utteranceId: String?) {
+                lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
+            }
+            
+            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                // Word-level highlighting
+                val word = text.substring(start, end)
+                lifecycleScope.launch(Dispatchers.Main) {
+                    updateTtsHighlight(word, isWord = true)
+                }
+            }
+        })
+        
+        val params = Bundle()
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ReaderTTS_$currentSentenceIndex")
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "ReaderTTS_$currentSentenceIndex")
+    }
+
+    private fun updateTtsHighlight(text: String?, isWord: Boolean = false) {
+        val nav = navigator as? DecorableNavigator ?: return
+        val baseLocator = currentResourceLocator ?: return
+        
+        lifecycleScope.launch {
+            if (text == null) {
+                nav.applyDecorations(emptyList(), "tts-highlight")
+                return@launch
+            }
+
+            // Create a locator for the text within the current resource
+            val locator = baseLocator.copy(
+                text = Locator.Text(highlight = text)
+            )
+
+            val decoration = Decoration(
+                id = if (isWord) "tts-word" else "tts-sentence",
+                locator = locator,
+                style = if (isWord) 
+                    Decoration.Style.Highlight(tint = 0x44FF0000.toInt()) // Light Red for word
+                else 
+                    Decoration.Style.Highlight(tint = 0x44FFFF00.toInt()) // Light Yellow for sentence
+            )
+
+            nav.applyDecorations(listOf(decoration), "tts-highlight")
+        }
+    }
+
+    private fun parseHtmlToTextRobust(html: String): String {
+        return try {
+            val doc = Jsoup.parse(html)
+            // Remove non-content elements
+            doc.select("style, script, nav, footer, header").remove()
+            // Extract text preserving some structure (blocks as newlines)
+            val cleaned = Jsoup.clean(doc.body().html(), Safelist.none().addTags("p", "br", "div"))
+            Jsoup.parse(cleaned).text()
+        } catch (e: Exception) {
+            // Fallback to simple extraction if Jsoup fails
+            html.replace("<[^>]+>".toRegex(), " ").trim()
+        }
     }
 
     override fun onInit(status: Int) {

@@ -7,6 +7,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.TypeConverter
 import com.example.ebook_new_app.models.ReadingStatus
+import com.example.ebook_new_app.utils.ServerConfig
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -78,20 +79,16 @@ data class BookEntity(
 )
 
 fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
-    val serverIp = "192.168.1.23" 
-    
-    // RESTORED ROBUST LOCAL URL LOGIC
-    val primaryCoverUrl = "http://$serverIp:8080/${id}_${id}-cover.png"
-    val titleEncoded = android.net.Uri.encode(title)
-    val secondaryCoverUrl = "http://$serverIp:8080/${titleEncoded}_cover.${id}"
-    val localUrl = if (sourceFolder == "law") secondaryCoverUrl else primaryCoverUrl
+    val serverIp = ServerConfig.getServerIp()
+    val serverPort = ServerConfig.getServerPort()
+    val coversUrl = "http://$serverIp:$serverPort/covers/${id}_cover_image.jpg"
 
     return com.example.ebook_new_app.models.Book(
         id = id,
         title = title,
         author = author,
         description = description ?: "",
-        coverImageUrl = localUrl, 
+        coverImageUrl = coversUrl, 
         externalCoverUrl = externalCoverUrl,
         sourceFolder = sourceFolder,
         epubFileName = epubFileName,

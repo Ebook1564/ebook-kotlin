@@ -39,6 +39,44 @@ fun CollectionPage(
     onBack: () -> Unit,
     onBookClick: (Book) -> Unit
 ) {
+    CollectionPageContent(
+        title = collection.title,
+        description = collection.description,
+        accentColor = collection.accentColor,
+        books = books,
+        onBack = onBack,
+        onBookClick = onBookClick
+    )
+}
+
+@Composable
+fun CollectionPage(
+    title: String,
+    description: String,
+    accentColor: Color,
+    books: LazyPagingItems<Book>,
+    onBack: () -> Unit,
+    onBookClick: (Book) -> Unit
+) {
+    CollectionPageContent(
+        title = title,
+        description = description,
+        accentColor = accentColor,
+        books = books,
+        onBack = onBack,
+        onBookClick = onBookClick
+    )
+}
+
+@Composable
+private fun CollectionPageContent(
+    title: String,
+    description: String,
+    accentColor: Color,
+    books: LazyPagingItems<Book>,
+    onBack: () -> Unit,
+    onBookClick: (Book) -> Unit
+) {
     val colors = BookVerseTheme.colors
     
     // Get a backdrop from the first book if available
@@ -83,7 +121,7 @@ fun CollectionPage(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = collection.title.uppercase(),
+                        text = title.uppercase(),
                         style = BookVerseTheme.typography.headline,
                         color = colors.textPrimary,
                         fontSize = 24.sp,
@@ -91,7 +129,7 @@ fun CollectionPage(
                         letterSpacing = 1.sp
                     )
                     Text(
-                        text = collection.description,
+                        text = description,
                         style = BookVerseTheme.typography.label,
                         color = colors.textSecondary,
                         fontSize = 12.sp
@@ -117,10 +155,10 @@ fun CollectionPage(
                 // Loading States
                 when {
                     books.loadState.refresh is LoadState.Loading -> {
-                        item { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = collection.accentColor) } }
+                        item { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = accentColor) } }
                     }
                     books.loadState.append is LoadState.Loading -> {
-                        item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = collection.accentColor) } }
+                        item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = accentColor) } }
                     }
                 }
             }

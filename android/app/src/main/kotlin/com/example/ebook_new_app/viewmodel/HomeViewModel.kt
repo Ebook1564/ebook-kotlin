@@ -29,6 +29,117 @@ data class BookCollection(
     val query: String
 )
 
+data class CuratedCollection(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val accentColor: Color,
+    val tags: List<String>,
+    val iconEmoji: String = "📚"
+)
+
+object CuratedCollections {
+    val collections = listOf(
+        CuratedCollection(
+            id = "sound_of_science",
+            title = "The Sound of Science",
+            subtitle = "Scientific Discoveries & Research",
+            description = "Explore the wonders of science, from physics to biology and everything in between.",
+            accentColor = Color(0xFF2196F3),
+            tags = listOf("Science", "Physics", "Chemistry", "Biology", "Technology"),
+            iconEmoji = "🔬"
+        ),
+        CuratedCollection(
+            id = "sound_of_romance",
+            title = "The Sound of Romance",
+            subtitle = "Timeless Love Stories",
+            description = "Classic tales of love, passion, and romance through the ages.",
+            accentColor = Color(0xFFE91E63),
+            tags = listOf("Romance", "Love Stories", "Historical Romance"),
+            iconEmoji = "💕"
+        ),
+        CuratedCollection(
+            id = "sound_of_mystery",
+            title = "The Sound of Mystery",
+            subtitle = "Whodunits & Thrillers",
+            description = "Get lost in suspenseful mysteries and gripping thrillers.",
+            accentColor = Color(0xFF37474F),
+            tags = listOf("Mystery", "Detective", "Crime", "Thriller"),
+            iconEmoji = "🔍"
+        ),
+        CuratedCollection(
+            id = "sound_of_history",
+            title = "The Sound of History",
+            subtitle = "Past Chronicles & Biographies",
+            description = "Journey through time with historical fiction and biographies.",
+            accentColor = Color(0xFF795548),
+            tags = listOf("History", "Biography", "Historical"),
+            iconEmoji = "📜"
+        ),
+        CuratedCollection(
+            id = "sound_of_adventure",
+            title = "The Sound of Adventure",
+            subtitle = "Epic Journeys & Quests",
+            description = "Thrilling adventures across lands, seas, and beyond.",
+            accentColor = Color(0xFF00695C),
+            tags = listOf("Adventure", "Exploration", "Travel"),
+            iconEmoji = "⚓"
+        ),
+        CuratedCollection(
+            id = "sound_of_fantasy",
+            title = "The Sound of Fantasy",
+            subtitle = "Worlds of Imagination",
+            description = "Escape to magical realms and fantastical worlds.",
+            accentColor = Color(0xFF9C27B0),
+            tags = listOf("Fantasy", "Magic", "Fairy Tales"),
+            iconEmoji = "✨"
+        ),
+        CuratedCollection(
+            id = "sound_of_gothic",
+            title = "The Sound of Gothic",
+            subtitle = "Dark & Haunting Tales",
+            description = "Atmospheric stories of mystery, horror, and the supernatural.",
+            accentColor = Color(0xFF263238),
+            tags = listOf("Gothic", "Horror", "Supernatural", "Dark"),
+            iconEmoji = "🏚️"
+        ),
+        CuratedCollection(
+            id = "sound_of_philosophy",
+            title = "The Sound of Philosophy",
+            subtitle = "Thoughts & Ideas",
+            description = "Contemplate life, existence, and the nature of reality.",
+            accentColor = Color(0xFF607D8B),
+            tags = listOf("Philosophy", "Ethics", "Metaphysics"),
+            iconEmoji = "🧠"
+        ),
+        CuratedCollection(
+            id = "sound_of_literature",
+            title = "The Sound of Literature",
+            subtitle = "Classic Literature",
+            description = "Timeless literary masterpieces from renowned authors.",
+            accentColor = Color(0xFF8D6E63),
+            tags = listOf("Literature", "Fiction", "Classic"),
+            iconEmoji = "📖"
+        ),
+        CuratedCollection(
+            id = "sound_of_war",
+            title = "The Sound of War",
+            subtitle = "Military History & Fiction",
+            description = "Stories of conflict, bravery, and the human cost of war.",
+            accentColor = Color(0xFFB71C1C),
+            tags = listOf("War", "Military", "Battle"),
+            iconEmoji = "⚔️"
+        )
+    )
+
+    fun findCollectionForTag(tag: String): CuratedCollection? {
+        return collections.find { collection ->
+            collection.tags.any { it.equals(tag, ignoreCase = true) }
+        }
+    }
+}
+
 sealed class SearchFilter {
     object None : SearchFilter()
     data class Author(val name: String) : SearchFilter()
@@ -43,6 +154,8 @@ data class HomeUiState(
     val activeFilter: SearchFilter = SearchFilter.None,
     val selectedCategoryForSearch: String? = null,
     val currentCollection: BookCollection? = null,
+    val currentCuratedCollection: CuratedCollection? = null,
+    val curatedCollections: List<CuratedCollection> = CuratedCollections.collections,
     val transitionBook: Book? = null,
     val initialBounds: InitialBounds? = null,
     val isMetadataLoading: Boolean = false
@@ -93,6 +206,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             else {
                 Pager(config = PagingConfig(pageSize = 30)) {
                     bookDao.getCollectionBooksPaging(collection.query)
+                }.flow.map { data -> data.map { it.toBook() } }
+            }
+        }.cachedIn(viewModelScope)
+
+    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val curatedCollectionBooksByTag: Flow<PagingData<Book>> = _uiState
+        .map { it.currentCuratedCollection }
+        .distinctUntilChanged()
+        .flatMapLatest { collection ->
+            if (collection == null) flowOf(PagingData.empty())
+            else {
+                // Search by the first tag in the collection
+                Pager(config = PagingConfig(pageSize = 30)) {
+                    bookDao.getCollectionBooksPaging(collection.tags.first())
                 }.flow.map { data -> data.map { it.toBook() } }
             }
         }.cachedIn(viewModelScope)
@@ -156,14 +283,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openCollection(tag: String) = viewModelScope.launch {
-        val collection = when {
-            tag.contains("Gothic", ignoreCase = true) -> BookCollection("Gothic Echoes", "Dark, moody tales.", Color(0xFF37474F), "Gothic")
-            else -> BookCollection(tag, "A curated selection.", Color(0xFFE50914), tag)
+        // First check if it matches a curated collection
+        val curatedCollection = CuratedCollections.findCollectionForTag(tag)
+        if (curatedCollection != null) {
+            _uiState.value = _uiState.value.copy(currentCuratedCollection = curatedCollection, currentCollection = null)
+            return@launch
         }
-        _uiState.value = _uiState.value.copy(currentCollection = collection)
+
+        // Fallback to legacy category-based collections
+        val collection = when {
+            tag.contains("Gothic", ignoreCase = true) -> BookCollection("Gothic Echoes", "Dark, moody tales of mystery and the supernatural.", Color(0xFF37474F), "Gothic")
+            tag.contains("Adventure", ignoreCase = true) -> BookCollection("High Seas & Beyond", "Epic journeys and daring adventures through history.", Color(0xFF00695C), "Adventure")
+            tag.contains("Romance", ignoreCase = true) -> BookCollection("Classic Romance", "Timeless stories of love, passion, and high society.", Color(0xFFAD1457), "Romance")
+            tag.contains("Mystery", ignoreCase = true) -> BookCollection("Detective Noir", "Classic whodunnits and complex investigations.", Color(0xFF263238), "Mystery")
+            else -> BookCollection(tag, "A curated selection of books matching '$tag'.", Color(0xFFE50914), tag)
+        }
+        _uiState.value = _uiState.value.copy(currentCollection = collection, currentCuratedCollection = null)
     }
 
-    fun closeCollection() { _uiState.value = _uiState.value.copy(currentCollection = null) }
+    fun openCuratedCollection(collection: CuratedCollection) {
+        _uiState.value = _uiState.value.copy(currentCuratedCollection = collection, currentCollection = null)
+    }
+
+    fun closeCollection() { 
+        _uiState.value = _uiState.value.copy(currentCollection = null, currentCuratedCollection = null) 
+    }
 
     fun fetchMetadataForBook(book: Book, onUpdated: (Book) -> Unit) {
         viewModelScope.launch {
