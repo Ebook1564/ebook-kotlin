@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ebook_new_app.viewmodel.ReaderTheme
@@ -154,18 +155,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         selectionComposeView = view.findViewById(R.id.selection_compose_view)
         revealOverlayView = view.findViewById(R.id.reveal_overlay_view)
         fragmentReaderContainer = view.findViewById(R.id.fragment_reader_container)
-        
-        // Add TTS control view to layout
-        ttsControlComposeView = ComposeView(requireContext()).apply {
-            id = View.generateViewId()
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                android.view.Gravity.BOTTOM
-            )
-            visibility = View.GONE
-        }
-        (view as ViewGroup).addView(ttsControlComposeView)
+        ttsControlComposeView = view.findViewById(R.id.tts_control_compose_view)
 
         listOf(settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
             cv.setViewTreeLifecycleOwner(viewLifecycleOwner)
@@ -226,35 +216,63 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 8.dp,
+                    shadowElevation = 8.dp,
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        IconButton(onClick = { prevTts() }) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous Sentence")
-                        }
-                        
-                        LargeFloatingActionButton(
-                            onClick = { togglePlayPauseTts() },
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ) {
-                            Icon(
-                                if (isTtsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp)
+                        // Current sentence indicator
+                        if (ttsSentences.isNotEmpty() && currentSentenceIndex in ttsSentences.indices) {
+                            Text(
+                                text = ttsSentences[currentSentenceIndex].take(50) + if (ttsSentences[currentSentenceIndex].length > 50) "..." else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { prevTts() }) {
+                                Icon(Icons.Default.SkipPrevious, contentDescription = "Previous Sentence")
+                            }
+                            
+                            LargeFloatingActionButton(
+                                onClick = { togglePlayPauseTts() },
+                                shape = CircleShape,
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ) {
+                                Icon(
+                                    if (isTtsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
 
-                        IconButton(onClick = { nextTts() }) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "Next Sentence")
+                            IconButton(onClick = { nextTts() }) {
+                                Icon(Icons.Default.SkipNext, contentDescription = "Next Sentence")
+                            }
+
+                            IconButton(onClick = { stopTts() }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close TTS")
+                            }
                         }
-
-                        IconButton(onClick = { stopTts() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close TTS")
+                        
+                        // Progress indicator
+                        if (ttsSentences.isNotEmpty()) {
+                            Text(
+                                text = "${currentSentenceIndex + 1} / ${ttsSentences.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
                     }
                 }

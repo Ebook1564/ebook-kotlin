@@ -170,6 +170,14 @@
     </LinearLayout>
 
     <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/tts_control_compose_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:visibility="gone"
+        android:elevation="25dp" />
+
+    <androidx.compose.ui.platform.ComposeView
         android:id="@+id/settings_compose_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

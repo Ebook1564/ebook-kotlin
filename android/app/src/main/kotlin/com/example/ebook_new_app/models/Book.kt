@@ -30,3 +30,5 @@ data class Book(
     val lastOpened: Long? = null,
     val dateFinished: Long? = null
 ) : Parcelable
+
+ 

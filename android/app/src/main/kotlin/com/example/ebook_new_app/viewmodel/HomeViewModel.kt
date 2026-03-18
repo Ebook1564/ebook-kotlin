@@ -42,8 +42,8 @@ data class CuratedCollection(
 object CuratedCollections {
     val collections = listOf(
         CuratedCollection(
-            id = "sound_of_science",
-            title = "The Sound of Science",
+            id = "essence_of_science",
+            title = "The Essence of Science",
             subtitle = "Scientific Discoveries & Research",
             description = "Explore the wonders of science, from physics to biology and everything in between.",
             accentColor = Color(0xFF2196F3),
@@ -51,8 +51,8 @@ object CuratedCollections {
             iconEmoji = "🔬"
         ),
         CuratedCollection(
-            id = "sound_of_romance",
-            title = "The Sound of Romance",
+            id = "essence_of_romance",
+            title = "The Essence of Romance",
             subtitle = "Timeless Love Stories",
             description = "Classic tales of love, passion, and romance through the ages.",
             accentColor = Color(0xFFE91E63),
@@ -60,8 +60,8 @@ object CuratedCollections {
             iconEmoji = "💕"
         ),
         CuratedCollection(
-            id = "sound_of_mystery",
-            title = "The Sound of Mystery",
+            id = "essence_of_mystery",
+            title = "The Essence of Mystery",
             subtitle = "Whodunits & Thrillers",
             description = "Get lost in suspenseful mysteries and gripping thrillers.",
             accentColor = Color(0xFF37474F),
@@ -69,8 +69,8 @@ object CuratedCollections {
             iconEmoji = "🔍"
         ),
         CuratedCollection(
-            id = "sound_of_history",
-            title = "The Sound of History",
+            id = "essence_of_history",
+            title = "The Essence of History",
             subtitle = "Past Chronicles & Biographies",
             description = "Journey through time with historical fiction and biographies.",
             accentColor = Color(0xFF795548),
@@ -78,8 +78,8 @@ object CuratedCollections {
             iconEmoji = "📜"
         ),
         CuratedCollection(
-            id = "sound_of_adventure",
-            title = "The Sound of Adventure",
+            id = "essence_of_adventure",
+            title = "The Essence of Adventure",
             subtitle = "Epic Journeys & Quests",
             description = "Thrilling adventures across lands, seas, and beyond.",
             accentColor = Color(0xFF00695C),
@@ -87,8 +87,8 @@ object CuratedCollections {
             iconEmoji = "⚓"
         ),
         CuratedCollection(
-            id = "sound_of_fantasy",
-            title = "The Sound of Fantasy",
+            id = "essence_of_fantasy",
+            title = "The Essence of Fantasy",
             subtitle = "Worlds of Imagination",
             description = "Escape to magical realms and fantastical worlds.",
             accentColor = Color(0xFF9C27B0),
@@ -96,8 +96,8 @@ object CuratedCollections {
             iconEmoji = "✨"
         ),
         CuratedCollection(
-            id = "sound_of_gothic",
-            title = "The Sound of Gothic",
+            id = "essence_of_gothic",
+            title = "The Essence of Gothic",
             subtitle = "Dark & Haunting Tales",
             description = "Atmospheric stories of mystery, horror, and the supernatural.",
             accentColor = Color(0xFF263238),
@@ -105,8 +105,8 @@ object CuratedCollections {
             iconEmoji = "🏚️"
         ),
         CuratedCollection(
-            id = "sound_of_philosophy",
-            title = "The Sound of Philosophy",
+            id = "essence_of_philosophy",
+            title = "The Essence of Philosophy",
             subtitle = "Thoughts & Ideas",
             description = "Contemplate life, existence, and the nature of reality.",
             accentColor = Color(0xFF607D8B),
@@ -114,8 +114,8 @@ object CuratedCollections {
             iconEmoji = "🧠"
         ),
         CuratedCollection(
-            id = "sound_of_literature",
-            title = "The Sound of Literature",
+            id = "essence_of_literature",
+            title = "The Essence of Literature",
             subtitle = "Classic Literature",
             description = "Timeless literary masterpieces from renowned authors.",
             accentColor = Color(0xFF8D6E63),
@@ -123,8 +123,8 @@ object CuratedCollections {
             iconEmoji = "📖"
         ),
         CuratedCollection(
-            id = "sound_of_war",
-            title = "The Sound of War",
+            id = "essence_of_war",
+            title = "The Essence of War",
             subtitle = "Military History & Fiction",
             description = "Stories of conflict, bravery, and the human cost of war.",
             accentColor = Color(0xFFB71C1C),

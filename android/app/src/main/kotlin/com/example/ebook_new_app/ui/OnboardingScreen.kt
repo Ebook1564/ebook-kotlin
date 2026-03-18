@@ -190,7 +190,7 @@ fun AutoScrollingBackground() {
             delay(16)
         }
     }
-    LazyVerticalGrid(state = scrollState, columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().alpha(0.4f).blur(8.dp), userScrollEnabled = false, contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyVerticalGrid(state = scrollState, columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().alpha(0.7f).blur(8.dp), userScrollEnabled = false, contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(100) { index ->
             val id = (index % 50) + 1
             Box(Modifier.aspectRatio(0.7f).clip(RoundedCornerShape(4.dp)).background(Color.Gray.copy(0.2f))) {

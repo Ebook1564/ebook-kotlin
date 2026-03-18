@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.models.ReadingStatus
+import com.example.ebook_new_app.viewmodel.CuratedCollection
+import com.example.ebook_new_app.viewmodel.CuratedCollections
 import com.example.ebook_new_app.viewmodel.InitialBounds
 
 @Composable
@@ -216,6 +218,50 @@ fun BookDetailContent(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
+                // CURATED COLLECTIONS (if book matches any)
+                // Also check categoryCode from database as fallback
+                val bookTags = remember(displayBook.subjects, displayBook.categories) {
+                    displayBook.subjects + displayBook.categories
+                }
+                
+                val matchingCollections = remember(bookTags) {
+                    CuratedCollections.collections.filter { collection ->
+                        collection.tags.any { tag -> 
+                            bookTags.any { subject -> 
+                                subject.contains(tag, ignoreCase = true) || 
+                                tag.contains(subject, ignoreCase = true)
+                            }
+                        }
+                    }
+                }
+                
+                if (matchingCollections.isNotEmpty()) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Part of These Collections",
+                            style = typography.headline,
+                            color = colors.textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(matchingCollections) { collection ->
+                                CuratedCollectionChip(
+                                    collection = collection,
+                                    onClick = { onCategoryClick(collection.tags.first()) }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
                 // DIVERSIFIED TAGS (OpenLibrary Subjects)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -272,5 +318,43 @@ fun DetailChip(label: String, onClick: () -> Unit) {
             letterSpacing = 1.sp,
             color = colors.textSecondary
         )
+    }
+}
+
+@Composable
+fun CuratedCollectionChip(collection: CuratedCollection, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = collection.accentColor,
+        modifier = Modifier.clickable { onClick() },
+        shadowElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = collection.iconEmoji,
+                fontSize = 16.sp
+            )
+            Column {
+                Text(
+                    text = collection.title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = collection.subtitle,
+                    fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }

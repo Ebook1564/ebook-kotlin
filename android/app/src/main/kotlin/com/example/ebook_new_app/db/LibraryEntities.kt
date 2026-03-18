@@ -91,6 +91,7 @@ fun BookEntity.toBook(): com.example.ebook_new_app.models.Book {
         coverImageUrl = coversUrl, 
         externalCoverUrl = externalCoverUrl,
         sourceFolder = sourceFolder,
+        categories = if (categoryCode.isNotEmpty()) listOf(categoryCode) else emptyList(),
         epubFileName = epubFileName,
         readingStatus = readingStatus,
         dateAdded = dateAdded,
