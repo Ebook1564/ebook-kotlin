@@ -21,8 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -59,6 +62,9 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.utils.ServerConfig
+import com.example.ebook_new_app.viewmodel.AppThemeMode
+import com.example.ebook_new_app.viewmodel.AppViewModel
+import com.example.ebook_new_app.viewmodel.HomeUiState
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.SearchFilter
 import kotlinx.coroutines.launch
@@ -67,9 +73,11 @@ import kotlin.math.hypot
 @Composable
 fun SearchScreen(
     viewModel: HomeViewModel = viewModel(),
+    appViewModel: AppViewModel = viewModel(),
     onBookClick: (Book) -> Unit
 ) {
     val colors = BookVerseTheme.colors
+    val currentTheme by appViewModel.themeMode
     val uiState by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.filterResults.collectAsLazyPagingItems()
     var showAuthors by remember { mutableStateOf(false) }
@@ -97,6 +105,10 @@ fun SearchScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        if (currentTheme == AppThemeMode.SPACE) {
+            SpaceBackground()
+        }
+
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // HEADER
             Row(
@@ -104,8 +116,31 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("EBOOK BUNDLE", style = BookVerseTheme.typography.headline, color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                IconButton(onClick = { showAuthors = true }) { Icon(Icons.Default.Group, null, tint = colors.primary) }
+                Text(
+                    text = if (currentTheme == AppThemeMode.SPACE) "EXPLORE" else "EBOOK BUNDLE",
+                    style = BookVerseTheme.typography.headline,
+                    color = colors.textPrimary,
+                    fontSize = if (currentTheme == AppThemeMode.SPACE) 28.sp else 24.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = if (currentTheme == AppThemeMode.SPACE) 1.sp else 0.sp
+                )
+                Row {
+                    IconButton(
+                        onClick = { appViewModel.toggleTheme() },
+                        modifier = Modifier.clip(CircleShape).background(colors.surface.copy(alpha = if(currentTheme == AppThemeMode.NIGHT || currentTheme == AppThemeMode.SPACE) 0.3f else 0.8f))
+                    ) {
+                        Icon(
+                            imageVector = when (currentTheme) {
+                                AppThemeMode.DAY -> Icons.Default.Nightlight
+                                AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
+                                AppThemeMode.SPACE -> Icons.Default.LightMode
+                            },
+                            contentDescription = "Toggle Theme",
+                            tint = colors.primary
+                        )
+                    }
+                    IconButton(onClick = { showAuthors = true }) { Icon(Icons.Default.Group, null, tint = colors.primary) }
+                }
             }
 
             // SEARCH BAR
@@ -113,136 +148,177 @@ fun SearchScreen(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                placeholder = { Text("Search 60,000+ classics...", color = colors.textSecondary.copy(alpha = 0.5f)) },
+                placeholder = { 
+                    Text(
+                        "Search 60,000+ books...", 
+                        color = colors.textSecondary.copy(alpha = 0.5f)
+                    ) 
+                },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = colors.primary) },
-                shape = RoundedCornerShape(16.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = colors.surface, 
-                    unfocusedContainerColor = colors.surface, 
-                    focusedIndicatorColor = Color.Transparent, 
-                    unfocusedIndicatorColor = Color.Transparent
-                )
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                // EXPLORE ALL LIST (Visible when no filter is active)
-                if (!hasFilter) {
-                    Column(Modifier.fillMaxSize()) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 140.dp)
-                        ) {
-                            // CABINETS GRID AT TOP OF EXPLORE ALL
-                            item {
-                                Text("CURATED CABINETS", 
-                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), 
-                                    style = BookVerseTheme.typography.label, 
-                                    color = colors.textSecondary,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp
-                                )
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
-                                    modifier = Modifier.height(500.dp).padding(horizontal = 24.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    userScrollEnabled = false
-                                ) {
-                                    items(allCategories) { category ->
-                                        DrawerFrontPanel(
-                                            title = category,
-                                            isOpen = false,
-                                            onClick = { viewModel.navigateToCategory(category) }
-                                        )
-                                    }
-                                }
-                            }
-
-                            item {
-                                Text("EXPLORE ALL BOOKS", 
-                                    modifier = Modifier.padding(24.dp), 
-                                    style = BookVerseTheme.typography.label, 
-                                    color = colors.textSecondary,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 2.sp
-                                )
-                            }
-
-                            items(
-                                count = pagingItems.itemCount,
-                                key = pagingItems.itemKey { it.id }
-                            ) { index ->
-                                pagingItems[index]?.let { book ->
-                                    SearchResultItem(book, onBookClick)
-                                }
-                            }
+                trailingIcon = {
+                    if (uiState.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Text("Clear", color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.SPACE) 0.5f else 1f),
+                    unfocusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.SPACE) 0.5f else 1f),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    cursorColor = colors.primary
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+
+            // SPACE THEME: Celestial Navigation
+            if (currentTheme == AppThemeMode.SPACE) {
+                val planetSystems = rememberPlanetSystems(allCategories)
+                val selectedCategory = when (val f = uiState.activeFilter) {
+                    is SearchFilter.Category -> f.code
+                    else -> null
                 }
-
-                // RESULTS DRAWER
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = hasFilter,
-                    enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeOut()
-                ) {
-                    // Removed the solid black overlay to prevent broken immersion
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                viewModel.clearFilters()
-                            }
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 100.dp)
-                                .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-                                .background(colors.background)
-                                .clickable(enabled = true, onClick = {}) 
-                        ) {
-                            Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(currentDrawerColor))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(currentTitleText, color = currentDrawerColor, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 14.sp)
-                                    Text("${pagingItems.itemCount} items", color = colors.textSecondary, fontSize = 10.sp)
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // VIEW ALL BUTTON
-                                    TextButton(onClick = { viewModel.openCollection(currentTitleText) }) {
-                                        Text("VIEW ALL", color = currentDrawerColor, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = currentDrawerColor, modifier = Modifier.size(16.dp))
-                                    }
-                                    IconButton(onClick = { viewModel.clearFilters() }) {
-                                        Icon(Icons.Default.Close, null, tint = colors.textSecondary)
-                                    }
-                                }
-                            }
-
+                CelestialNavigation(
+                    planetSystems = planetSystems,
+                    selectedCategory = selectedCategory,
+                    onPlanetClick = { category ->
+                        if (selectedCategory == category) {
+                            viewModel.clearFilters()
+                        } else {
+                            viewModel.navigateToCategory(category)
+                        }
+                    }
+                )
+                
+                // SPACE THEME: Content Area
+                SpaceSearchContent(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    pagingItems = pagingItems,
+                    onBookClick = onBookClick
+                )
+            } else {
+                // DAY/NIGHT: Category Row
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // DAY/NIGHT: Content Area
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (!hasFilter) {
+                        Column(Modifier.fillMaxSize()) {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                contentPadding = PaddingValues(bottom = 140.dp)
                             ) {
+                                item {
+                                    Text("CURATED CABINETS",
+                                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                        style = BookVerseTheme.typography.label,
+                                        color = colors.textSecondary,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 2.sp
+                                    )
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(2),
+                                        modifier = Modifier.height(500.dp).padding(horizontal = 24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                                        userScrollEnabled = false
+                                    ) {
+                                        items(allCategories) { category ->
+                                            DrawerFrontPanel(
+                                                title = category,
+                                                isOpen = false,
+                                                onClick = { viewModel.navigateToCategory(category) }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                item {
+                                    Text("EXPLORE ALL BOOKS",
+                                        modifier = Modifier.padding(24.dp),
+                                        style = BookVerseTheme.typography.label,
+                                        color = colors.textSecondary,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 2.sp
+                                    )
+                                }
+
                                 items(
                                     count = pagingItems.itemCount,
                                     key = pagingItems.itemKey { it.id }
                                 ) { index ->
                                     pagingItems[index]?.let { book ->
-                                        SearchResultItem(book, onBookClick)
+                                        SearchResultItem(book, onClick = onBookClick)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = hasFilter,
+                        enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeOut()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    viewModel.clearFilters()
+                                }
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(top = 100.dp)
+                                    .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                                    .background(colors.background)
+                                    .clickable(enabled = true, onClick = {})
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(currentDrawerColor))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(currentTitleText, color = currentDrawerColor, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 14.sp)
+                                        Text("${pagingItems.itemCount} items", color = colors.textSecondary, fontSize = 10.sp)
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        TextButton(onClick = { viewModel.openCollection(currentTitleText) }) {
+                                            Text("VIEW ALL", color = currentDrawerColor, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = currentDrawerColor, modifier = Modifier.size(16.dp))
+                                        }
+                                        IconButton(onClick = { viewModel.clearFilters() }) {
+                                            Icon(Icons.Default.Close, null, tint = colors.textSecondary)
+                                        }
                                     }
                                 }
 
-                                if (pagingItems.loadState.refresh is LoadState.Loading) {
-                                    item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = currentDrawerColor) } }
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    items(
+                                        count = pagingItems.itemCount,
+                                        key = pagingItems.itemKey { it.id }
+                                    ) { index ->
+                                        pagingItems[index]?.let { book ->
+                                            SearchResultItem(book, onClick = onBookClick)
+                                        }
+                                    }
+
+                                    if (pagingItems.loadState.refresh is LoadState.Loading) {
+                                        item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = currentDrawerColor) } }
+                                    }
                                 }
                             }
                         }
@@ -252,9 +328,180 @@ fun SearchScreen(
         }
 
         AuthorsRevealOverlay(
-            visible = showAuthors, 
+            visible = showAuthors,
             onClose = { showAuthors = false },
             onAuthorClick = { viewModel.setAuthorFilter(it) }
+        )
+    }
+}
+
+@Composable
+private fun SpaceSearchContent(
+    uiState: HomeUiState,
+    viewModel: HomeViewModel,
+    pagingItems: androidx.paging.compose.LazyPagingItems<Book>,
+    onBookClick: (Book) -> Unit
+) {
+    val selectedCategory = when (val f = uiState.activeFilter) {
+        is SearchFilter.Category -> f.code
+        else -> null
+    }
+
+    val dummyRecommendations = remember {
+        listOf(
+            Book(id = "1", title = "The Grand Adventure", author = "J.R.R. Tolkien"),
+            Book(id = "2", title = "A Brief History of Time", author = "Stephen Hawking"),
+            Book(id = "3", title = "Sherlock Holmes", author = "Arthur Conan Doyle"),
+            Book(id = "4", title = "The Hobbit", author = "J.R.R. Tolkien"),
+        ).shuffled()
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selectedCategory?.isNotEmpty() == true,
+            enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+        ) {
+            selectedCategory?.let { category ->
+                val planet = planetForCategory(category)
+                val animatedColor by animateColorAsState(
+                    targetValue = planet.mainColor,
+                    animationSpec = tween(durationMillis = 600, easing = PremiumEasing)
+                )
+                val spaceBrush = Brush.verticalGradient(
+                    listOf(
+                        animatedColor.copy(alpha = 0.5f),
+                        Color.Black
+                    )
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxSize().background(spaceBrush).padding(16.dp)
+                ) {
+                    Text(
+                        text = "ARCHIVE: ${category.uppercase()}",
+                        style = BookVerseTheme.typography.label,
+                        color = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(start = 8.dp, bottom = 16.dp),
+                        letterSpacing = 2.sp
+                    )
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 100.dp)
+                    ) {
+                        items(pagingItems.itemCount) { index ->
+                            pagingItems[index]?.let { book ->
+                                ArchiveCardItem(book, onClick = { onBookClick(book) })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selectedCategory.isNullOrEmpty(),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            if (uiState.searchQuery.isEmpty()) {
+                Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                    Text("DISCOVER", style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.textSecondary, letterSpacing = 2.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(dummyRecommendations) { book -> 
+                            SearchResultItem(book, onClick = onBookClick) 
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 24.dp, top = 16.dp, end = 24.dp, bottom = 140.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(
+                        count = pagingItems.itemCount,
+                        key = pagingItems.itemKey { it.id }
+                    ) { index ->
+                        val book = pagingItems[index]
+                        if (book != null) {
+                            SearchResultItem(book, onClick = onBookClick)
+                        }
+                    }
+
+                    when {
+                        pagingItems.loadState.refresh is LoadState.Loading -> {
+                            item { 
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = BookVerseTheme.colors.primary)
+                                }
+                            }
+                        }
+                        pagingItems.loadState.append is LoadState.Loading -> {
+                            item { 
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = BookVerseTheme.colors.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ArchiveCardItem(book: Book, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.width(100.dp).clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(0.7f)
+                .clip(RoundedCornerShape(4.dp))
+                .shadow(8.dp)
+                .background(BookVerseTheme.colors.surface)
+        ) {
+            val serverIp = "10.0.2.2"
+            var fallbackStage by remember { mutableIntStateOf(0) }
+            val imageUrl = when(fallbackStage) {
+                0 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.png"
+                1 -> "http://$serverIp:8080/${book.id}_${book.id}-cover.jpg"
+                2 -> "http://$serverIp:8080/${android.net.Uri.encode(book.title)}_cover.${book.id}"
+                else -> ""
+            }
+
+            SubcomposeAsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    if (fallbackStage < 2) {
+                        LaunchedEffect(imageUrl) { fallbackStage++ }
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
+                    } else {
+                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = BookVerseTheme.colors.textSecondary.copy(0.3f))
+                        }
+                    }
+                }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = book.title,
+            style = BookVerseTheme.typography.label,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontSize = 11.sp
         )
     }
 }
@@ -312,7 +559,7 @@ fun SearchResultItem(book: Book, onClick: (Book) -> Unit) {
             )
         }
         Spacer(Modifier.width(20.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text(book.title, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, color = BookVerseTheme.colors.textPrimary, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
             Text(book.author, fontSize = 12.sp, color = BookVerseTheme.colors.textSecondary, fontWeight = FontWeight.Bold)
@@ -375,6 +622,67 @@ fun getDrawerColor(cat: String): Color = when(cat) {
     "Biography" -> Color(0xFF00695C)
     "Adventure" -> Color(0xFFEF6C00)
     else -> Color(0xFFE50914)
+}
+
+@Composable
+fun rememberPlanetSystems(categories: List<String>): List<PlanetSystem> {
+    return remember(categories) {
+        categories.map { category ->
+            val planetData = planetForCategory(category)
+            PlanetSystem(
+                planet = planetData,
+                orbitingPlanets = List(3) {
+                    val orbitingColor = planetData.mainColor.copy(alpha = 1f)
+                    OrbitingPlanet(
+                        data = PlanetData(
+                            name = "",
+                            mainColor = orbitingColor,
+                            accentColors = listOf(orbitingColor, Color.White),
+                            radius = kotlin.random.Random.nextDouble(3.0, 8.0).dp
+                        ),
+                        orbitRadius = kotlin.random.Random.nextDouble(planetData.radius.value + 10.0, planetData.radius.value + 20.0).dp,
+                        angleOffset = kotlin.random.Random.nextFloat() * 360f,
+                        speed = kotlin.random.Random.nextDouble(0.8, 1.5).toFloat()
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun CelestialNavigation(
+    planetSystems: List<PlanetSystem>,
+    selectedCategory: String?,
+    onPlanetClick: (String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(60.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp)
+    ) {
+        items(planetSystems) { system ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CelestialBody(
+                    planet = system.planet,
+                    orbitingPlanets = system.orbitingPlanets,
+                    isExpanded = selectedCategory == system.planet.name,
+                    onClick = { onPlanetClick(system.planet.name) }
+                )
+                Text(
+                    text = system.planet.name.uppercase(),
+                    style = BookVerseTheme.typography.label,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp,
+                    fontSize = 10.sp
+                )
+            }
+        }
+    }
 }
 
 class SearchCircularRevealShape(private val radius: Float, private val center: Offset) : Shape {

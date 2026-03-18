@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,11 +21,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ebook_new_app.viewmodel.AppThemeMode
+import com.example.ebook_new_app.viewmodel.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(userName: String, onBackClick: () -> Unit = {}) {
+fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), onBackClick: () -> Unit = {}) {
     val colors = BookVerseTheme.colors
+    val themeMode = appViewModel.themeMode.value
     var activeSubScreen by remember { mutableStateOf<String?>(null) }
 
     if (activeSubScreen != null) {
@@ -45,6 +50,22 @@ fun ProfileScreen(userName: String, onBackClick: () -> Unit = {}) {
                     navigationIcon = {
                         IconButton(onClick = { if (activeSubScreen != null) activeSubScreen = null else onBackClick() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { appViewModel.toggleTheme() },
+                            modifier = Modifier.clip(CircleShape).background(colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.SPACE) 0.3f else 0.8f))
+                        ) {
+                            Icon(
+                                imageVector = when (themeMode) {
+                                    AppThemeMode.DAY -> Icons.Default.Nightlight
+                                    AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
+                                    AppThemeMode.SPACE -> Icons.Default.LightMode
+                                },
+                                contentDescription = "Toggle Theme",
+                                tint = colors.primary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background, titleContentColor = colors.textPrimary)

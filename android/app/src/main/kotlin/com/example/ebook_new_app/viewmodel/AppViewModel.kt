@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 enum class AppThemeMode {
-    DAY, NIGHT
+    DAY, NIGHT, SPACE
 }
 
 data class UserProfile(
@@ -37,7 +37,11 @@ class AppViewModel : ViewModel() {
         if (_isTransitioning.value) return
         _isTransitioning.value = true
         _previousThemeMode.value = _themeMode.value
-        _themeMode.value = if (_themeMode.value == AppThemeMode.DAY) AppThemeMode.NIGHT else AppThemeMode.DAY
+        _themeMode.value = when (_themeMode.value) {
+            AppThemeMode.DAY -> AppThemeMode.NIGHT
+            AppThemeMode.NIGHT -> AppThemeMode.SPACE
+            AppThemeMode.SPACE -> AppThemeMode.DAY
+        }
         _themeTransitionTrigger.value += 1
     }
 

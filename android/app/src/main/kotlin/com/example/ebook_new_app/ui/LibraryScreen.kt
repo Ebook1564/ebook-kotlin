@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,9 +35,13 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -56,8 +61,11 @@ import com.example.ebook_new_app.PremiumEasing
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.utils.ServerConfig
+import com.example.ebook_new_app.viewmodel.AppThemeMode
+import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.HomeViewModel
 import com.example.ebook_new_app.viewmodel.LibraryViewModel
+import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.absoluteValue
@@ -67,11 +75,13 @@ import kotlin.math.absoluteValue
 fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
     homeViewModel: HomeViewModel = viewModel(),
+    appViewModel: AppViewModel = viewModel(),
     onProfileClick: () -> Unit,
     onBookClick: (Book) -> Unit,
     onInspectStateChange: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currentTheme by appViewModel.themeMode
     var expandedTier by remember { mutableStateOf<String?>(null) }
     var inspectedBook by remember { mutableStateOf<Book?>(null) }
 
@@ -179,6 +189,7 @@ fun LibraryScreen(
                         ShelfTier(
                             title = "Currently Reading",
                             books = uiState.currentlyReading,
+                            themeMode = currentTheme,
                             isExpanded = expandedTier == "current",
                             onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
                             onInspectBook = { inspectedBook = it },
@@ -190,6 +201,7 @@ fun LibraryScreen(
                         ShelfTier(
                             title = "Finished",
                             books = uiState.completed,
+                            themeMode = currentTheme,
                             isExpanded = expandedTier == "finished",
                             onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
                             onInspectBook = { inspectedBook = it },
@@ -201,6 +213,7 @@ fun LibraryScreen(
                         ShelfTier(
                             title = "Want to Read",
                             books = uiState.wishlist,
+                            themeMode = currentTheme,
                             isExpanded = expandedTier == "wishlist",
                             onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
                             onInspectBook = { inspectedBook = it },
@@ -316,14 +329,41 @@ fun LibraryBookPoster(book: Book) {
 fun ShelfTier(
     title: String,
     books: List<Book>,
+    themeMode: AppThemeMode,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onInspectBook: (Book) -> Unit,
     onSeeAll: () -> Unit
 ) {
-    val shelfColor = Color(0xFF3E2723) 
-    val shelfWallColor = Color(0xFF2D1B18)
+    val cornerRadius = 2.dp
+    val shelfColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF3E2723) 
+    val shelfWallColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF2D1B18)
     
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isExpanded && themeMode == AppThemeMode.SPACE) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
+        animationSpec = tween(1200, easing = PremiumEasing)
+    )
+
+    val starshipProgress = remember { Animatable(0f) }
+
+    if (themeMode == AppThemeMode.SPACE) {
+        LaunchedEffect(isExpanded) {
+            starshipProgress.stop()
+            while (isActive) {
+                starshipProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = ((1f - starshipProgress.value) * (if (isExpanded) 60000 else 20000)).toInt(),
+                        easing = LinearEasing
+                    )
+                )
+                starshipProgress.snapTo(0f)
+            }
+        }
+    }
+
+    val pathMeasure = remember { PathMeasure() }
+
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -352,7 +392,47 @@ fun ShelfTier(
                 .height(200.dp) 
                 .clickable { onToggle() }
         ) {
-            Box(modifier = Modifier.fillMaxSize().padding(bottom = 20.dp).background(shelfWallColor, RoundedCornerShape(2.dp)))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 20.dp)
+                    .drawWithContent {
+                        drawContent()
+
+                        if (themeMode == AppThemeMode.SPACE) {
+                            val path = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        rect = Rect(Offset.Zero, size),
+                                        cornerRadius = CornerRadius(cornerRadius.toPx())
+                                    )
+                                )
+                            }
+                            pathMeasure.setPath(path, false)
+                            val distance = pathMeasure.length * starshipProgress.value
+                            val offset = pathMeasure.getPosition(distance)
+                            
+                            withTransform({
+                                translate(left = offset.x, top = offset.y)
+                            }) {
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color.White, Color(0xFF87CEEB).copy(alpha = 0.5f), Color.Transparent),
+                                        center = Offset.Zero,
+                                        radius = 8.dp.toPx()
+                                    ),
+                                    radius = 8.dp.toPx(),
+                                    center = Offset.Zero
+                                )
+                            }
+                        }
+                    }
+                    .background(shelfWallColor, RoundedCornerShape(cornerRadius))
+                    .then(
+                        if (themeMode == AppThemeMode.SPACE) Modifier.border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
+                        else Modifier
+                    )
+            )
             
             Box(
                 modifier = Modifier
@@ -365,10 +445,13 @@ fun ShelfTier(
                         transformOrigin = TransformOrigin(0.5f, 1f)
                     }
                     .background(
-                        brush = Brush.verticalGradient(listOf(shelfColor, Color.Black.copy(0.4f))),
-                        shape = RoundedCornerShape(2.dp)
+                        brush = Brush.verticalGradient(
+                            if (themeMode == AppThemeMode.SPACE) listOf(Color.Transparent, Color.Transparent)
+                            else listOf(shelfColor, Color.Black.copy(0.4f))
+                        ),
+                        shape = RoundedCornerShape(cornerRadius)
                     )
-                    .shadow(16.dp)
+                    .then(if (themeMode != AppThemeMode.SPACE) Modifier.shadow(16.dp) else Modifier)
             )
 
             Box(

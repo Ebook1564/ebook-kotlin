@@ -12,10 +12,15 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -23,6 +28,16 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +48,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -63,6 +79,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 // PREMIUM CONSTANTS
 val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
@@ -184,7 +201,7 @@ class MainActivity : ComponentActivity() {
                         ) + fadeOut()
                     ) {
                         BackHandler { showProfile = false }
-                        ProfileScreen(userName = userProfile.name, onBackClick = { showProfile = false })
+                        ProfileScreen(userName = userProfile.name, appViewModel = appViewModel, onBackClick = { showProfile = false })
                     }
                 }
             }
@@ -199,7 +216,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
-    val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
+    val themeMode = appViewModel.themeMode.value
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
@@ -215,7 +232,11 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                ElegantNavBar(currentPage, themeMode) { }
+                if (themeMode == AppThemeMode.SPACE) {
+                    SpaceEasyTouchNav(currentPage) { }
+                } else {
+                    ElegantNavBar(currentPage, themeMode) { }
+                }
             }
         }
     }
@@ -228,7 +249,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
     val libraryUiState by libraryViewModel.uiState.collectAsState()
-    val themeMode = BookVerseTheme.colors.isDark.let { if(it) AppThemeMode.NIGHT else AppThemeMode.DAY }
+    val themeMode = appViewModel.themeMode.value
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
     val themeColor = readerSettingsRepo.getThemeColor()
     val textColor = readerSettingsRepo.getTextColor()
@@ -303,9 +324,17 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     animationSpec = tween(600, easing = PremiumEasing)
                 ) + fadeOut(animationSpec = tween(400))
             ) {
-                Box(modifier = Modifier.then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                    ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                if (themeMode == AppThemeMode.SPACE) {
+                    Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
+                        SpaceEasyTouchNav(pagerState.currentPage) { index ->
+                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
+                        ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
+                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                        }
                     }
                 }
             }
@@ -441,5 +470,233 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    
+    val bottomNavInset = WindowInsets.navigationBars.getBottom(density)
+
+    val buttonSizePx = with(density) { 32.dp.toPx() }
+    val barWidthPx = with(density) { 320.dp.toPx() }
+    val barHeightPx = with(density) { 72.dp.toPx() }
+    val safeMarginPx = with(density) { 8.dp.toPx() }
+
+    val offsetYMax = screenHeightPx - bottomNavInset
+
+    val offsetX = remember { Animatable(screenWidthPx / 2f) }
+    val offsetY = remember { Animatable(offsetYMax - buttonSizePx * 1.5f) }
+
+    val driftAnimatableX = remember { Animatable(0f) }
+    val driftAnimatableY = remember { Animatable(0f) }
+
+    LaunchedEffect(!expanded) {
+        if (!expanded) {
+            while (true) {
+                val targetX = (Random.nextFloat() * 0.1f - 0.05f) * screenWidthPx
+                val targetY = (Random.nextFloat() * 0.1f - 0.05f) * screenHeightPx
+                
+                driftAnimatableX.animateTo(targetX, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
+                driftAnimatableY.animateTo(targetY, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
+            }
+        }
+    }
+
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            driftAnimatableX.stop()
+            driftAnimatableY.stop()
+
+            val targetX = offsetX.value.coerceIn(
+                barWidthPx / 2f + safeMarginPx,
+                screenWidthPx - barWidthPx / 2f - safeMarginPx
+            )
+            val targetY = offsetY.value.coerceIn(
+                barHeightPx / 2f + safeMarginPx,
+                offsetYMax - barHeightPx / 2f - safeMarginPx
+            )
+
+            scope.launch {
+                offsetX.animateTo(targetX, animationSpec = tween(400, easing = PremiumEasing))
+            }
+            scope.launch {
+                offsetY.animateTo(targetY, animationSpec = tween(400, easing = PremiumEasing))
+            }
+        }
+    }
+
+    val midnightPurpleGradient = Brush.linearGradient(
+        colors = listOf(Color(0xFF6C29C0), Color(0xFF1A3BCC), Color(0xFFC0298A))
+    )
+    
+    val currentWidthPx = if (expanded) barWidthPx else buttonSizePx
+    val currentHeightPx = if (expanded) barHeightPx else buttonSizePx
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .offset { IntOffset(
+                (offsetX.value - currentWidthPx / 2 + (if (!expanded) driftAnimatableX.value else 0f)).roundToInt(),
+                (offsetY.value - currentHeightPx / 2 + (if (!expanded) driftAnimatableY.value else 0f)).roundToInt()
+            )}
+            .then(
+                if (!expanded) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = {
+                                scope.launch {
+                                    offsetX.animateTo(
+                                        targetValue = offsetX.value.coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f),
+                                        animationSpec = tween(durationMillis = 200)
+                                    )
+                                }
+                                scope.launch {
+                                    offsetY.animateTo(
+                                        targetValue = offsetY.value.coerceIn(buttonSizePx / 2f, offsetYMax - buttonSizePx / 2f),
+                                        animationSpec = tween(durationMillis = 200)
+                                    )
+                                }
+                            }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                driftAnimatableX.stop()
+                                driftAnimatableY.stop()
+                                val newX = (offsetX.value + dragAmount.x).coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f)
+                                val newY = (offsetY.value + dragAmount.y).coerceIn(buttonSizePx / 2f, offsetYMax - buttonSizePx / 2f)
+                                offsetX.snapTo(newX)
+                                offsetY.snapTo(newY)
+                            }
+                        }
+                    }
+                } else Modifier
+            )
+    ) {
+        AnimatedContent(
+            targetState = expanded,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(500, easing = PremiumEasing)) + scaleIn(initialScale = 0.8f, transformOrigin = TransformOrigin.Center))
+                    .togetherWith(fadeOut(animationSpec = tween(500, easing = PremiumEasing)) + scaleOut(targetScale = 0.8f, transformOrigin = TransformOrigin.Center))
+            },
+            label = "nav_expansion"
+        ) { isExpanded ->
+            if (isExpanded) {
+                Surface(
+                    modifier = Modifier.widthIn(min = 300.dp).height(72.dp),
+                    shape = RoundedCornerShape(40.dp),
+                    color = Color.Black.copy(alpha = 0.9f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    tonalElevation = 12.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.Public,
+                            label = "HOME",
+                            isSelected = selectedIndex == 0,
+                            onClick = { onTabSelected(0); expanded = false }
+                        )
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.TravelExplore,
+                            label = "SEARCH",
+                            isSelected = selectedIndex == 1,
+                            onClick = { onTabSelected(1); expanded = false }
+                        )
+                        EasyTouchNavItem(
+                            icon = Icons.Outlined.AccountTree,
+                            label = "LIBRARY",
+                            isSelected = selectedIndex == 2,
+                            onClick = { onTabSelected(2); expanded = false }
+                        )
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .clickable { expanded = false }, 
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .size(buttonSizePx.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { expanded = true }
+                        ),
+                    shape = CircleShape,
+                    color = Color(0xAA333333),
+                    border = BorderStroke(2.dp, midnightPurpleGradient),
+                    tonalElevation = 8.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EasyTouchNavItem(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val color by animateColorAsState(
+        targetValue = if (isSelected) BookVerseTheme.colors.primary else Color.White,
+        animationSpec = tween(600, easing = PremiumEasing)
+    )
+    
+    Column(
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = color,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = color,
+            fontSize = 9.sp,
+            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
     }
 }
