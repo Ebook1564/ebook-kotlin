@@ -96,6 +96,10 @@ fun LibraryScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (currentTheme == AppThemeMode.SPACE) {
+            SpaceBackground()
+        }
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()

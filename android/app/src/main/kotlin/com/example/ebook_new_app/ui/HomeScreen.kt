@@ -90,8 +90,13 @@ fun HomeScreen(
     val billboardBooks by viewModel.billboardBooks.collectAsState()
     val curatedCollections = uiState.curatedCollections
     val backgroundColor = BookVerseTheme.colors.background
+    val currentTheme by appViewModel.themeMode
     
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
+        if (currentTheme == AppThemeMode.SPACE) {
+            SpaceBackground()
+        }
+        
         if (uiState.isLoading && homeSections.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BookVerseTheme.colors.primary)
