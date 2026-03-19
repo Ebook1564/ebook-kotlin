@@ -228,7 +228,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     onBookClick = { homeViewModel.startReadTransition(it) },
                     onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
+                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) }, onAuthorClick = { author -> homeViewModel.setAuthorFilter(author) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
@@ -300,7 +300,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     )
                     1 -> SearchScreen(
                         viewModel = homeViewModel, 
-                        onBookClick = { onBookClick(it) }
+                        onBookClick = { onBookClick(it) },
+                        onAuthorClick = { author -> homeViewModel.setAuthorFilter(author) }
                     )
                     2 -> LibraryScreen(
                         viewModel = libraryViewModel, 
@@ -359,7 +360,11 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     onAddToReadingList = { status ->
                         libraryViewModel.updateReadingStatus(selectedBookForSheet!!, status)
                     },
-                    onClose = { showSheet = false }
+                    onClose = { showSheet = false },
+                    onAuthorClick = { author ->
+                        showSheet = false
+                        homeViewModel.setAuthorFilter(author)
+                    }
                 )
             }
         }

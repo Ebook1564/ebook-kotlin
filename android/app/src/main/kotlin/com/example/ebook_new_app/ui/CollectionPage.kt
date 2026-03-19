@@ -30,7 +30,10 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import coil.compose.AsyncImage
 import com.example.ebook_new_app.models.Book
+import com.example.ebook_new_app.viewmodel.AppThemeMode
+import com.example.ebook_new_app.viewmodel.AppViewModel
 import com.example.ebook_new_app.viewmodel.BookCollection
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun CollectionPage(
@@ -78,32 +81,37 @@ private fun CollectionPageContent(
     onBookClick: (Book) -> Unit
 ) {
     val colors = BookVerseTheme.colors
+    val appViewModel: AppViewModel = viewModel()
+    val currentTheme by appViewModel.themeMode
+    val isSpaceTheme = currentTheme == AppThemeMode.SPACE
     
     // Get a backdrop from the first book if available
     val backdropUrl = remember(books.itemCount) {
         if (books.itemCount > 0) books[0]?.coverImageUrl else ""
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(if (isSpaceTheme) Color.Black else colors.background)) {
         // HERO BACKDROP
-        Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
-            if (!backdropUrl.isNullOrEmpty()) {
-                AsyncImage(
-                    model = backdropUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(80.dp).alpha(0.4f)
+        if (!isSpaceTheme) {
+            Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                if (!backdropUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = backdropUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().blur(80.dp).alpha(0.4f)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, colors.background)
+                            )
+                        )
                 )
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, colors.background)
-                        )
-                    )
-            )
         }
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {

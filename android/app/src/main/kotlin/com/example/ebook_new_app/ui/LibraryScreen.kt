@@ -266,7 +266,8 @@ fun LibraryScreen(
                     onReadNow = {
                         inspectedBook = null
                         onBookClick(book)
-                    }
+                    },
+                    homeViewModel = homeViewModel
                 )
             }
         }
@@ -290,7 +291,8 @@ fun LibraryScreen(
                     onBookClick = { 
                         viewModel.setSeeAll(null)
                         inspectedBook = it 
-                    }
+                    },
+                    homeViewModel = homeViewModel
                 )
             }
         }
@@ -556,7 +558,7 @@ fun TransitioningShelfBooks(
 }
 
 @Composable
-fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
+fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit, homeViewModel: HomeViewModel = viewModel()) {
     val infiniteTransition = rememberInfiniteTransition(label = "inspect")
     val autoRotation by infiniteTransition.animateFloat(initialValue = -45f, targetValue = 45f, animationSpec = infiniteRepeatable(tween(8000, easing = LinearOutSlowInEasing), RepeatMode.Reverse), label = "rotate")
     val breatheAnim by infiniteTransition.animateFloat(initialValue = 0.8f, targetValue = 1.2f, animationSpec = infiniteRepeatable(tween(3000, easing = EaseInOutSine), RepeatMode.Reverse), label = "breathe")
@@ -568,8 +570,36 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
             Realistic3DBook(coverUrl = book.externalCoverUrl ?: book.coverImageUrl, currentRotationY = autoRotation, modifier = Modifier.width(220.dp).height(330.dp))
             Spacer(modifier = Modifier.height(48.dp))
             Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
-            Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Surface(
+                onClick = { homeViewModel.setAuthorFilter(book.author) },
+                shape = RoundedCornerShape(20.dp),
+                color = BookVerseTheme.colors.primary.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = BookVerseTheme.colors.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = book.author.uppercase(),
+                        style = BookVerseTheme.typography.label,
+                        color = BookVerseTheme.colors.primary,
+                        letterSpacing = 2.sp,
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (book.dateAdded != null) StatItem("ADDED", dateFormat.format(Date(book.dateAdded)))
                 if (book.dateStarted != null) StatItem("STARTED", dateFormat.format(Date(book.dateStarted)))
@@ -586,7 +616,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
 }
 
 @Composable
-fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, onBookClick: (Book) -> Unit) {
+fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, onBookClick: (Book) -> Unit, homeViewModel: HomeViewModel = viewModel()) {
     val colors = BookVerseTheme.colors
     Column(modifier = Modifier.fillMaxSize().background(colors.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -601,7 +631,7 @@ fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, 
                         LibraryBookPoster(book)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                        Text(text = book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        Text(text = book.author, style = BookVerseTheme.typography.label, color = getAuthorColor(book.author), fontSize = 12.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { homeViewModel.setAuthorFilter(book.author) })
                     }
                 }
             }

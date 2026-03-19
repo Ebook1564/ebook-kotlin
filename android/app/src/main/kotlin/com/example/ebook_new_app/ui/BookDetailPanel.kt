@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,7 +49,8 @@ fun BookDetailContent(
     onReadClick: (InitialBounds?) -> Unit,
     onCategoryClick: (String) -> Unit,
     onAddToReadingList: (ReadingStatus) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onAuthorClick: (String) -> Unit = {}
 ) {
     var displayBook by remember { mutableStateOf(book) }
     
@@ -149,13 +151,34 @@ fun BookDetailContent(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = displayBook.author,
-                            style = typography.body,
-                            color = colors.primary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            onClick = { onAuthorClick(displayBook.author) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = colors.primary.copy(alpha = 0.15f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = displayBook.author.uppercase(),
+                                    style = typography.label,
+                                    color = colors.primary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                        }
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
