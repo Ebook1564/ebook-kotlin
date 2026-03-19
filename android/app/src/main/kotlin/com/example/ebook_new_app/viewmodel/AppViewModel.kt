@@ -20,6 +20,9 @@ class AppViewModel : ViewModel() {
     private val _themeMode = mutableStateOf(AppThemeMode.NIGHT)
     val themeMode: State<AppThemeMode> = _themeMode
     
+    private val _useSpaceTouchNav = mutableStateOf(false)
+    val useSpaceTouchNav: State<Boolean> = _useSpaceTouchNav
+    
     private val _userProfile = MutableStateFlow(UserProfile())
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
@@ -46,14 +49,20 @@ class AppViewModel : ViewModel() {
     }
 
     fun setTheme(mode: AppThemeMode) {
-        if (_themeMode.value != mode) {
-            toggleTheme()
-        }
+        if (_themeMode.value == mode) return
+        _isTransitioning.value = true
+        _previousThemeMode.value = _themeMode.value
+        _themeMode.value = mode
+        _themeTransitionTrigger.value += 1
     }
 
     fun endTransition() {
         _previousThemeMode.value = null
         _isTransitioning.value = false
+    }
+
+    fun setUseSpaceTouchNav(use: Boolean) {
+        _useSpaceTouchNav.value = use
     }
 
     fun completeOnboarding(name: String) {
