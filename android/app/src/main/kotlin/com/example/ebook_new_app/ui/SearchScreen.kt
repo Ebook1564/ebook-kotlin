@@ -519,6 +519,9 @@ private fun OverlayBookCard(
     accentColor: Color,
     onClick: () -> Unit
 ) {
+    val coversUrl = ServerConfig.getCoversUrl()
+    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -530,14 +533,26 @@ private fun OverlayBookCard(
                 .aspectRatio(0.65f)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(accentColor.copy(alpha = 0.2f)),
+                .shadow(4.dp)
+                .background(BookVerseTheme.colors.surface),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.MenuBook,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(32.dp)
+            val primaryUrl = book.externalCoverUrl ?: fallbackCoverUrl
+            SubcomposeAsyncImage(
+                model = primaryUrl,
+                contentDescription = book.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    Box(Modifier.fillMaxSize().background(accentColor.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -847,6 +862,9 @@ private fun SpaceOverlayBookCard(
     accentColor: Color,
     onClick: () -> Unit
 ) {
+    val coversUrl = ServerConfig.getCoversUrl()
+    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -858,14 +876,25 @@ private fun SpaceOverlayBookCard(
                 .aspectRatio(0.65f)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(accentColor.copy(alpha = 0.2f)),
+                .shadow(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.MenuBook,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(32.dp)
+            val primaryUrl = book.externalCoverUrl ?: fallbackCoverUrl
+            SubcomposeAsyncImage(
+                model = primaryUrl,
+                contentDescription = book.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    Box(Modifier.fillMaxSize().background(Color(0xFF1A1A2E)), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
