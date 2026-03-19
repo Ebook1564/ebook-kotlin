@@ -47,27 +47,27 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
     val bgColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFFF5F1E0)
         AppThemeMode.NIGHT -> Color(0xFF0A0A0A)
-        AppThemeMode.SPACE -> Color(0xFF050510)
+        AppThemeMode.COSMIC -> Color(0xFF050510)
     }
     val textColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color.White
-        AppThemeMode.SPACE -> Color.White
+        AppThemeMode.COSMIC -> Color.White
     }
     val accentColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color(0xFFE50914)
-        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
     }
     val surfaceColor = when (themeMode) {
         AppThemeMode.DAY -> Color.White
         AppThemeMode.NIGHT -> Color(0xFF1A1A1A)
-        AppThemeMode.SPACE -> Color.Transparent
+        AppThemeMode.COSMIC -> Color.Transparent
     }
 
     Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
         when (themeMode) {
-            AppThemeMode.SPACE -> SpaceBackground()
+            AppThemeMode.COSMIC -> SpaceBackground()
             AppThemeMode.NIGHT -> NightProfileBackground()
             AppThemeMode.DAY -> {}
         }
@@ -87,14 +87,14 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
                             modifier = Modifier.clip(CircleShape).background(when (themeMode) {
                                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.1f)
                                 AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.1f)
-                                AppThemeMode.SPACE -> Color.White.copy(alpha = 0.1f)
+                                AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.1f)
                             })
                         ) {
                             Icon(
                                 imageVector = when (themeMode) {
                                     AppThemeMode.DAY -> Icons.Default.Nightlight
                                     AppThemeMode.NIGHT -> Icons.Filled.Star
-                                    AppThemeMode.SPACE -> Icons.Default.LightMode
+                                    AppThemeMode.COSMIC -> Icons.Default.LightMode
                                 },
                                 contentDescription = "Toggle Theme",
                                 tint = accentColor
@@ -134,7 +134,7 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
                     Surface(modifier = Modifier.fillMaxSize(), color = when (themeMode) {
                         AppThemeMode.DAY -> Color.White
                         AppThemeMode.NIGHT -> Color(0xFF1A1A1A)
-                        AppThemeMode.SPACE -> Color.Black.copy(alpha = 0.9f)
+                        AppThemeMode.COSMIC -> Color.Black.copy(alpha = 0.9f)
                     }) {
                         Column(modifier = Modifier.padding(24.dp)) {
                             when(activeSubScreen) {
@@ -167,12 +167,12 @@ private fun ProfileAvatar(initials: String, themeMode: AppThemeMode) {
     )
     
     val avatarColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
         else -> BookVerseTheme.colors.primary
     }
     
     Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.Center) {
-        if (themeMode == AppThemeMode.SPACE) {
+        if (themeMode == AppThemeMode.COSMIC) {
             Canvas(modifier = Modifier.size(120.dp)) {
                 drawCircle(
                     color = avatarColor.copy(alpha = 0.1f),
@@ -206,11 +206,11 @@ private fun ProfileAvatar(initials: String, themeMode: AppThemeMode) {
         Surface(
             modifier = Modifier.size(100.dp),
             shape = CircleShape,
-            color = avatarColor.copy(alpha = if (themeMode == AppThemeMode.SPACE) 0.2f else 0.1f),
-            border = if (themeMode == AppThemeMode.SPACE) androidx.compose.foundation.BorderStroke(2.dp, avatarColor.copy(alpha = 0.5f)) else null
+            color = avatarColor.copy(alpha = if (themeMode == AppThemeMode.COSMIC) 0.2f else 0.1f),
+            border = if (themeMode == AppThemeMode.COSMIC) androidx.compose.foundation.BorderStroke(2.dp, avatarColor.copy(alpha = 0.5f)) else null
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(initials, color = if (themeMode == AppThemeMode.SPACE) Color.White else avatarColor, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
+                Text(initials, color = if (themeMode == AppThemeMode.COSMIC) Color.White else avatarColor, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -241,12 +241,12 @@ fun ProfileOption(
     val bgColor = when (themeMode) {
         AppThemeMode.DAY -> surfaceColor
         AppThemeMode.NIGHT -> surfaceColor
-        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.05f)
+        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.05f)
     }
     val borderColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFFE8E0D0)
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.1f)
-        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.1f)
+        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.1f)
     }
     
     Surface(
@@ -265,7 +265,7 @@ fun ProfileOption(
             Icon(Icons.Default.ChevronRight, null, tint = when (themeMode) {
                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.3f)
                 AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.3f)
-                AppThemeMode.SPACE -> Color.White.copy(alpha = 0.3f)
+                AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.3f)
             })
         }
     }
@@ -275,15 +275,15 @@ fun ProfileOption(
 fun StatisticsContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     val colors = BookVerseTheme.colors
     val labelColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
         else -> colors.primary
     }
     val textColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color.White
+        AppThemeMode.COSMIC -> Color.White
         else -> colors.textPrimary
     }
     val subTextColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
+        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.6f)
         else -> colors.textSecondary
     }
     
@@ -302,11 +302,11 @@ fun StatisticsContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
 fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     val colors = BookVerseTheme.colors
     val labelColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
         else -> colors.primary
     }
     val textColor = when (themeMode) {
-        AppThemeMode.SPACE -> Color.White
+        AppThemeMode.COSMIC -> Color.White
         else -> colors.textPrimary
     }
     
@@ -325,20 +325,20 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
 fun SettingsContent(appViewModel: AppViewModel) {
     val colors = BookVerseTheme.colors
     val currentTheme by appViewModel.themeMode
-    val useSpaceTouchNav by appViewModel.useSpaceTouchNav
+    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
     
     val textColor = when (currentTheme) {
-        AppThemeMode.SPACE -> Color.White
+        AppThemeMode.COSMIC -> Color.White
         AppThemeMode.NIGHT -> Color.White
         AppThemeMode.DAY -> Color(0xFF5B4636)
     }
     val subTextColor = when (currentTheme) {
-        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
+        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.6f)
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.6f)
         AppThemeMode.DAY -> Color(0xFF8B7355)
     }
     val labelColor = when (currentTheme) {
-        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
         AppThemeMode.NIGHT -> Color(0xFFE50914)
         AppThemeMode.DAY -> Color(0xFF5B4636)
     }
@@ -369,17 +369,17 @@ fun SettingsContent(appViewModel: AppViewModel) {
                 modifier = Modifier.weight(1f)
             )
             ThemeButton(
-                label = "SPACE",
+                label = "COSMIC",
                 icon = Icons.Filled.Star,
-                isSelected = currentTheme == AppThemeMode.SPACE,
-                onClick = { appViewModel.setTheme(AppThemeMode.SPACE) },
+                isSelected = currentTheme == AppThemeMode.COSMIC,
+                onClick = { appViewModel.setTheme(AppThemeMode.COSMIC) },
                 modifier = Modifier.weight(1f)
             )
         }
         
         Spacer(Modifier.height(24.dp))
         
-        if (currentTheme == AppThemeMode.SPACE) {
+        if (currentTheme == AppThemeMode.COSMIC) {
             Text("Navigation Style", color = textColor, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             
@@ -390,14 +390,14 @@ fun SettingsContent(appViewModel: AppViewModel) {
                 NavStyleButton(
                     label = "Touch Pad",
                     icon = Icons.Default.TouchApp,
-                    isSelected = useSpaceTouchNav,
+                    isSelected = useCosmicTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(true) },
                     modifier = Modifier.weight(1f)
                 )
                 NavStyleButton(
                     label = "Classic",
                     icon = Icons.Default.Menu,
-                    isSelected = !useSpaceTouchNav,
+                    isSelected = !useCosmicTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(false) },
                     modifier = Modifier.weight(1f)
                 )
@@ -405,7 +405,7 @@ fun SettingsContent(appViewModel: AppViewModel) {
             
             Spacer(Modifier.height(8.dp))
             Text(
-                text = if (useSpaceTouchNav) "Floating touch pad navigation" else "Traditional bottom navigation bar",
+                text = if (useCosmicTouchNav) "Floating touch pad navigation" else "Traditional bottom navigation bar",
                 color = subTextColor,
                 fontSize = 11.sp
             )
@@ -446,7 +446,7 @@ private fun ThemeButton(
     val bgColor = when {
         isSelected && label == "DAY" -> Color(0xFF5B4636)
         isSelected && label == "NIGHT" -> Color(0xFFE50914)
-        isSelected && label == "SPACE" -> Color(0xFF4A90D9)
+        isSelected && label == "COSMIC" -> Color(0xFF4A90D9)
         !isDarkCurrent -> Color(0xFFFFF8E7)
         else -> Color(0xFF2A2A2A)
     }

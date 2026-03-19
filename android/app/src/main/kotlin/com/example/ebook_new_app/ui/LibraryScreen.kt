@@ -96,7 +96,7 @@ fun LibraryScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (currentTheme == AppThemeMode.SPACE) {
+        if (currentTheme == AppThemeMode.COSMIC) {
             SpaceBackground()
         }
         
@@ -342,17 +342,17 @@ fun ShelfTier(
     onSeeAll: () -> Unit
 ) {
     val cornerRadius = 2.dp
-    val shelfColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF3E2723) 
-    val shelfWallColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF2D1B18)
+    val shelfColor = if (themeMode == AppThemeMode.COSMIC) Color.Transparent else Color(0xFF3E2723) 
+    val shelfWallColor = if (themeMode == AppThemeMode.COSMIC) Color.Transparent else Color(0xFF2D1B18)
     
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (isExpanded && themeMode == AppThemeMode.SPACE) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
+        targetValue = if (isExpanded && themeMode == AppThemeMode.COSMIC) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
         animationSpec = tween(1200, easing = PremiumEasing)
     )
 
     val starshipProgress = remember { Animatable(0f) }
 
-    if (themeMode == AppThemeMode.SPACE) {
+    if (themeMode == AppThemeMode.COSMIC) {
         LaunchedEffect(isExpanded) {
             starshipProgress.stop()
             while (isActive) {
@@ -405,7 +405,7 @@ fun ShelfTier(
                     .drawWithContent {
                         drawContent()
 
-                        if (themeMode == AppThemeMode.SPACE) {
+                        if (themeMode == AppThemeMode.COSMIC) {
                             val path = Path().apply {
                                 addRoundRect(
                                     RoundRect(
@@ -435,7 +435,7 @@ fun ShelfTier(
                     }
                     .background(shelfWallColor, RoundedCornerShape(cornerRadius))
                     .then(
-                        if (themeMode == AppThemeMode.SPACE) Modifier.border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
+                        if (themeMode == AppThemeMode.COSMIC) Modifier.border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
                         else Modifier
                     )
             )
@@ -452,12 +452,12 @@ fun ShelfTier(
                     }
                     .background(
                         brush = Brush.verticalGradient(
-                            if (themeMode == AppThemeMode.SPACE) listOf(Color.Transparent, Color.Transparent)
+                            if (themeMode == AppThemeMode.COSMIC) listOf(Color.Transparent, Color.Transparent)
                             else listOf(shelfColor, Color.Black.copy(0.4f))
                         ),
                         shape = RoundedCornerShape(cornerRadius)
                     )
-                    .then(if (themeMode != AppThemeMode.SPACE) Modifier.shadow(16.dp) else Modifier)
+                    .then(if (themeMode != AppThemeMode.COSMIC) Modifier.shadow(16.dp) else Modifier)
             )
 
             Box(
@@ -624,14 +624,30 @@ fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, 
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = BookVerseTheme.typography.headline, color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Black)
         }
-        LazyVerticalGrid(columns = GridCells.Fixed(2), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            items(books.itemCount) { index ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2), 
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp), 
+            horizontalArrangement = Arrangement.spacedBy(20.dp), 
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            items(
+                count = books.itemCount,
+                key = { index -> books[index]?.id ?: index }
+            ) { index ->
                 books[index]?.let { book ->
                     Column(modifier = Modifier.clickable { onBookClick(book) }, horizontalAlignment = Alignment.CenterHorizontally) {
                         LibraryBookPoster(book)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         Text(text = book.author, style = BookVerseTheme.typography.label, color = getAuthorColor(book.author), fontSize = 12.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { homeViewModel.setAuthorFilter(book.author) })
+                    }
+                }
+            }
+            
+            if (books.loadState.append is androidx.paging.LoadState.Loading) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(24.dp))
                     }
                 }
             }

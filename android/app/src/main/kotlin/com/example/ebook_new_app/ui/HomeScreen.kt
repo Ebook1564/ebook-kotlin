@@ -93,7 +93,7 @@ fun HomeScreen(
     val currentTheme by appViewModel.themeMode
     
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
-        if (currentTheme == AppThemeMode.SPACE) {
+        if (currentTheme == AppThemeMode.COSMIC) {
             SpaceBackground()
         }
         
@@ -133,13 +133,13 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
         DynamicGreeting(userName)
         IconButton(
             onClick = { appViewModel.toggleTheme() },
-            modifier = Modifier.clip(CircleShape).background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.SPACE) 0.3f else 0.8f))
+            modifier = Modifier.clip(CircleShape).background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.COSMIC) 0.3f else 0.8f))
         ) {
             Icon(
                 imageVector = when (themeMode) {
                     AppThemeMode.DAY -> Icons.Default.Nightlight
                     AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
-                    AppThemeMode.SPACE -> Icons.Default.LightMode
+                    AppThemeMode.COSMIC -> Icons.Default.LightMode
                 },
                 contentDescription = "Toggle Theme",
                 tint = BookVerseTheme.colors.primary

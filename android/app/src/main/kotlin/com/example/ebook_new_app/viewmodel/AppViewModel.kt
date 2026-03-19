@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 enum class AppThemeMode {
-    DAY, NIGHT, SPACE
+    DAY, NIGHT, COSMIC
 }
 
 data class UserProfile(
@@ -20,8 +20,8 @@ class AppViewModel : ViewModel() {
     private val _themeMode = mutableStateOf(AppThemeMode.NIGHT)
     val themeMode: State<AppThemeMode> = _themeMode
     
-    private val _useSpaceTouchNav = mutableStateOf(false)
-    val useSpaceTouchNav: State<Boolean> = _useSpaceTouchNav
+    private val _useCosmicTouchNav = mutableStateOf(false)
+    val useCosmicTouchNav: State<Boolean> = _useCosmicTouchNav
     
     private val _userProfile = MutableStateFlow(UserProfile())
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
@@ -42,8 +42,8 @@ class AppViewModel : ViewModel() {
         _previousThemeMode.value = _themeMode.value
         _themeMode.value = when (_themeMode.value) {
             AppThemeMode.DAY -> AppThemeMode.NIGHT
-            AppThemeMode.NIGHT -> AppThemeMode.SPACE
-            AppThemeMode.SPACE -> AppThemeMode.DAY
+            AppThemeMode.NIGHT -> AppThemeMode.COSMIC
+            AppThemeMode.COSMIC -> AppThemeMode.DAY
         }
         _themeTransitionTrigger.value += 1
     }
@@ -62,7 +62,7 @@ class AppViewModel : ViewModel() {
     }
 
     fun setUseSpaceTouchNav(use: Boolean) {
-        _useSpaceTouchNav.value = use
+        _useCosmicTouchNav.value = use
     }
 
     fun completeOnboarding(name: String) {

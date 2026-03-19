@@ -124,12 +124,12 @@ fun BookVerseTheme(
     val colors = when (themeMode) {
         AppThemeMode.DAY -> DayColors
         AppThemeMode.NIGHT -> NightColors
-        AppThemeMode.SPACE -> SpaceColors
+        AppThemeMode.COSMIC -> SpaceColors
     }
     val typography = when (themeMode) {
         AppThemeMode.DAY -> DayTypography
         AppThemeMode.NIGHT -> NightTypography
-        AppThemeMode.SPACE -> SpaceTypography.copy(
+        AppThemeMode.COSMIC -> SpaceTypography.copy(
             headline = SpaceTypography.headline.copy(fontFamily = spaceFont),
             body = SpaceTypography.body.copy(fontFamily = spaceFont),
             label = SpaceTypography.label.copy(fontFamily = spaceFont)

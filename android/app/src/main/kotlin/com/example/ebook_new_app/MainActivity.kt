@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
     val themeMode by appViewModel.themeMode
-    val useSpaceTouchNav by appViewModel.useSpaceTouchNav
+    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
@@ -233,7 +233,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
+                if (themeMode == AppThemeMode.COSMIC && useCosmicTouchNav) {
                     SpaceEasyTouchNav(currentPage) { }
                 } else {
                     ElegantNavBar(currentPage, themeMode) { }
@@ -251,7 +251,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     val homeUiState by homeViewModel.uiState.collectAsState()
     val libraryUiState by libraryViewModel.uiState.collectAsState()
     val themeMode by appViewModel.themeMode
-    val useSpaceTouchNav by appViewModel.useSpaceTouchNav
+    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
     val themeColor = readerSettingsRepo.getThemeColor()
     val textColor = readerSettingsRepo.getTextColor()
@@ -327,7 +327,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     animationSpec = tween(600, easing = PremiumEasing)
                 ) + fadeOut(animationSpec = tween(400))
             ) {
-                if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
+                if (themeMode == AppThemeMode.COSMIC && useCosmicTouchNav) {
                     Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
                         SpaceEasyTouchNav(pagerState.currentPage) { index ->
                             if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
@@ -459,7 +459,7 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 }
             }
         }
-    } else if (themeMode == AppThemeMode.SPACE) {
+    } else if (themeMode == AppThemeMode.COSMIC) {
         val infiniteTransition = rememberInfiniteTransition(label = "space_nav")
         val pulseAlpha by infiniteTransition.animateFloat(
             initialValue = 0.5f,

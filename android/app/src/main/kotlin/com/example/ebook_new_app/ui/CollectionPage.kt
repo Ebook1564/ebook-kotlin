@@ -83,16 +83,16 @@ private fun CollectionPageContent(
     val colors = BookVerseTheme.colors
     val appViewModel: AppViewModel = viewModel()
     val currentTheme by appViewModel.themeMode
-    val isSpaceTheme = currentTheme == AppThemeMode.SPACE
+    val isCosmicTheme = currentTheme == AppThemeMode.COSMIC
     
     // Get a backdrop from the first book if available
     val backdropUrl = remember(books.itemCount) {
         if (books.itemCount > 0) books[0]?.coverImageUrl else ""
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(if (isSpaceTheme) Color.Black else colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(if (isCosmicTheme) Color.Black else colors.background)) {
         // HERO BACKDROP
-        if (!isSpaceTheme) {
+        if (!isCosmicTheme) {
             Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
                 if (!backdropUrl.isNullOrEmpty()) {
                     AsyncImage(
