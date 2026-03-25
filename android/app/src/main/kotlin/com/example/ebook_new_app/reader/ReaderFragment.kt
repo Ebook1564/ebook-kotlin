@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.activity.compose.BackHandler
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
@@ -17,6 +18,12 @@ import androidx.lifecycle.lifecycleScope
 import com.example.ebook_new_app.R
 import com.example.ebook_new_app.db.Bookmark
 import com.example.ebook_new_app.db.Highlight
+import com.example.ebook_new_app.voice.TtsVoiceManager
+import com.example.ebook_new_app.voice.TtsSettingsPanel
+import com.example.ebook_new_app.ui.AudioPlayerScreen
+import com.example.ebook_new_app.ui.ChapterInfo
+import com.example.ebook_new_app.ui.TtsPlayerState
+import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.ReaderViewModel
 import com.example.ebook_new_app.repository.ReaderSettingsRepository
 import com.example.ebook_new_app.utils.EpubPreviewUtils
@@ -56,12 +63,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,6 +97,7 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment.Configuration as Epub
 class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private val viewModel: ReaderViewModel by viewModels()
+    private val appViewModel: com.example.ebook_new_app.viewmodel.AppViewModel by viewModels()
     private var bookId: String = "unknown"
     private var navigator: EpubNavigatorFragment? = null
     private var currentSelection: Locator? = null
@@ -117,16 +127,32 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var btnCloseSearch: ImageButton
     private lateinit var searchCountText: TextView
     
+    // Progress UI
+    private lateinit var progressContainer: View
+    private lateinit var readingProgressBar: android.widget.ProgressBar
+    private lateinit var chapterProgressText: TextView
+    private lateinit var readingProgressText: TextView
+    
     private var currentSearchLocators = mutableListOf<Locator>()
     private var currentSearchIndex = -1
     private var highlightsJob: kotlinx.coroutines.Job? = null
+    
+    // Reading progress tracking
+    private var totalSpineItems = 0
+    private var currentSpineIndex = 0
 
-    // TTS Compose State
+    // TTS Compose State - using mutableStateOf for Compose recomposition
     private var isTtsActive by mutableStateOf(false)
     private var isTtsPlaying by mutableStateOf(false)
+    private var showTtsSettings by mutableStateOf(false)
     private var ttsSentences = mutableListOf<String>()
-    private var currentSentenceIndex = 0
+    private var currentSentenceIndex by mutableStateOf(0)
     private var currentResourceLocator: Locator? = null
+    private var currentFullText by mutableStateOf("")
+    private var paragraphSentences = mutableListOf<String>()
+    private var currentParagraphIndex = 0
+    
+    private lateinit var ttsVoiceManager: com.example.ebook_new_app.voice.TtsVoiceManager
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -190,6 +216,17 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         btnCloseSearch = view.findViewById(R.id.btn_close_search)
         searchCountText = view.findViewById(R.id.search_count_text)
 
+        // Initialize progress views
+        progressContainer = view.findViewById(R.id.progress_container)
+        readingProgressBar = view.findViewById(R.id.reading_progress_bar)
+        chapterProgressText = view.findViewById(R.id.chapter_progress_text)
+        readingProgressText = view.findViewById(R.id.reading_progress_text)
+
+        // Set up reading progress tracking
+        totalSpineItems = publication.readingOrder.size
+        currentSpineIndex = 0
+        updateProgressUI()
+
         readerTitle.text = publication.metadata.title
 
         setupToolbar()
@@ -197,92 +234,123 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         applyInsets(view)
 
         val settings = viewModel.settings.value
-        val initialLocator = publication.locatorFromLink(publication.readingOrder.first()) ?: return view
+        val startIndex = if (publication.readingOrder.size > 1) 1 else 0
+        val initialLink = publication.readingOrder[startIndex]
+        val initialLocator = publication.locatorFromLink(initialLink) ?: return view
 
         setupNavigator(initialLocator, settings)
+        
+        // Auto-open audio player if requested
+        val openAudioPlayer = arguments?.getBoolean("OPEN_AUDIO_PLAYER", false) ?: false
+        if (openAudioPlayer) {
+            view.post {
+                isTtsActive = true
+                ttsControlComposeView.visibility = View.VISIBLE
+                topBar.visibility = View.GONE
+                bottomBar.visibility = View.GONE
+                speakCurrentPage()
+            }
+        }
         
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        // Initialize TtsVoiceManager for natural voices
+        ttsVoiceManager = TtsVoiceManager(requireContext())
+        ttsVoiceManager.initialize { success ->
+            if (success) {
+                Log.d("TTS", "TtsVoiceManager initialized with neural voice support")
+            }
+        }
+        
         observeHighlights()
     }
 
     private fun setupTtsControls() {
+        val currentBook = ReaderRepository.currentBook
+        val publication = ReaderRepository.currentPublication
+        val bookTitle = currentBook?.title ?: publication?.metadata?.title ?: "Unknown Book"
+        val authorName = currentBook?.author ?: extractAuthorName(publication?.metadata?.authors)
+        val coverUrl = currentBook?.getBestCoverUrl()
+        val chapters = publication?.tableOfContents?.mapIndexed { index, link ->
+            com.example.ebook_new_app.ui.ChapterInfo(link.title ?: "Chapter ${index + 1}", index)
+        } ?: emptyList()
+
         ttsControlComposeView.setContent {
+            val playerState = remember { mutableStateOf(TtsPlayerState()) }
+            
+            LaunchedEffect(isTtsActive, isTtsPlaying, currentSentenceIndex, currentFullText, ttsSentences.size, currentSpineIndex) {
+                playerState.value = TtsPlayerState(
+                    bookTitle = bookTitle,
+                    authorName = authorName,
+                    coverUrl = coverUrl,
+                    isPlaying = isTtsPlaying,
+                    currentProgress = if (ttsSentences.isNotEmpty()) currentSentenceIndex.toFloat() / ttsSentences.size.coerceAtLeast(1) else 0f,
+                    speechRate = ttsVoiceManager.speechRate.value,
+                    selectedVoice = ttsVoiceManager.currentPiperVoice.value,
+                    availableVoices = ttsVoiceManager.availablePiperVoices.value,
+                    chapters = chapters,
+                    currentChapter = currentSpineIndex,
+                    currentParagraph = currentFullText,
+                    currentSentenceIndex = currentSentenceIndex.coerceIn(0, (ttsSentences.size - 1).coerceAtLeast(0)),
+                    totalSentences = ttsSentences.size.coerceAtLeast(1),
+                    themeMode = appViewModel.themeMode.value
+                )
+            }
+            
             if (isTtsActive) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 8.dp,
-                    shadowElevation = 8.dp,
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Current sentence indicator
-                        if (ttsSentences.isNotEmpty() && currentSentenceIndex in ttsSentences.indices) {
-                            Text(
-                                text = ttsSentences[currentSentenceIndex].take(50) + if (ttsSentences[currentSentenceIndex].length > 50) "..." else "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
+                BackHandler {
+                    stopTts()
+                }
+                
+                AudioPlayerScreen(
+                    state = playerState.value,
+                    onPlayPause = { togglePlayPauseTts() },
+                    onSkipForward = { nextTts() },
+                    onSkipBackward = { prevTts() },
+                    onSeek = { progress ->
+                        val newIndex = (progress * ttsSentences.size.coerceAtLeast(1)).toInt().coerceIn(0, (ttsSentences.size - 1).coerceAtLeast(0))
+                        if (newIndex != currentSentenceIndex) {
+                            currentSentenceIndex = newIndex
+                            speakCurrentSentence()
                         }
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { prevTts() }) {
-                                Icon(Icons.Default.SkipPrevious, contentDescription = "Previous Sentence")
-                            }
-                            
-                            LargeFloatingActionButton(
-                                onClick = { togglePlayPauseTts() },
-                                shape = CircleShape,
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ) {
-                                Icon(
-                                    if (isTtsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
+                    },
+                    onSpeechRateChange = { rate -> ttsVoiceManager.setSpeechRate(rate) },
+                    onVoiceChange = { voice -> ttsVoiceManager.setPiperVoice(voice) },
+                    onClose = { stopTts() },
+                    onChapterSelect = { index -> navigateToChapter(index) },
+                    onSettingsClick = { showSettingsDialog() },
+                    onBookmarksClick = { showBookListDialog() }
+                )
+            }
+        }
+    }
 
-                            IconButton(onClick = { nextTts() }) {
-                                Icon(Icons.Default.SkipNext, contentDescription = "Next Sentence")
-                            }
-
-                            IconButton(onClick = { stopTts() }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close TTS")
-                            }
-                        }
-                        
-                        // Progress indicator
-                        if (ttsSentences.isNotEmpty()) {
-                            Text(
-                                text = "${currentSentenceIndex + 1} / ${ttsSentences.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                    }
+    private fun navigateToChapter(index: Int) {
+        val publication = ReaderRepository.currentPublication ?: return
+        val toc = publication.tableOfContents
+        if (index in toc.indices) {
+            lifecycleScope.launch {
+                publication.locatorFromLink(toc[index])?.let { locator ->
+                    navigator?.go(locator, animated = true)
+                    delay(500)
+                    speakCurrentPage()
                 }
             }
         }
     }
 
+    private fun extractAuthorName(authors: Any?): String {
+        if (authors == null) return "Unknown Author"
+        return authors.toString().ifEmpty { "Unknown Author" }
+    }
+
     private fun togglePlayPauseTts() {
         if (isTtsPlaying) {
-            tts?.stop()
+            ttsVoiceManager.stop()
             isTtsPlaying = false
         } else {
             if (ttsSentences.isEmpty()) {
@@ -290,26 +358,26 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             } else {
                 speakCurrentSentence()
             }
+            isTtsPlaying = true
         }
     }
 
     private fun nextTts() {
-        tts?.stop()
+        ttsVoiceManager.stop()
         if (currentSentenceIndex < ttsSentences.size - 1) {
             currentSentenceIndex++
             speakCurrentSentence()
         } else {
-            // End of section, try to go to next page
             lifecycleScope.launch {
                 navigator?.goForward(animated = true)
-                delay(500) // Wait for page to load
+                delay(500)
                 speakCurrentPage()
             }
         }
     }
 
     private fun prevTts() {
-        tts?.stop()
+        ttsVoiceManager.stop()
         if (currentSentenceIndex > 0) {
             currentSentenceIndex--
             speakCurrentSentence()
@@ -323,12 +391,16 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     private fun stopTts() {
-        tts?.stop()
+        ttsVoiceManager.stop()
         isTtsActive = false
         isTtsPlaying = false
+        showTtsSettings = false
         ttsSentences.clear()
         currentSentenceIndex = 0
-        updateTtsHighlight(null) // Clear highlight
+        currentFullText = ""
+        paragraphSentences.clear()
+        currentParagraphIndex = 0
+        updateTtsHighlight(null)
         ttsControlComposeView.visibility = View.GONE
         topBar.visibility = View.VISIBLE
         bottomBar.visibility = View.VISIBLE
@@ -345,7 +417,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             val publication = ReaderRepository.currentPublication ?: return@launch
             val currentLocator = navigator?.currentLocator?.value ?: return@launch
             
-            // 1. Get full text of resource
             val fullText = try {
                 val resource = publication.get(currentLocator.href)
                 val content = resource?.read()?.getOrNull()
@@ -359,11 +430,11 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             }
             
             if (fullText.isNotEmpty()) {
-                // 2. Split into sentences
                 ttsSentences = fullText.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }.toMutableList()
+                currentFullText = fullText
+                paragraphSentences = ttsSentences.toMutableList()
                 currentResourceLocator = currentLocator
                 
-                // 3. Find starting sentence based on current location
                 val visibleText = currentLocator.text.highlight ?: ""
                 currentSentenceIndex = if (visibleText.isNotEmpty()) {
                     val index = ttsSentences.indexOfFirst { it.contains(visibleText, ignoreCase = true) }
@@ -387,32 +458,15 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         // Update highlight for the current sentence
         updateTtsHighlight(text)
 
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {
-                lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = true }
+        // Use TtsVoiceManager for natural voices
+        ttsVoiceManager.setOnSpeakComplete { utteranceId ->
+            lifecycleScope.launch(Dispatchers.Main) {
+                isTtsPlaying = false
+                if (isTtsActive) nextTts() // Auto-advance
             }
-            override fun onDone(utteranceId: String?) {
-                lifecycleScope.launch(Dispatchers.Main) { 
-                    isTtsPlaying = false 
-                    if (isTtsActive) nextTts() // Auto-advance
-                }
-            }
-            override fun onError(utteranceId: String?) {
-                lifecycleScope.launch(Dispatchers.Main) { isTtsPlaying = false }
-            }
-            
-            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
-                // Word-level highlighting
-                val word = text.substring(start, end)
-                lifecycleScope.launch(Dispatchers.Main) {
-                    updateTtsHighlight(word, isWord = true)
-                }
-            }
-        })
-        
-        val params = Bundle()
-        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ReaderTTS_$currentSentenceIndex")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "ReaderTTS_$currentSentenceIndex")
+        }
+        ttsVoiceManager.speak(text, "ReaderTTS_$currentSentenceIndex")
+        isTtsPlaying = true
     }
 
     private fun updateTtsHighlight(text: String?, isWord: Boolean = false) {
@@ -471,7 +525,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun setupNavigator(initialLocator: Locator, settings: ReaderSettings) {
+    private fun setupNavigator(initialLocator: Locator, settings: ReaderSettings, forceScrollMode: Boolean = true) {
         val publication = ReaderRepository.currentPublication ?: return
         val config = EpubConfig(
             selectionActionModeCallback = object : ActionMode.Callback {
@@ -492,7 +546,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         val factory = EpubNavigatorFactory(publication)
         val fragmentFactory = factory.createFragmentFactory(
             initialLocator = initialLocator,
-            initialPreferences = createEpubPreferences(settings),
+            initialPreferences = createEpubPreferences(settings, forceScrollMode),
             configuration = config,
             listener = object : EpubNavigatorFragment.Listener {
                 override fun onExternalLinkActivated(url: AbsoluteUrl) {}
@@ -503,7 +557,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         childFragmentManager.beginTransaction().replace(R.id.fragment_reader_container, navigatorFragment).commit()
     }
 
-    private fun createEpubPreferences(settings: ReaderSettings): EpubPreferences {
+    private fun createEpubPreferences(settings: ReaderSettings, forceScrollMode: Boolean = false): EpubPreferences {
+        val isScrollMode = forceScrollMode || settings.scrollMode
         return EpubPreferences(
             fontSize = settings.fontSize / 100.0,
             theme = when(settings.theme) {
@@ -511,16 +566,53 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 ReaderTheme.DARK -> Theme.DARK
                 ReaderTheme.SEPIA -> Theme.SEPIA
             },
-            scroll = settings.scrollMode,
-            columnCount = if (settings.scrollMode) ColumnCount.ONE else null,
-            spread = if (settings.scrollMode) Spread.NEVER else null,
+            scroll = isScrollMode,
+            columnCount = if (isScrollMode) ColumnCount.ONE else null,
+            spread = if (isScrollMode) Spread.NEVER else null,
             readingProgression = ReadingProgression.LTR,
             verticalText = false
         )
     }
 
+    private fun updateReadingProgress(locator: Locator) {
+        val publication = ReaderRepository.currentPublication ?: return
+        val href = locator.href.toString()
+        
+        // Find current spine index
+        val spineIndex = publication.readingOrder.indexOfFirst { it.href.toString() == href }
+        if (spineIndex >= 0) {
+            currentSpineIndex = spineIndex
+        }
+        
+        // Calculate overall progress
+        val progress = if (totalSpineItems > 0) {
+            ((currentSpineIndex.toFloat() / totalSpineItems) * 100).toInt()
+        } else {
+            0
+        }
+        
+        activity?.runOnUiThread {
+            updateProgressUI()
+        }
+    }
+
+    private fun updateProgressUI() {
+        if (!::readingProgressBar.isInitialized) return
+        
+        val progress = if (totalSpineItems > 0) {
+            ((currentSpineIndex.toFloat() / totalSpineItems) * 100).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
+        
+        readingProgressBar.progress = progress
+        readingProgressText.text = "$progress%"
+        chapterProgressText.text = "Chapter ${currentSpineIndex + 1} of $totalSpineItems"
+    }
+
     override fun onDestroy() {
         try { tts?.stop(); tts?.shutdown() } catch (e: Exception) {}
+        if (::ttsVoiceManager.isInitialized) ttsVoiceManager.shutdown()
         super.onDestroy()
     }
 
@@ -667,13 +759,111 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private fun showBookListDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_book_navigation, null)
         val listView = dialogView.findViewById<ListView>(R.id.list_navigation)
-        val dialog = AlertDialog.Builder(requireContext()).setView(dialogView).show()
+        val btnContents = dialogView.findViewById<Button>(R.id.btn_tab_contents)
+        val btnBookmarks = dialogView.findViewById<Button>(R.id.btn_tab_bookmarks)
+        val btnHighlights = dialogView.findViewById<Button>(R.id.btn_tab_highlights)
+        
         val toc = ReaderRepository.currentPublication?.tableOfContents ?: emptyList()
-        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, toc.map { it.title ?: "Untitled" })
-        listView.setOnItemClickListener { _, _, pos, _ ->
-            ReaderRepository.currentPublication?.locatorFromLink(toc[pos])?.let { navigator?.go(it, animated = true) }
-            dialog.dismiss()
+        
+        fun highlightTab(selected: Button, others: List<Button>) {
+            selected.setBackgroundColor(0xFF333333.toInt())
+            others.forEach { it.setBackgroundColor(0xFF222222.toInt()) }
         }
+        
+        fun showChaptersList() {
+            highlightTab(btnContents, listOf(btnBookmarks, btnHighlights))
+            listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, toc.map { it.title ?: "Untitled" })
+            listView.setOnItemClickListener { _, _, pos, _ ->
+                ReaderRepository.currentPublication?.locatorFromLink(toc[pos])?.let { navigator?.go(it, animated = true) }
+            }
+            listView.setOnItemLongClickListener(null)
+        }
+        
+        fun showBookmarksList() {
+            highlightTab(btnBookmarks, listOf(btnContents, btnHighlights))
+            lifecycleScope.launch {
+                viewModel.getBookmarks(bookId).collectLatest { bookmarks ->
+                    if (bookmarks.isEmpty()) {
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No bookmarks yet"))
+                        listView.setOnItemClickListener(null)
+                    } else {
+                        val bookmarkTitles = bookmarks.map { bookmark ->
+                            try {
+                                val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmark.locator))
+                                locator?.text?.highlight?.take(50)?.let { "\"$it...\"" } ?: "Bookmark ${bookmark.id}"
+                            } catch (e: Exception) {
+                                "Bookmark ${bookmark.id}"
+                            }
+                        }
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, bookmarkTitles)
+                        listView.setOnItemClickListener { _, _, pos, _ ->
+                            try {
+                                val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmarks[pos].locator))
+                                locator?.let { navigator?.go(it, animated = true) }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error loading bookmark", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        listView.setOnItemLongClickListener { _, _, pos, _ ->
+                            lifecycleScope.launch {
+                                viewModel.deleteBookmark(bookmarks[pos])
+                                Toast.makeText(context, "Bookmark deleted", Toast.LENGTH_SHORT).show()
+                            }
+                            true
+                        }
+                    }
+                }
+            }
+        }
+        
+        fun showHighlightsList() {
+            highlightTab(btnHighlights, listOf(btnContents, btnBookmarks))
+            lifecycleScope.launch {
+                viewModel.getHighlights(bookId).collectLatest { highlights ->
+                    if (highlights.isEmpty()) {
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No highlights yet"))
+                        listView.setOnItemClickListener(null)
+                    } else {
+                        val highlightTitles = highlights.map { highlight ->
+                            try {
+                                val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlight.locator))
+                                locator?.text?.highlight?.take(50)?.let { "\"$it...\"" } ?: "Highlight ${highlight.id}"
+                            } catch (e: Exception) {
+                                "Highlight ${highlight.id}"
+                            }
+                        }
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, highlightTitles)
+                        listView.setOnItemClickListener { _, _, pos, _ ->
+                            try {
+                                val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlights[pos].locator))
+                                locator?.let { navigator?.go(it, animated = true) }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error loading highlight", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        listView.setOnItemLongClickListener { _, _, pos, _ ->
+                            lifecycleScope.launch {
+                                viewModel.deleteHighlight(highlights[pos])
+                                Toast.makeText(context, "Highlight deleted", Toast.LENGTH_SHORT).show()
+                            }
+                            true
+                        }
+                    }
+                }
+            }
+        }
+        
+        btnContents.setOnClickListener { showChaptersList() }
+        btnBookmarks.setOnClickListener { showBookmarksList() }
+        btnHighlights.setOnClickListener { showHighlightsList() }
+        
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .setNegativeButton("Close", null)
+            .create()
+        
+        showChaptersList()
+        dialog.show()
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -761,22 +951,26 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             
                             Spacer(modifier = Modifier.height(24.dp))
                             
-                            Row(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column {
-                                    Text("Vertical Scrolling", style = MaterialTheme.typography.bodyLarge, color = Color.White)
-                                    Text("Enable continuous scroll mode", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                }
-                                Switch(
-                                    checked = settings.scrollMode,
-                                    onCheckedChange = {
-                                        val ns = settings.copy(scrollMode = it)
-                                        viewModel.updateSettings(ns)
-                                        recreateNavigator(ns)
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White.copy(alpha = 0.1f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Vertical Scrolling", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                        Text("Always enabled for seamless reading", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                     }
-                                )
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = "Enabled",
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -789,6 +983,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         viewLifecycleOwner.lifecycleScope.launch { viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation) }
     }
 
-    private fun recreateNavigator(settings: ReaderSettings) { navigator?.currentLocator?.value?.let { setupNavigator(it, settings) } }
+    private fun recreateNavigator(settings: ReaderSettings) { navigator?.currentLocator?.value?.let { setupNavigator(it, settings, forceScrollMode = true) } }
     fun isScrollMode(): Boolean = viewModel.settings.value.scrollMode
 }

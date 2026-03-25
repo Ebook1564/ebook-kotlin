@@ -88,12 +88,13 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val homeSections by viewModel.homeSections.collectAsState()
     val billboardBooks by viewModel.billboardBooks.collectAsState()
+    val continueReadingBooks by viewModel.continueReadingBooks.collectAsState()
     val curatedCollections = uiState.curatedCollections
     val backgroundColor = BookVerseTheme.colors.background
-    val currentTheme by appViewModel.themeMode
+    val themeMode by appViewModel.themeMode
     
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
-        if (currentTheme == AppThemeMode.COSMIC) {
+        if (themeMode == AppThemeMode.SPACE) {
             SpaceBackground()
         }
         
@@ -108,6 +109,9 @@ fun HomeScreen(
                 contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
                 item { HeaderSection(appViewModel, userName) }
+                if (continueReadingBooks.isNotEmpty()) {
+                    item { ContinueReadingSection(books = continueReadingBooks, onBookClick = onBookClick, onReadClick = onReadNowClick) }
+                }
                 if (billboardBooks.isNotEmpty()) {
                     item { BillboardCarousel(books = billboardBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick) }
                 }
@@ -117,6 +121,138 @@ fun HomeScreen(
                 homeSections.forEach { section ->
                     item { CategoryRow(title = section.title, books = section.books, onBookClick = onBookClick) }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContinueReadingSection(
+    books: List<Book>,
+    onBookClick: (Book) -> Unit,
+    onReadClick: (Book) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = BookVerseTheme.colors.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Continue Reading",
+                    style = BookVerseTheme.typography.headline,
+                    color = BookVerseTheme.colors.textPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(books.size) { index ->
+                ContinueReadingBookCard(
+                    book = books[index],
+                    onClick = { onBookClick(books[index]) },
+                    onReadClick = { onReadClick(books[index]) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinueReadingBookCard(
+    book: Book,
+    onClick: () -> Unit,
+    onReadClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = BookVerseTheme.colors.surface,
+        shadowElevation = 4.dp
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                if (book.getBestCoverUrl().isNotEmpty()) {
+                    AsyncImage(
+                        model = book.getBestCoverUrl(),
+                        contentDescription = book.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    ClassicEditionCover(
+                        title = book.title,
+                        author = book.author,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                
+                // Progress indicator
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp),
+                    shape = CircleShape,
+                    color = BookVerseTheme.colors.primary
+                ) {
+                    Text(
+                        text = "${((book.lastOpened?.let { (System.currentTimeMillis() - it) / 86400000 } ?: 0).toInt().coerceAtMost(99))}%",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            
+            Column(
+                modifier = Modifier.padding(10.dp)
+            ) {
+                Text(
+                    text = book.title,
+                    style = BookVerseTheme.typography.body,
+                    color = BookVerseTheme.colors.textPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = book.author,
+                    color = BookVerseTheme.colors.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -133,13 +269,13 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
         DynamicGreeting(userName)
         IconButton(
             onClick = { appViewModel.toggleTheme() },
-            modifier = Modifier.clip(CircleShape).background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.COSMIC) 0.3f else 0.8f))
+            modifier = Modifier.clip(CircleShape).background(BookVerseTheme.colors.surface.copy(alpha = if(themeMode == AppThemeMode.NIGHT || themeMode == AppThemeMode.SPACE) 0.3f else 0.8f))
         ) {
             Icon(
                 imageVector = when (themeMode) {
                     AppThemeMode.DAY -> Icons.Default.Nightlight
                     AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
-                    AppThemeMode.COSMIC -> Icons.Default.LightMode
+                    AppThemeMode.SPACE -> Icons.Default.LightMode
                 },
                 contentDescription = "Toggle Theme",
                 tint = BookVerseTheme.colors.primary
@@ -150,14 +286,28 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
 
 @Composable
 fun DynamicGreeting(userName: String) {
-    val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val greeting = when (hour) {
         in 0..11 -> "Good Morning"
         in 12..16 -> "Good Afternoon"
         else -> "Good Evening"
     }
+    
+    val punchlines = when (hour) {
+        in 0..5 -> listOf("The world is quiet now", "Time for some midnight reading", "Explore worlds while others sleep")
+        in 6..8 -> listOf("Start your day with a story", "Morning reads await", "Rise and read!")
+        in 9..11 -> listOf("Ready for a new adventure?", "What will you discover today?", "Time to dive into a new book")
+        in 12..14 -> listOf("Lunch break reading?", "Afternoon escape awaits", "Take a reading break")
+        in 15..17 -> listOf("Keep the momentum going", "Story time is anytime", "What chapter will you reach?")
+        in 18..20 -> listOf("Unwind with a good book", "Evening reading session", "Perfect time for some stories")
+        else -> listOf("Cozy up with a book", "Nighttime reading awaits", "Let stories transport you")
+    }
+    
+    val punchline = punchlines.random()
+    
     Column {
         Text(text = "$greeting, $userName", style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Black)
-        Text(text = "Ready for a new adventure?", style = BookVerseTheme.typography.body, color = BookVerseTheme.colors.textSecondary, fontSize = 13.sp, letterSpacing = 0.5.sp)
+        Text(text = punchline, style = BookVerseTheme.typography.body, color = BookVerseTheme.colors.textSecondary, fontSize = 13.sp, letterSpacing = 0.5.sp)
     }
 }
 

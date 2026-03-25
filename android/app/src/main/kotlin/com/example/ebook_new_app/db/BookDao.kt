@@ -52,6 +52,9 @@ interface BookDao {
     @Query("SELECT * FROM books")
     fun getAllBooks(): Flow<List<BookEntity>>
 
+    @Query("SELECT * FROM books WHERE last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
+    suspend fun getRecentlyOpenedBooks(limit: Int = 10): List<BookEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBooks(books: List<BookEntity>)
 

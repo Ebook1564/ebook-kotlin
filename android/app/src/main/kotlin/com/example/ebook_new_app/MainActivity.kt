@@ -201,7 +201,8 @@ class MainActivity : ComponentActivity() {
                         ) + fadeOut()
                     ) {
                         BackHandler { showProfile = false }
-                        ProfileScreen(userName = userProfile.name, appViewModel = appViewModel, onBackClick = { showProfile = false })
+                        val database = (androidx.compose.ui.platform.LocalContext.current.applicationContext as? EbookApp)?.database
+                        ProfileScreen(userName = userProfile.name, appViewModel = appViewModel, database = database, onBackClick = { showProfile = false })
                     }
                 }
             }
@@ -216,8 +217,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
-    val themeMode by appViewModel.themeMode
-    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
+    val themeMode = appViewModel.themeMode.value
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
@@ -229,11 +229,11 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     onBookClick = { homeViewModel.startReadTransition(it) },
                     onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) }, onAuthorClick = { author -> homeViewModel.setAuthorFilter(author) })
+                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                if (themeMode == AppThemeMode.COSMIC && useCosmicTouchNav) {
+                if (themeMode == AppThemeMode.SPACE) {
                     SpaceEasyTouchNav(currentPage) { }
                 } else {
                     ElegantNavBar(currentPage, themeMode) { }
@@ -250,8 +250,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
     val libraryUiState by libraryViewModel.uiState.collectAsState()
-    val themeMode by appViewModel.themeMode
-    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
+    val themeMode = appViewModel.themeMode.value
+    val useSpaceTouchNav = appViewModel.useSpaceTouchNav.value
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
     val themeColor = readerSettingsRepo.getThemeColor()
     val textColor = readerSettingsRepo.getTextColor()
@@ -263,9 +263,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     
     var isInspectingByShelf by remember { mutableStateOf(false) }
 
-    fun onReadClick(book: com.example.ebook_new_app.models.Book, bounds: com.example.ebook_new_app.viewmodel.InitialBounds?) {
+    fun onReadClick(book: com.example.ebook_new_app.models.Book, bounds: com.example.ebook_new_app.viewmodel.InitialBounds?, openAudioPlayer: Boolean = false) {
         showSheet = false
-        homeViewModel.startReadTransition(book, bounds)
+        homeViewModel.startReadTransition(book, bounds, openAudioPlayer = openAudioPlayer)
     }
 
     fun onBookClick(book: com.example.ebook_new_app.models.Book) {
@@ -302,8 +302,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     )
                     1 -> SearchScreen(
                         viewModel = homeViewModel, 
-                        onBookClick = { onBookClick(it) },
-                        onAuthorClick = { author -> homeViewModel.setAuthorFilter(author) }
+                        onBookClick = { onBookClick(it) }
                     )
                     2 -> LibraryScreen(
                         viewModel = libraryViewModel, 
@@ -327,11 +326,15 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     animationSpec = tween(600, easing = PremiumEasing)
                 ) + fadeOut(animationSpec = tween(400))
             ) {
-                if (themeMode == AppThemeMode.COSMIC && useCosmicTouchNav) {
+                if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
                     Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
                         SpaceEasyTouchNav(pagerState.currentPage) { index ->
                             if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
                         }
+                    }
+                } else if (themeMode == AppThemeMode.SPACE) {
+                    SpaceElegantNavBar(pagerState.currentPage) { index ->
+                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
                     }
                 } else {
                     Box(modifier = Modifier.then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
@@ -366,6 +369,11 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     onAuthorClick = { author ->
                         showSheet = false
                         homeViewModel.setAuthorFilter(author)
+                    },
+                    onAudioClick = { book ->
+                        // Open TTS audio player for this book
+                        // The reader will be opened with TTS mode
+                        onReadClick(book, null, openAudioPlayer = true)
                     }
                 )
             }
@@ -425,8 +433,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
 
                     val intent = Intent(context, ReaderActivity::class.java).apply {
                         putExtra("FILE_PATH", file.absolutePath)
-                        putExtra("BOOK_TITLE", homeUiState.transitionBook!!.title)
-                        putExtra("BOOK_ID", homeUiState.transitionBook!!.id)
+                        putExtra("BOOK", homeUiState.transitionBook!!)
+                        putExtra("OPEN_AUDIO_PLAYER", homeUiState.openAudioPlayer)
                     }
                     val options = ActivityOptions.makeCustomAnimation(context, 0, 0)
                     context.startActivity(intent, options.toBundle())
@@ -459,179 +467,7 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 }
             }
         }
-    } else if (themeMode == AppThemeMode.COSMIC) {
-        val infiniteTransition = rememberInfiniteTransition(label = "space_nav")
-        val pulseAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(4000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
-            label = "pulse"
-        )
-        
-        val cosmicRotation by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-            label = "rotation"
-        )
-        
-        Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
-                val gradientBrush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFF0A0A1A).copy(alpha = 0.95f),
-                        Color(0xFF0A0A1A)
-                    )
-                )
-                drawRect(brush = gradientBrush)
-                
-                val stars = listOf(
-                    Offset(size.width * 0.1f, size.height * 0.3f),
-                    Offset(size.width * 0.25f, size.height * 0.6f),
-                    Offset(size.width * 0.4f, size.height * 0.2f),
-                    Offset(size.width * 0.55f, size.height * 0.7f),
-                    Offset(size.width * 0.7f, size.height * 0.4f),
-                    Offset(size.width * 0.85f, size.height * 0.25f),
-                    Offset(size.width * 0.15f, size.height * 0.8f),
-                    Offset(size.width * 0.6f, size.height * 0.1f),
-                    Offset(size.width * 0.9f, size.height * 0.6f)
-                )
-                stars.forEachIndexed { index, star ->
-                    val baseAngle = index * 40f + cosmicRotation * 0.1f
-                    val starPulse = if (index % 2 == 0) pulseAlpha else 1f - (pulseAlpha - 0.5f)
-                    val offsetX = kotlin.math.cos(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
-                    val offsetY = kotlin.math.sin(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
-                    drawCircle(
-                        color = Color.White.copy(alpha = starPulse * 0.8f),
-                        radius = (2f + (index % 3) * 0.5f).dp.toPx(),
-                        center = Offset(star.x + offsetX, star.y + offsetY)
-                    )
-                }
-                
-                val arcRadius = size.width * 0.3f
-                val arcCenter = Offset(size.width / 2, size.height * 1.2f)
-                drawArc(
-                    color = Color(0xFF4A90D9).copy(alpha = 0.15f),
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = false,
-                    topLeft = Offset(arcCenter.x - arcRadius, arcCenter.y - arcRadius),
-                    size = androidx.compose.ui.geometry.Size(arcRadius * 2, arcRadius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                )
-                
-                drawLine(
-                    color = Color(0xFF4A90D9).copy(alpha = 0.4f),
-                    start = Offset(size.width * 0.05f, size.height * 0.9f),
-                    end = Offset(size.width * 0.95f, size.height * 0.9f),
-                    strokeWidth = 1.dp.toPx()
-                )
-            }
-            
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.Transparent
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(80.dp).padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        val isSelected = selectedIndex == index
-                        val navColor by animateColorAsState(
-                            targetValue = when {
-                                isSelected -> Color(0xFF4A90D9)
-                                else -> Color.White.copy(alpha = 0.5f)
-                            },
-                            animationSpec = tween(1200, easing = PremiumEasing)
-                        )
-                        
-                        val scale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.1f else 1f,
-                            animationSpec = tween(800, easing = PremiumEasing)
-                        )
-                        
-                        val glowAlpha by animateFloatAsState(
-                            targetValue = if (isSelected) 1f else 0f,
-                            animationSpec = tween(1000, easing = PremiumEasing)
-                        )
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .graphicsLayer { scaleX = scale; scaleY = scale }
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    if (glowAlpha > 0f) {
-                                        Canvas(modifier = Modifier.size(44.dp)) {
-                                            drawCircle(
-                                                color = navColor.copy(alpha = 0.15f * glowAlpha),
-                                                radius = size.minDimension / 2
-                                            )
-                                            drawCircle(
-                                                color = navColor.copy(alpha = 0.3f * glowAlpha),
-                                                radius = size.minDimension / 2 * 0.7f
-                                            )
-                                            drawCircle(
-                                                color = navColor.copy(alpha = 0.5f * glowAlpha),
-                                                radius = size.minDimension / 2 * 0.4f,
-                                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = when(index) {
-                                            0 -> "⬡"
-                                            1 -> "◎"
-                                            else -> "◈"
-                                        },
-                                        color = navColor,
-                                        fontSize = 22.sp
-                                    )
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = title,
-                                    color = navColor,
-                                    fontSize = 10.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    letterSpacing = 1.5.sp
-                                )
-                                val indicatorWidth by animateFloatAsState(
-                                    targetValue = if (isSelected) 24.dp.value else 0.dp.value,
-                                    animationSpec = tween(800, easing = PremiumEasing)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 4.dp)
-                                        .width(indicatorWidth.dp)
-                                        .height(2.dp)
-                                        .background(
-                                            brush = Brush.horizontalGradient(
-                                                colors = listOf(
-                                                    Color.Transparent,
-                                                    navColor,
-                                                    Color.Transparent
-                                                )
-                                            ),
-                                            shape = RoundedCornerShape(1.dp)
-                                        )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    else {
+    } else {
         Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFFF5F1E0), tonalElevation = 4.dp, shadowElevation = 12.dp) {
             Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(72.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 tabs.forEachIndexed { index, title ->
@@ -644,6 +480,181 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = title, color = color, style = BookVerseTheme.typography.label, fontSize = 13.sp, fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal)
                             if (isSelected) Box(Modifier.padding(top = 4.dp).width(24.dp).height(2.dp).background(color))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "space_nav")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "pulse"
+    )
+    
+    val cosmicRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "rotation"
+    )
+    
+    val tabs = listOf("HOME", "SEARCH", "LIBRARY")
+    
+    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+            val gradientBrush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color(0xFF0A0A1A).copy(alpha = 0.95f),
+                    Color(0xFF0A0A1A)
+                )
+            )
+            drawRect(brush = gradientBrush)
+            
+            val stars = listOf(
+                Offset(size.width * 0.1f, size.height * 0.3f),
+                Offset(size.width * 0.25f, size.height * 0.6f),
+                Offset(size.width * 0.4f, size.height * 0.2f),
+                Offset(size.width * 0.55f, size.height * 0.7f),
+                Offset(size.width * 0.7f, size.height * 0.4f),
+                Offset(size.width * 0.85f, size.height * 0.25f),
+                Offset(size.width * 0.15f, size.height * 0.8f),
+                Offset(size.width * 0.6f, size.height * 0.1f),
+                Offset(size.width * 0.9f, size.height * 0.6f)
+            )
+            stars.forEachIndexed { index, star ->
+                val baseAngle = index * 40f + cosmicRotation * 0.1f
+                val starPulse = if (index % 2 == 0) pulseAlpha else 1f - (pulseAlpha - 0.5f)
+                val offsetX = kotlin.math.cos(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
+                val offsetY = kotlin.math.sin(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
+                drawCircle(
+                    color = Color.White.copy(alpha = starPulse * 0.8f),
+                    radius = (2f + (index % 3) * 0.5f).dp.toPx(),
+                    center = Offset(star.x + offsetX, star.y + offsetY)
+                )
+            }
+            
+            val arcRadius = size.width * 0.3f
+            val arcCenter = Offset(size.width / 2, size.height * 1.2f)
+            drawArc(
+                color = Color(0xFF4A90D9).copy(alpha = 0.15f),
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(arcCenter.x - arcRadius, arcCenter.y - arcRadius),
+                size = androidx.compose.ui.geometry.Size(arcRadius * 2, arcRadius * 2),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+            )
+            
+            drawLine(
+                color = Color(0xFF4A90D9).copy(alpha = 0.4f),
+                start = Offset(size.width * 0.05f, size.height * 0.9f),
+                end = Offset(size.width * 0.95f, size.height * 0.9f),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+        
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.Transparent
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(80.dp).padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    val isSelected = selectedIndex == index
+                    val navColor by animateColorAsState(
+                        targetValue = when {
+                            isSelected -> Color(0xFF4A90D9)
+                            else -> Color.White.copy(alpha = 0.5f)
+                        },
+                        animationSpec = tween(1200, easing = PremiumEasing)
+                    )
+                    
+                    val scale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.1f else 1f,
+                        animationSpec = tween(800, easing = PremiumEasing)
+                    )
+                    
+                    val glowAlpha by animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0f,
+                        animationSpec = tween(1000, easing = PremiumEasing)
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (glowAlpha > 0f) {
+                                    Canvas(modifier = Modifier.size(44.dp)) {
+                                        drawCircle(
+                                            color = navColor.copy(alpha = 0.15f * glowAlpha),
+                                            radius = size.minDimension / 2
+                                        )
+                                        drawCircle(
+                                            color = navColor.copy(alpha = 0.3f * glowAlpha),
+                                            radius = size.minDimension / 2 * 0.7f
+                                        )
+                                        drawCircle(
+                                            color = navColor.copy(alpha = 0.5f * glowAlpha),
+                                            radius = size.minDimension / 2 * 0.4f,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = when(index) {
+                                        0 -> "⬡"
+                                        1 -> "◎"
+                                        else -> "◈"
+                                    },
+                                    color = navColor,
+                                    fontSize = 22.sp
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = title,
+                                color = navColor,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                letterSpacing = 1.5.sp
+                            )
+                            val indicatorWidth by animateFloatAsState(
+                                targetValue = if (isSelected) 24.dp.value else 0.dp.value,
+                                animationSpec = tween(800, easing = PremiumEasing)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .width(indicatorWidth.dp)
+                                    .height(2.dp)
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                navColor,
+                                                Color.Transparent
+                                            )
+                                        ),
+                                        shape = RoundedCornerShape(1.dp)
+                                    )
+                            )
                         }
                     }
                 }

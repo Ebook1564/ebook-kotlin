@@ -96,10 +96,6 @@ fun LibraryScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (currentTheme == AppThemeMode.COSMIC) {
-            SpaceBackground()
-        }
-        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -266,8 +262,7 @@ fun LibraryScreen(
                     onReadNow = {
                         inspectedBook = null
                         onBookClick(book)
-                    },
-                    homeViewModel = homeViewModel
+                    }
                 )
             }
         }
@@ -291,8 +286,7 @@ fun LibraryScreen(
                     onBookClick = { 
                         viewModel.setSeeAll(null)
                         inspectedBook = it 
-                    },
-                    homeViewModel = homeViewModel
+                    }
                 )
             }
         }
@@ -301,22 +295,21 @@ fun LibraryScreen(
 
 @Composable
 fun LibraryBookPoster(book: Book) {
-    val coversUrl = ServerConfig.getCoversUrl()
-    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
+    val serverCoverUrl = book.getServerCoverUrl()
     Surface(
         modifier = Modifier.aspectRatio(0.7f).fillMaxWidth(),
         shape = RoundedCornerShape(4.dp),
         shadowElevation = 8.dp
     ) {
-        val primaryUrl = book.externalCoverUrl ?: book.coverImageUrl
+        val coverUrl = book.getBestCoverUrl()
         SubcomposeAsyncImage(
-            model = primaryUrl,
+            model = coverUrl,
             contentDescription = book.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
             error = {
                 SubcomposeAsyncImage(
-                    model = fallbackCoverUrl,
+                    model = serverCoverUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
@@ -342,17 +335,17 @@ fun ShelfTier(
     onSeeAll: () -> Unit
 ) {
     val cornerRadius = 2.dp
-    val shelfColor = if (themeMode == AppThemeMode.COSMIC) Color.Transparent else Color(0xFF3E2723) 
-    val shelfWallColor = if (themeMode == AppThemeMode.COSMIC) Color.Transparent else Color(0xFF2D1B18)
+    val shelfColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF3E2723) 
+    val shelfWallColor = if (themeMode == AppThemeMode.SPACE) Color.Transparent else Color(0xFF2D1B18)
     
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (isExpanded && themeMode == AppThemeMode.COSMIC) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
+        targetValue = if (isExpanded && themeMode == AppThemeMode.SPACE) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.2f),
         animationSpec = tween(1200, easing = PremiumEasing)
     )
 
     val starshipProgress = remember { Animatable(0f) }
 
-    if (themeMode == AppThemeMode.COSMIC) {
+    if (themeMode == AppThemeMode.SPACE) {
         LaunchedEffect(isExpanded) {
             starshipProgress.stop()
             while (isActive) {
@@ -405,7 +398,7 @@ fun ShelfTier(
                     .drawWithContent {
                         drawContent()
 
-                        if (themeMode == AppThemeMode.COSMIC) {
+                        if (themeMode == AppThemeMode.SPACE) {
                             val path = Path().apply {
                                 addRoundRect(
                                     RoundRect(
@@ -435,7 +428,7 @@ fun ShelfTier(
                     }
                     .background(shelfWallColor, RoundedCornerShape(cornerRadius))
                     .then(
-                        if (themeMode == AppThemeMode.COSMIC) Modifier.border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
+                        if (themeMode == AppThemeMode.SPACE) Modifier.border(1.dp, animatedBorderColor, RoundedCornerShape(cornerRadius))
                         else Modifier
                     )
             )
@@ -452,12 +445,12 @@ fun ShelfTier(
                     }
                     .background(
                         brush = Brush.verticalGradient(
-                            if (themeMode == AppThemeMode.COSMIC) listOf(Color.Transparent, Color.Transparent)
+                            if (themeMode == AppThemeMode.SPACE) listOf(Color.Transparent, Color.Transparent)
                             else listOf(shelfColor, Color.Black.copy(0.4f))
                         ),
                         shape = RoundedCornerShape(cornerRadius)
                     )
-                    .then(if (themeMode != AppThemeMode.COSMIC) Modifier.shadow(16.dp) else Modifier)
+                    .then(if (themeMode != AppThemeMode.SPACE) Modifier.shadow(16.dp) else Modifier)
             )
 
             Box(
@@ -558,7 +551,7 @@ fun TransitioningShelfBooks(
 }
 
 @Composable
-fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit, homeViewModel: HomeViewModel = viewModel()) {
+fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "inspect")
     val autoRotation by infiniteTransition.animateFloat(initialValue = -45f, targetValue = 45f, animationSpec = infiniteRepeatable(tween(8000, easing = LinearOutSlowInEasing), RepeatMode.Reverse), label = "rotate")
     val breatheAnim by infiniteTransition.animateFloat(initialValue = 0.8f, targetValue = 1.2f, animationSpec = infiniteRepeatable(tween(3000, easing = EaseInOutSine), RepeatMode.Reverse), label = "breathe")
@@ -567,39 +560,11 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Realistic3DBook(coverUrl = book.externalCoverUrl ?: book.coverImageUrl, currentRotationY = autoRotation, modifier = Modifier.width(220.dp).height(330.dp))
+            Realistic3DBook(coverUrl = book.getBestCoverUrl(), currentRotationY = autoRotation, modifier = Modifier.width(220.dp).height(330.dp))
             Spacer(modifier = Modifier.height(48.dp))
             Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
-            Spacer(modifier = Modifier.height(16.dp))
-            Surface(
-                onClick = { homeViewModel.setAuthorFilter(book.author) },
-                shape = RoundedCornerShape(20.dp),
-                color = BookVerseTheme.colors.primary.copy(alpha = 0.2f)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = BookVerseTheme.colors.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = book.author.uppercase(),
-                        style = BookVerseTheme.typography.label,
-                        color = BookVerseTheme.colors.primary,
-                        letterSpacing = 2.sp,
-                        textAlign = TextAlign.Center,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
+            Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            Spacer(modifier = Modifier.height(32.dp))
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (book.dateAdded != null) StatItem("ADDED", dateFormat.format(Date(book.dateAdded)))
                 if (book.dateStarted != null) StatItem("STARTED", dateFormat.format(Date(book.dateStarted)))
@@ -616,7 +581,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
 }
 
 @Composable
-fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, onBookClick: (Book) -> Unit, homeViewModel: HomeViewModel = viewModel()) {
+fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, onBookClick: (Book) -> Unit) {
     val colors = BookVerseTheme.colors
     Column(modifier = Modifier.fillMaxSize().background(colors.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -624,30 +589,14 @@ fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, 
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = BookVerseTheme.typography.headline, color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Black)
         }
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2), 
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp), 
-            horizontalArrangement = Arrangement.spacedBy(20.dp), 
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            items(
-                count = books.itemCount,
-                key = { index -> books[index]?.id ?: index }
-            ) { index ->
+        LazyVerticalGrid(columns = GridCells.Fixed(2), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            items(books.itemCount) { index ->
                 books[index]?.let { book ->
                     Column(modifier = Modifier.clickable { onBookClick(book) }, horizontalAlignment = Alignment.CenterHorizontally) {
                         LibraryBookPoster(book)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                        Text(text = book.author, style = BookVerseTheme.typography.label, color = getAuthorColor(book.author), fontSize = 12.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { homeViewModel.setAuthorFilter(book.author) })
-                    }
-                }
-            }
-            
-            if (books.loadState.append is androidx.paging.LoadState.Loading) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(24.dp))
+                        Text(text = book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
                     }
                 }
             }

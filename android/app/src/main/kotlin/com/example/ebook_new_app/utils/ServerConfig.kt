@@ -7,7 +7,7 @@ object ServerConfig {
     private const val PREFS_NAME = "server_config"
     private const val KEY_SERVER_IP = "server_ip"
     private const val KEY_SERVER_PORT = "server_port"
-    private const val DEFAULT_IP = "192.168.1.23"
+    private const val DEFAULT_IP = "54.254.205.11"
     private const val DEFAULT_PORT = "8080"
 
     @Volatile
@@ -42,6 +42,10 @@ object ServerConfig {
 
     fun getCoversUrl(): String {
         return "${getServerUrl()}/covers"
+    }
+
+    fun getTtsUrl(): String {
+        return "http://${getServerIp()}:5000"
     }
 
     fun setServerIp(ip: String) {

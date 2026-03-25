@@ -1,19 +1,24 @@
 package com.example.ebook_new_app.ui
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +60,13 @@ fun BookTransitionOverlay(
     val pageBorderColor = if (!colors.isDark) colors.textSecondary.copy(alpha = 0.2f) else Color.Transparent
     val dimColor = if (colors.isDark) Color.Black else Color.Black.copy(alpha = 0.7f)
 
+    var downloadState by remember { mutableStateOf<DownloadState>(DownloadState.Downloading) }
+    var retryTrigger by remember { mutableIntStateOf(0) }
+
+    BackHandler(enabled = downloadState == DownloadState.Error) {
+        onDismiss()
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -82,22 +94,28 @@ fun BookTransitionOverlay(
         val flipRotation = remember { Animatable(0f) }
         
         var currentFlipIndex by remember { mutableIntStateOf(0) }
-        val totalFlips = 6 
+        val totalFlips = 6
 
-        LaunchedEffect(book) {
-            // PHASE 1: Lift & Center (Premium Pacing)
+        val coroutineScope = rememberCoroutineScope()
+
+        LaunchedEffect(book, retryTrigger) {
+            downloadState = DownloadState.Downloading
+            
+            coroutineScope.launch {
+                liftProgress.animateTo(1f, tween(800, easing = PremiumEasing))
+            }
             launch { bgAlpha.animateTo(1f, tween(600, easing = PremiumEasing)) }
             launch {
                 delay(200)
                 dogEarAlpha.animateTo(1f, tween(400, easing = PremiumEasing))
             }
-            liftProgress.animateTo(1f, tween(800, easing = PremiumEasing))
 
             val file = withContext(Dispatchers.IO) { FileDownloader.ensureCached(context, book) }
+            
             if (file != null) {
+                downloadState = DownloadState.Ready
                 delay(200)
 
-                // PHASE 3: Accelerated Atmospheric Shuffle
                 repeat(totalFlips) { index ->
                     currentFlipIndex = index + 1
                     flipRotation.snapTo(0f)
@@ -111,7 +129,6 @@ fun BookTransitionOverlay(
                         }
                     }
 
-                    // Physics-based acceleration: 500ms down to 150ms
                     val baseDuration = 500 - (index * 70)
                     val duration = if (isLastFlip) 1200 else max(150, baseDuration)
                     
@@ -127,7 +144,7 @@ fun BookTransitionOverlay(
                 delay(200)
                 onAnimationFinished(file)
             } else {
-                onDismiss()
+                downloadState = DownloadState.Error
             }
         }
 
@@ -141,6 +158,18 @@ fun BookTransitionOverlay(
         val currentH = lerp(startH, centerH, lp)
         val currentX = lerp(startX, centerX, lp)
         val currentY = lerp(startY, centerY, lp)
+
+        val isError = downloadState == DownloadState.Error
+        val errorOverlayAlpha by animateFloatAsState(
+            targetValue = if (isError) 0.9f else 0f,
+            animationSpec = tween(300),
+            label = "errorAlpha"
+        )
+        val grayscaleAlpha by animateFloatAsState(
+            targetValue = if (isError) 0.7f else 0f,
+            animationSpec = tween(300),
+            label = "grayscale"
+        )
 
         Box(
             modifier = Modifier
@@ -197,7 +226,7 @@ fun BookTransitionOverlay(
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(lerp(8f, 0f, iz).dp))
                                 .background(if (currentFlipIndex <= 1) Color(0xFF1A1A1A) else themeColor)
-                                .then(if (currentFlipIndex > 1) Modifier.border(1.dp, pageBorderColor) else Modifier)
+                                .graphicsLayer { alpha = 1f - grayscaleAlpha }
                                 .drawWithContent {
                                     drawContent()
                                     if (currentFlipIndex <= 1 && dogEarAlpha.value > 0f) {
@@ -220,6 +249,62 @@ fun BookTransitionOverlay(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            
+                            if (downloadState == DownloadState.Downloading && liftProgress.value > 0.5f) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .height(3.dp)
+                                        .background(Color.Black.copy(alpha = 0.3f))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(0.3f)
+                                            .background(Color.White)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        if (isError) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF1A1A1A).copy(alpha = errorOverlayAlpha))
+                                    .clickable { retryTrigger++ },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = "Couldn't load book",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    OutlinedButton(
+                                        onClick = { retryTrigger++ },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = Color.White
+                                        ),
+                                        border = BorderStroke(1.dp, Color(0xFFE50914))
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Retry", fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
                         }
                     } else {
                         Box(
@@ -236,6 +321,12 @@ fun BookTransitionOverlay(
             }
         }
     }
+}
+
+private enum class DownloadState {
+    Downloading,
+    Ready,
+    Error
 }
 
 private fun lerp(start: Float, end: Float, fraction: Float): Float {

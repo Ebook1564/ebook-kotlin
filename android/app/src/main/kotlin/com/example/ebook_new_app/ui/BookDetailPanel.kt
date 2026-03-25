@@ -14,12 +14,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.ebook_new_app.models.Book
 import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.viewmodel.CuratedCollection
@@ -50,19 +52,36 @@ fun BookDetailContent(
     onCategoryClick: (String) -> Unit,
     onAddToReadingList: (ReadingStatus) -> Unit,
     onClose: () -> Unit,
-    onAuthorClick: (String) -> Unit = {}
+    onAuthorClick: (String) -> Unit = {},
+    onAudioClick: (Book) -> Unit = {}
 ) {
     var displayBook by remember { mutableStateOf(book) }
     
-    // REACT TO METADATA UPDATES
     LaunchedEffect(book) {
         displayBook = book
     }
 
     var coverBounds by remember { mutableStateOf<InitialBounds?>(null) }
+    var coverCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     val colors = BookVerseTheme.colors
     val typography = BookVerseTheme.typography
     var showStatusMenu by remember { mutableStateOf(false) }
+
+    val isDescriptionLoading = displayBook.description.isBlank() && isLoading
+
+    LaunchedEffect(coverCoordinates) {
+        coverCoordinates?.let { coords ->
+            if (coords.isAttached) {
+                delay(16)
+                delay(16)
+                val pos = coords.positionInWindow()
+                coverBounds = InitialBounds(
+                    left = pos.x, top = pos.y,
+                    width = coords.size.width.toFloat(), height = coords.size.height.toFloat()
+                )
+            }
+        }
+    }
 
     // DYNAMIC HEIGHT WRAPPER
     Surface(
@@ -75,12 +94,18 @@ fun BookDetailContent(
             
             // 1. BACKDROP
             Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
-                val backdropUrl = displayBook.externalCoverUrl ?: displayBook.coverImageUrl
+                var backdropFallback by remember { mutableStateOf(false) }
+                val serverCoverUrl = displayBook.getServerCoverUrl()
+                val bestCoverUrl = displayBook.getBestCoverUrl()
+                val backdropUrl = if (backdropFallback) serverCoverUrl else bestCoverUrl
                 AsyncImage(
                     model = backdropUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(60.dp).alpha(0.3f)
+                    modifier = Modifier.fillMaxSize().blur(60.dp).alpha(0.3f),
+                    onError = {
+                        backdropFallback = true
+                    }
                 )
                 Box(
                     modifier = Modifier
@@ -119,22 +144,26 @@ fun BookDetailContent(
                         modifier = Modifier
                             .size(120.dp, 180.dp)
                             .onGloballyPositioned { coords ->
-                                val pos = coords.positionInWindow()
-                                coverBounds = InitialBounds(
-                                    left = pos.x, top = pos.y,
-                                    width = coords.size.width.toFloat(), height = coords.size.height.toFloat()
-                                )
+                                coverCoordinates = coords
                             },
                         shape = RoundedCornerShape(12.dp),
                         shadowElevation = 24.dp
                     ) {
-                        // Priority: External High Res > Local
-                        val finalCoverUrl = displayBook.externalCoverUrl ?: displayBook.coverImageUrl
+                        var useFallback by remember { mutableStateOf(false) }
+                        val serverCoverUrl = displayBook.getServerCoverUrl()
+                        val bestCoverUrl = displayBook.getBestCoverUrl()
+                        val finalCoverUrl = if (useFallback) serverCoverUrl else bestCoverUrl
+                        
                         AsyncImage(
                             model = finalCoverUrl,
                             contentDescription = displayBook.title,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
+                            onError = {
+                                useFallback = true
+                            }
                         )
                     }
 
@@ -151,50 +180,52 @@ fun BookDetailContent(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            onClick = { onAuthorClick(displayBook.author) },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.primary.copy(alpha = 0.15f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = colors.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = displayBook.author.uppercase(),
-                                    style = typography.label,
-                                    color = colors.primary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.sp
-                                )
-                            }
-                        }
+                        Text(
+                            text = displayBook.author,
+                            style = typography.body,
+                            color = colors.primary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        Button(
-                            onClick = { onReadClick(coverBounds) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                            contentPadding = PaddingValues(0.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("READ NOW", fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.sp)
+                            Button(
+                                onClick = { onReadClick(coverBounds) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("READ NOW", fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                            }
+                            
+                            FilledTonalButton(
+                                onClick = { onAudioClick(displayBook) },
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .shadow(4.dp, RoundedCornerShape(12.dp)),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = colors.primary.copy(alpha = 0.15f)
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Headset, 
+                                    null, 
+                                    modifier = Modifier.size(20.dp),
+                                    tint = colors.primary
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -304,9 +335,12 @@ fun BookDetailContent(
                     Text("About this book", style = typography.headline, color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    if (isLoading) {
-                        // Shimmer/Loading state for metadata
-                        Box(modifier = Modifier.fillMaxWidth().height(100.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(8.dp)))
+                    if (isDescriptionLoading) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.fillMaxWidth().height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.fillMaxWidth(0.9f).height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                        }
                     } else {
                         Text(
                             text = displayBook.description,

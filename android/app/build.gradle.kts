@@ -101,4 +101,7 @@ dependencies {
 
     // HTML Parsing
     implementation("org.jsoup:jsoup:1.18.1")
+
+    // Networking
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

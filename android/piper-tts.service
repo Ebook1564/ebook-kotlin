@@ -1,0 +1,22 @@
+# piperTTS systemd service for auto-start on boot
+# Save this to /etc/systemd/system/piper-tts.service
+
+[Unit]
+Description=Piper TTS Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/piper-tts
+ExecStart=/home/ubuntu/piper-tts/run_piper.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

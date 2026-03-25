@@ -52,29 +52,29 @@ fun OnboardingScreen(
     onFinish: (String, AppThemeMode) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var selectedTheme by remember { mutableStateOf(AppThemeMode.DAY) }
+    var selectedTheme by remember { mutableStateOf(AppThemeMode.NIGHT) }
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
     
     val bgColor = when (selectedTheme) {
         AppThemeMode.DAY -> Color(0xFFF5F1E0)
         AppThemeMode.NIGHT -> Color(0xFF0A0A0A)
-        AppThemeMode.COSMIC -> Color(0xFF050510)
+        AppThemeMode.SPACE -> Color(0xFF050510)
     }
     val textColor = when (selectedTheme) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color.White
-        AppThemeMode.COSMIC -> Color.White
+        AppThemeMode.SPACE -> Color.White
     }
     val accentColor = when (selectedTheme) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color(0xFFE50914)
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
     }
     val secondaryBgColor = when (selectedTheme) {
         AppThemeMode.DAY -> Color(0xFFE8E0D0)
         AppThemeMode.NIGHT -> Color(0xFF1A1A1A)
-        AppThemeMode.COSMIC -> Color(0xFF0A0A20)
+        AppThemeMode.SPACE -> Color(0xFF0A0A20)
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "onboarding")
@@ -98,7 +98,7 @@ fun OnboardingScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(bgColor).animateContentSize()) {
         when (selectedTheme) {
-            AppThemeMode.COSMIC -> SpaceOnboardingBackground(cosmicRotation, starTwinkle)
+            AppThemeMode.SPACE -> SpaceOnboardingBackground(cosmicRotation, starTwinkle)
             AppThemeMode.NIGHT -> NightOnboardingBackground()
             AppThemeMode.DAY -> DayOnboardingBackground()
         }
@@ -108,7 +108,7 @@ fun OnboardingScreen(
                 when (selectedTheme) {
                     AppThemeMode.DAY -> Brush.verticalGradient(listOf(bgColor.copy(0.6f), bgColor.copy(0.9f), bgColor))
                     AppThemeMode.NIGHT -> Brush.verticalGradient(listOf(Color.Black.copy(0.3f), Color.Black.copy(0.7f), Color.Black.copy(0.95f)))
-                    AppThemeMode.COSMIC -> Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0A0A1A).copy(0.7f), Color(0xFF0A0A1A)))
+                    AppThemeMode.SPACE -> Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0A0A1A).copy(0.7f), Color(0xFF0A0A1A)))
                 }
             )
         )
@@ -140,7 +140,7 @@ fun OnboardingScreen(
                     shape = RoundedCornerShape(30.dp),
                     enabled = if (pagerState.currentPage == 2) name.isNotEmpty() else true
                 ) {
-                    Text(if (pagerState.currentPage < 2) "CONTINUE" else "GET STARTED", fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = when (selectedTheme) { AppThemeMode.DAY -> Color.White; else -> Color.White })
+                    Text(if (pagerState.currentPage < 2) "CONTINUE" else "GET STARTED", fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Color.White)
                     Spacer(Modifier.width(8.dp))
                     Icon(Icons.Default.ChevronRight, null, tint = Color.White)
                 }
@@ -218,13 +218,13 @@ private fun DayOnboardingBackground() {
 }
 
 @Composable
-fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode) {
+private fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier.size(120.dp * scale),
             contentAlignment = Alignment.Center
         ) {
-            if (themeMode == AppThemeMode.COSMIC) {
+            if (themeMode == AppThemeMode.SPACE) {
                 Canvas(modifier = Modifier.size(120.dp)) {
                     drawCircle(Color(0xFF4A90D9).copy(alpha = 0.2f), radius = size.minDimension / 2)
                     drawCircle(Color(0xFF4A90D9).copy(alpha = 0.3f), radius = size.minDimension / 2 * 0.7f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
@@ -240,11 +240,11 @@ fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode) {
                 modifier = Modifier.size(80.dp),
                 shape = CircleShape,
                 color = when (themeMode) {
-                    AppThemeMode.COSMIC -> Color(0xFF4A90D9).copy(alpha = 0.2f)
+                    AppThemeMode.SPACE -> Color(0xFF4A90D9).copy(alpha = 0.2f)
                     AppThemeMode.NIGHT -> textColor.copy(alpha = 0.1f)
                     AppThemeMode.DAY -> textColor.copy(alpha = 0.1f)
                 },
-                border = if (themeMode == AppThemeMode.COSMIC) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A90D9).copy(alpha = 0.5f)) else null
+                border = if (themeMode == AppThemeMode.SPACE) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A90D9).copy(alpha = 0.5f)) else null
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text("EBB", color = textColor, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
@@ -258,22 +258,22 @@ fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode) {
 }
 
 @Composable
-fun FeaturesStep(textColor: Color, accentColor: Color, themeMode: AppThemeMode) {
+private fun FeaturesStep(textColor: Color, accentColor: Color, themeMode: AppThemeMode) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("FEATURES", color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(24.dp))
         FeatureRow("📚", "Curated Book Collections", textColor, themeMode)
         FeatureRow("✨", "Personalized Recommendations", textColor, themeMode)
         FeatureRow("🚀", "Reading Statistics", textColor, themeMode)
-        FeatureRow("🌙", "Day, Night & Cosmic Themes", textColor, themeMode)
+        FeatureRow("🌙", "Day, Night & Space Themes", textColor, themeMode)
     }
 }
 
 @Composable
-fun FeatureRow(icon: String, text: String, textColor: Color, themeMode: AppThemeMode) {
+private fun FeatureRow(icon: String, text: String, textColor: Color, themeMode: AppThemeMode) {
     Row(modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth(0.85f), verticalAlignment = Alignment.CenterVertically) {
         val bgColor = when (themeMode) {
-            AppThemeMode.COSMIC -> Color(0xFF4A90D9).copy(alpha = 0.1f)
+            AppThemeMode.SPACE -> Color(0xFF4A90D9).copy(alpha = 0.1f)
             else -> textColor.copy(0.05f)
         }
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(bgColor), contentAlignment = Alignment.Center) {
@@ -285,12 +285,12 @@ fun FeatureRow(icon: String, text: String, textColor: Color, themeMode: AppTheme
 }
 
 @Composable
-fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: AppThemeMode, onThemeChange: (AppThemeMode) -> Unit, textColor: Color, accentColor: Color, bgColor: Color) {
+private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: AppThemeMode, onThemeChange: (AppThemeMode) -> Unit, textColor: Color, accentColor: Color, bgColor: Color) {
     Text("CUSTOMIZE YOUR EXPERIENCE", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, letterSpacing = 2.sp)
     Spacer(Modifier.height(40.dp))
     
     val inputBgColor = when (selectedTheme) {
-        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.05f)
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.05f)
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.05f)
         AppThemeMode.DAY -> Color.White.copy(alpha = 0.5f)
     }
@@ -331,10 +331,10 @@ fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: App
             accentColor = accentColor
         )
         OnboardingThemeCard(
-            label = "Cosmic",
+            label = "Space",
             icon = Icons.Filled.Star,
-            isSelected = selectedTheme == AppThemeMode.COSMIC,
-            onClick = { onThemeChange(AppThemeMode.COSMIC) },
+            isSelected = selectedTheme == AppThemeMode.SPACE,
+            onClick = { onThemeChange(AppThemeMode.SPACE) },
             modifier = Modifier.weight(1f),
             textColor = textColor,
             accentColor = accentColor
@@ -343,7 +343,7 @@ fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: App
 }
 
 @Composable
-fun OnboardingThemeCard(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier, textColor: Color, accentColor: Color) {
+private fun OnboardingThemeCard(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier, textColor: Color, accentColor: Color) {
     val bgColor = when {
         isSelected -> accentColor.copy(alpha = 0.15f)
         else -> textColor.copy(alpha = 0.05f)
@@ -361,105 +361,6 @@ fun OnboardingThemeCard(label: String, icon: androidx.compose.ui.graphics.vector
             Icon(icon, null, tint = if (isSelected) accentColor else textColor.copy(0.4f), modifier = Modifier.size(28.dp))
             Spacer(Modifier.height(6.dp))
             Text(label, color = if (isSelected) accentColor else textColor.copy(0.4f), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
-        }
-    }
-}
-
-@Composable
-fun WelcomeStep(logoScale: Float, textColor: Color) {
-    Box(
-        modifier = Modifier.size(140.dp).scale(logoScale).shadow(40.dp, CircleShape, spotColor = Color(0xFFE50914)).background(Color(0xFFE50914), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("V", color = Color.White, fontSize = 72.sp, fontWeight = FontWeight.Black)
-    }
-    Spacer(Modifier.height(32.dp))
-    Text("E-Book Bundle", color = textColor, fontSize = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
-    Text("The World's Most Powerful Library", color = textColor.copy(0.6f), fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-}
-
-@Composable
-fun FeaturesStep(textColor: Color, accentColor: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("UNLIMITED CONTENT", color = accentColor, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 14.sp)
-        Spacer(Modifier.height(16.dp))
-        Text("60,000+ Classic Books\n60+ Curated Genres", color = textColor, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 36.sp)
-        Spacer(Modifier.height(32.dp))
-        
-        FeatureRow("🔊", "AI-Powered Text-to-Speech", textColor)
-        FeatureRow("📖", "High-Fidelity 3D Reader", textColor)
-        FeatureRow("🏷️", "Curated Smart Collections", textColor)
-        FeatureRow("☁️", "Real-time Metadata Sync", textColor)
-    }
-}
-
-@Composable
-fun FeatureRow(icon: String, text: String, textColor: Color) {
-    Row(modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(0.85f), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp).background(textColor.copy(0.05f), CircleShape), contentAlignment = Alignment.Center) {
-            Text(icon, fontSize = 20.sp)
-        }
-        Spacer(Modifier.width(16.dp))
-        Text(text, color = textColor.copy(0.8f), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: AppThemeMode, onThemeChange: (AppThemeMode) -> Unit, textColor: Color, accentColor: Color) {
-    Text("CUSTOMIZE YOUR EXPERIENCE", color = textColor, fontSize = 22.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
-    Spacer(Modifier.height(48.dp))
-    TextField(
-        value = name, onValueChange = onNameChange,
-        placeholder = { Text("What should we call you?", color = textColor.copy(0.3f)) },
-        modifier = Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, textColor.copy(0.1f), RoundedCornerShape(12.dp)),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = textColor.copy(0.05f), unfocusedContainerColor = textColor.copy(0.05f),
-            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = textColor, unfocusedTextColor = textColor
-        ),
-        singleLine = true
-    )
-    Spacer(Modifier.height(32.dp))
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ThemeCard(label = "Day", icon = Icons.Default.LightMode, isSelected = selectedTheme == AppThemeMode.DAY, onClick = { onThemeChange(AppThemeMode.DAY) }, modifier = Modifier.weight(1f), textColor = textColor, accentColor = accentColor)
-        ThemeCard(label = "Night", icon = Icons.Default.Nightlight, isSelected = selectedTheme == AppThemeMode.NIGHT, onClick = { onThemeChange(AppThemeMode.NIGHT) }, modifier = Modifier.weight(1f), textColor = textColor, accentColor = accentColor)
-        ThemeCard(label = "Cosmic", icon = Icons.Filled.Star, isSelected = selectedTheme == AppThemeMode.COSMIC, onClick = { onThemeChange(AppThemeMode.COSMIC) }, modifier = Modifier.weight(1f), textColor = textColor, accentColor = Color(0xFF4A90D9))
-    }
-}
-
-@Composable
-fun AutoScrollingBackground() {
-    val coversUrl = ServerConfig.getCoversUrl()
-    val scrollState = rememberLazyGridState()
-    LaunchedEffect(Unit) {
-        while (true) {
-            scrollState.animateScrollBy(50f, tween(1000, easing = LinearEasing))
-            delay(16)
-        }
-    }
-    LazyVerticalGrid(state = scrollState, columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().alpha(0.7f).blur(8.dp), userScrollEnabled = false, contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(100) { index ->
-            val id = (index % 50) + 1
-            Box(Modifier.aspectRatio(0.7f).clip(RoundedCornerShape(4.dp)).background(Color.Gray.copy(0.2f))) {
-                AsyncImage(model = "$coversUrl/${id}_cover_image.jpg", contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
-        }
-    }
-}
-
-@Composable
-fun ThemeCard(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier, textColor: Color, accentColor: Color) {
-    Box(
-        modifier = modifier.height(100.dp).clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) textColor.copy(0.05f) else Color.Transparent)
-            .border(1.dp, if (isSelected) accentColor else textColor.copy(0.1f), RoundedCornerShape(16.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = if (isSelected) accentColor else textColor.copy(0.4f))
-            Spacer(Modifier.height(8.dp))
-            Text(label, color = if (isSelected) textColor else textColor.copy(0.4f), fontWeight = FontWeight.Bold)
         }
     }
 }

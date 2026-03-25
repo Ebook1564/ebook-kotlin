@@ -85,9 +85,7 @@ GENRE_MAP = {
     "TX": "Home Economics",
     "U": "Military Science",
     "V": "Naval Science",
-    "Z": "Library Science",
-    "GEN": "General Collection",
-    "NONE": "General Collection"
+    "Z": "Library Science"
 }
 
 def process_js_file(file_path):
@@ -190,8 +188,8 @@ def run_seeder():
                 if not isinstance(entry, list) or len(entry) < 4: continue 
                 try:
                     raw_title, author, _, book_id = str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3])
-                    cat_code = str(entry[4]) if len(entry) > 4 else 'GEN'
-                    if not cat_code or cat_code == 'None': cat_code = 'GEN'
+                    cat_code = str(entry[4]) if len(entry) > 4 else 'L'
+                    if not cat_code or cat_code == 'None': cat_code = 'L'
                     
                     genre = GENRE_MAP.get(cat_code, f"Genre {cat_code}")
                     cursor.execute('INSERT OR REPLACE INTO categories VALUES (?, ?, ?, ?)', (cat_code, genre, '📖', '#455A64'))

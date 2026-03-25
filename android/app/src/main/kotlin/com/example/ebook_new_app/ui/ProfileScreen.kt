@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,17 +20,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ebook_new_app.db.AppDatabase
+import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.viewmodel.AppThemeMode
 import com.example.ebook_new_app.viewmodel.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), onBackClick: () -> Unit = {}) {
+fun ProfileScreen(
+    userName: String,
+    appViewModel: AppViewModel = viewModel(),
+    database: AppDatabase? = null,
+    onBackClick: () -> Unit = {}
+) {
     val colors = BookVerseTheme.colors
     val themeMode by appViewModel.themeMode
     var activeSubScreen by remember { mutableStateOf<String?>(null) }
@@ -47,27 +59,27 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
     val bgColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFFF5F1E0)
         AppThemeMode.NIGHT -> Color(0xFF0A0A0A)
-        AppThemeMode.COSMIC -> Color(0xFF050510)
+        AppThemeMode.SPACE -> Color(0xFF050510)
     }
     val textColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color.White
-        AppThemeMode.COSMIC -> Color.White
+        AppThemeMode.SPACE -> Color.White
     }
     val accentColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFF5B4636)
         AppThemeMode.NIGHT -> Color(0xFFE50914)
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
     }
     val surfaceColor = when (themeMode) {
         AppThemeMode.DAY -> Color.White
         AppThemeMode.NIGHT -> Color(0xFF1A1A1A)
-        AppThemeMode.COSMIC -> Color.Transparent
+        AppThemeMode.SPACE -> Color.Transparent
     }
 
     Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
         when (themeMode) {
-            AppThemeMode.COSMIC -> SpaceBackground()
+            AppThemeMode.SPACE -> SpaceBackground()
             AppThemeMode.NIGHT -> NightProfileBackground()
             AppThemeMode.DAY -> {}
         }
@@ -87,14 +99,14 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
                             modifier = Modifier.clip(CircleShape).background(when (themeMode) {
                                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.1f)
                                 AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.1f)
-                                AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.1f)
+                                AppThemeMode.SPACE -> Color.White.copy(alpha = 0.1f)
                             })
                         ) {
                             Icon(
                                 imageVector = when (themeMode) {
                                     AppThemeMode.DAY -> Icons.Default.Nightlight
                                     AppThemeMode.NIGHT -> Icons.Filled.Star
-                                    AppThemeMode.COSMIC -> Icons.Default.LightMode
+                                    AppThemeMode.SPACE -> Icons.Default.LightMode
                                 },
                                 contentDescription = "Toggle Theme",
                                 tint = accentColor
@@ -124,6 +136,7 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
                     ProfileOption("Reading Statistics", Icons.Default.BarChart, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "STATISTICS" }
                     ProfileOption("Settings", Icons.Default.Settings, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SETTINGS" }
                     ProfileOption("Help & Support", Icons.AutoMirrored.Filled.HelpOutline, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SUPPORT" }
+                    ProfileOption("Licenses & Acknowledgements", Icons.Default.Description, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "LICENSES" }
                 }
 
                 AnimatedVisibility(
@@ -134,13 +147,14 @@ fun ProfileScreen(userName: String, appViewModel: AppViewModel = viewModel(), on
                     Surface(modifier = Modifier.fillMaxSize(), color = when (themeMode) {
                         AppThemeMode.DAY -> Color.White
                         AppThemeMode.NIGHT -> Color(0xFF1A1A1A)
-                        AppThemeMode.COSMIC -> Color.Black.copy(alpha = 0.9f)
+                        AppThemeMode.SPACE -> Color.Black.copy(alpha = 0.9f)
                     }) {
                         Column(modifier = Modifier.padding(24.dp)) {
                             when(activeSubScreen) {
-                                "STATISTICS" -> StatisticsContent(themeMode = themeMode)
+                                "STATISTICS" -> StatisticsContent(themeMode = themeMode, database = database)
                                 "SETTINGS" -> SettingsContent(appViewModel)
                                 "SUPPORT" -> SupportContent(themeMode = themeMode)
+                                "LICENSES" -> LicensesContent(themeMode = themeMode)
                             }
                         }
                     }
@@ -167,12 +181,12 @@ private fun ProfileAvatar(initials: String, themeMode: AppThemeMode) {
     )
     
     val avatarColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
         else -> BookVerseTheme.colors.primary
     }
     
     Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.Center) {
-        if (themeMode == AppThemeMode.COSMIC) {
+        if (themeMode == AppThemeMode.SPACE) {
             Canvas(modifier = Modifier.size(120.dp)) {
                 drawCircle(
                     color = avatarColor.copy(alpha = 0.1f),
@@ -206,11 +220,11 @@ private fun ProfileAvatar(initials: String, themeMode: AppThemeMode) {
         Surface(
             modifier = Modifier.size(100.dp),
             shape = CircleShape,
-            color = avatarColor.copy(alpha = if (themeMode == AppThemeMode.COSMIC) 0.2f else 0.1f),
-            border = if (themeMode == AppThemeMode.COSMIC) androidx.compose.foundation.BorderStroke(2.dp, avatarColor.copy(alpha = 0.5f)) else null
+            color = avatarColor.copy(alpha = if (themeMode == AppThemeMode.SPACE) 0.2f else 0.1f),
+            border = if (themeMode == AppThemeMode.SPACE) androidx.compose.foundation.BorderStroke(2.dp, avatarColor.copy(alpha = 0.5f)) else null
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(initials, color = if (themeMode == AppThemeMode.COSMIC) Color.White else avatarColor, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
+                Text(initials, color = if (themeMode == AppThemeMode.SPACE) Color.White else avatarColor, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -241,12 +255,12 @@ fun ProfileOption(
     val bgColor = when (themeMode) {
         AppThemeMode.DAY -> surfaceColor
         AppThemeMode.NIGHT -> surfaceColor
-        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.05f)
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.05f)
     }
     val borderColor = when (themeMode) {
         AppThemeMode.DAY -> Color(0xFFE8E0D0)
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.1f)
-        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.1f)
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.1f)
     }
     
     Surface(
@@ -265,36 +279,388 @@ fun ProfileOption(
             Icon(Icons.Default.ChevronRight, null, tint = when (themeMode) {
                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.3f)
                 AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.3f)
-                AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.3f)
+                AppThemeMode.SPACE -> Color.White.copy(alpha = 0.3f)
             })
         }
     }
 }
 
 @Composable
-fun StatisticsContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
+fun StatisticsContent(
+    themeMode: AppThemeMode = AppThemeMode.NIGHT,
+    database: AppDatabase? = null
+) {
     val colors = BookVerseTheme.colors
     val labelColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
-        else -> colors.primary
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        AppThemeMode.NIGHT -> Color(0xFFE50914)
+        AppThemeMode.DAY -> Color(0xFF5B4636)
     }
     val textColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color.White
-        else -> colors.textPrimary
+        AppThemeMode.SPACE -> Color.White
+        AppThemeMode.NIGHT -> colors.textPrimary
+        AppThemeMode.DAY -> Color(0xFF3D2914)
     }
     val subTextColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.6f)
-        else -> colors.textSecondary
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
+        AppThemeMode.NIGHT -> colors.textSecondary
+        AppThemeMode.DAY -> Color(0xFF8B7355)
+    }
+    val cardBg = when (themeMode) {
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.05f)
+        AppThemeMode.NIGHT -> colors.surface
+        AppThemeMode.DAY -> Color(0xFFFFF8F0)
     }
     
+    var stats by remember { mutableStateOf(ReadingStats()) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(database) {
+        if (database != null) {
+            isLoading = true
+            try {
+                val bookDao = database.bookDao()
+                val allBooks = bookDao.getAllBooks().let { flow ->
+                    var result = emptyList<com.example.ebook_new_app.db.BookEntity>()
+                    flow.collect { result = it }
+                    result
+                }
+                val totalBooks = allBooks.size
+                val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
+                val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
+                
+                stats = ReadingStats(
+                    totalBooks = totalBooks,
+                    completedBooks = completedBooks,
+                    currentlyReading = currentlyReading,
+                    pagesRead = (totalBooks * 250), // Estimated
+                    hoursRead = (totalBooks * 8), // Estimated
+                    streak = if (currentlyReading > 0 || completedBooks > 0) 1 else 0
+                )
+            } catch (e: Exception) {
+                stats = ReadingStats()
+            }
+            isLoading = false
+        } else {
+            stats = ReadingStats()
+            isLoading = false
+        }
+    }
+    
+    LazyColumn {
+        item {
+            Text("YOUR READING JOURNEY", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(24.dp))
+        }
+        
+        if (isLoading) {
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = labelColor, modifier = Modifier.size(32.dp))
+                }
+            }
+        } else {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Books",
+                        value = "${stats.totalBooks}",
+                        subtitle = "${stats.completedBooks} completed",
+                        color = labelColor,
+                        bgColor = cardBg,
+                        textColor = textColor,
+                        subTextColor = subTextColor
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Reading",
+                        value = "${stats.currentlyReading}",
+                        subtitle = "in progress",
+                        color = labelColor,
+                        bgColor = cardBg,
+                        textColor = textColor,
+                        subTextColor = subTextColor
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+            
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Pages",
+                        value = "${stats.pagesRead}",
+                        subtitle = "read",
+                        color = labelColor,
+                        bgColor = cardBg,
+                        textColor = textColor,
+                        subTextColor = subTextColor
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Hours",
+                        value = "${stats.hoursRead}",
+                        subtitle = "of reading",
+                        color = labelColor,
+                        bgColor = cardBg,
+                        textColor = textColor,
+                        subTextColor = subTextColor
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+            
+            item {
+                CircularProgressCard(
+                    completed = stats.completedBooks,
+                    total = stats.totalBooks,
+                    labelColor = labelColor,
+                    bgColor = cardBg,
+                    textColor = textColor,
+                    subTextColor = subTextColor
+                )
+                Spacer(Modifier.height(24.dp))
+            }
+            
+            item {
+                StreakCard(
+                    streak = stats.streak,
+                    labelColor = labelColor,
+                    bgColor = cardBg,
+                    textColor = textColor,
+                    subTextColor = subTextColor
+                )
+                Spacer(Modifier.height(24.dp))
+            }
+            
+            item {
+                GenreBreakdownCard(
+                    labelColor = labelColor,
+                    bgColor = cardBg,
+                    textColor = textColor,
+                    subTextColor = subTextColor
+                )
+            }
+        }
+    }
+}
+
+data class ReadingStats(
+    val totalBooks: Int = 0,
+    val completedBooks: Int = 0,
+    val currentlyReading: Int = 0,
+    val pagesRead: Int = 0,
+    val hoursRead: Int = 0,
+    val streak: Int = 1
+)
+
+@Composable
+private fun StatCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    value: String,
+    subtitle: String,
+    color: Color,
+    bgColor: Color,
+    textColor: Color,
+    subTextColor: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, color = subTextColor, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(value, color = textColor, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text(subtitle, color = subTextColor, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun CircularProgressCard(
+    completed: Int,
+    total: Int,
+    labelColor: Color,
+    bgColor: Color,
+    textColor: Color,
+    subTextColor: Color
+) {
+    val progress = if (total > 0) completed.toFloat() / total else 0f
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(80.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.size(80.dp)) {
+                    val strokeWidth = 8.dp.toPx()
+                    val radius = (size.minDimension - strokeWidth) / 2
+                    
+                    drawCircle(
+                        color = subTextColor.copy(alpha = 0.2f),
+                        radius = radius,
+                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                    )
+                    
+                    drawArc(
+                        color = labelColor,
+                        startAngle = -90f,
+                        sweepAngle = progress * 360f,
+                        useCenter = false,
+                        topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                        size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                    )
+                }
+                Text(
+                    "${(progress * 100).toInt()}%",
+                    color = textColor,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp
+                )
+            }
+            Spacer(Modifier.width(20.dp))
+            Column {
+                Text("COMPLETION RATE", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(4.dp))
+                Text("$completed of $total books", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("finished", color = subTextColor, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakCard(
+    streak: Int,
+    labelColor: Color,
+    bgColor: Color,
+    textColor: Color,
+    subTextColor: Color
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(50.dp),
+                shape = CircleShape,
+                color = labelColor.copy(alpha = 0.2f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.LocalFireDepartment, null, tint = labelColor, modifier = Modifier.size(28.dp))
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text("READING STREAK", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(4.dp))
+                Text("$streak days", color = textColor, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text("Keep it up!", color = subTextColor, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreBreakdownCard(
+    labelColor: Color,
+    bgColor: Color,
+    textColor: Color,
+    subTextColor: Color
+) {
+    val genres = listOf(
+        GenreStat("Fiction", 0.35f, Color(0xFF5D4037)),
+        GenreStat("Science", 0.25f, Color(0xFF2E7D32)),
+        GenreStat("Romance", 0.20f, Color(0xFFAD1457)),
+        GenreStat("History", 0.12f, Color(0xFF455A64)),
+        GenreStat("Fantasy", 0.08f, Color(0xFF6A1B9A))
+    )
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("GENRE BREAKDOWN", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(16.dp))
+            
+            genres.forEach { genre ->
+                GenreBar(
+                    name = genre.name,
+                    progress = genre.progress,
+                    color = genre.color,
+                    textColor = textColor,
+                    subTextColor = subTextColor
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+data class GenreStat(val name: String, val progress: Float, val color: Color)
+
+@Composable
+private fun GenreBar(
+    name: String,
+    progress: Float,
+    color: Color,
+    textColor: Color,
+    subTextColor: Color
+) {
     Column {
-        Text("YOUR JOURNEY", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(24.dp))
-        StatRow("Total Books Read", "12", textColor = textColor, valueColor = labelColor)
-        StatRow("Reading Time", "48h 20m", textColor = textColor, valueColor = labelColor)
-        StatRow("Avg. Speed", "240 wpm", textColor = textColor, valueColor = labelColor)
-        Spacer(Modifier.height(32.dp))
-        Text("You're in the top 5% of readers this month!", color = subTextColor, fontSize = 14.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(name, color = textColor, fontSize = 12.sp)
+            Text("${(progress * 100).toInt()}%", color = subTextColor, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(subTextColor.copy(alpha = 0.1f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(color)
+            )
+        }
     }
 }
 
@@ -302,11 +668,11 @@ fun StatisticsContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
 fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     val colors = BookVerseTheme.colors
     val labelColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
         else -> colors.primary
     }
     val textColor = when (themeMode) {
-        AppThemeMode.COSMIC -> Color.White
+        AppThemeMode.SPACE -> Color.White
         else -> colors.textPrimary
     }
     
@@ -322,23 +688,99 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
 }
 
 @Composable
+fun LicensesContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
+    val colors = BookVerseTheme.colors
+    val labelColor = when (themeMode) {
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
+        else -> colors.primary
+    }
+    val textColor = when (themeMode) {
+        AppThemeMode.SPACE -> Color.White
+        else -> colors.textPrimary
+    }
+    val subTextColor = when (themeMode) {
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
+        else -> colors.textSecondary
+    }
+    
+    LazyColumn {
+        item {
+            Text("OPEN SOURCE LIBRARIES", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(16.dp))
+        }
+        
+        item {
+            LicenseItem("Readium Kotlin", "Apache 2.0", "EPUB rendering engine for reading EPUB files on mobile platforms with support for pagination, scroll mode, and decorations", textColor, subTextColor)
+            LicenseItem("Jetpack Compose", "Apache 2.0", "Google's modern toolkit for building native Android UI with declarative patterns", textColor, subTextColor)
+            LicenseItem("Coil", "Apache 2.0", "Kotlin-first image loading library with coroutines support for efficient cover image loading", textColor, subTextColor)
+            LicenseItem("Room Database", "Apache 2.0", "Android persistence library providing an abstraction layer over SQLite for storing books and reading progress", textColor, subTextColor)
+            LicenseItem("OkHttp", "Apache 2.0", "HTTP client for making network requests to OpenLibrary and Google Books APIs", textColor, subTextColor)
+            LicenseItem("Material 3", "Apache 2.0", "Material Design 3 components for modern, accessible UI elements", textColor, subTextColor)
+            LicenseItem("Navigation Compose", "Apache 2.0", "Type-safe navigation library for Compose with support for animations and deep linking", textColor, subTextColor)
+            LicenseItem("Paging 3", "Apache 2.0", "Pagination library for loading large datasets efficiently with infinite scrolling support", textColor, subTextColor)
+            LicenseItem("Jsoup", "MIT", "Java HTML parser for extracting text content from EPUB chapters for text-to-speech", textColor, subTextColor)
+            LicenseItem("Piper TTS", "Apache 2.0", "On-device neural text-to-speech engine providing natural-sounding audiobook narration", textColor, subTextColor)
+            LicenseItem("Kotlin Coroutines", "Apache 2.0", "Asynchronous programming library for managing TTS playback and network operations", textColor, subTextColor)
+            LicenseItem("Gson", "Apache 2.0", "JSON serialization/deserialization for Room database type converters", textColor, subTextColor)
+        }
+        
+        item {
+            Spacer(Modifier.height(24.dp))
+            Text("PRIVACY", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(16.dp))
+            Text("This app stores all data locally on your device. We do not collect, store, or share any personal information. Your reading history, bookmarks, and preferences remain private.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(24.dp))
+        }
+        
+        item {
+            Text("ATTRIBUTION", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(16.dp))
+            Text("Book covers and metadata are provided by OpenLibrary and Google Books APIs. Content descriptions may be sourced from these services or generated based on public domain information.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(16.dp))
+            Text("All book covers and content are property of their respective authors and publishers. This app does not claim ownership of any copyrighted material.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(24.dp))
+        }
+        
+        item {
+            Text("VERSION", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(16.dp))
+            Text("Ebook Bundle v1.0", color = textColor, fontWeight = FontWeight.Bold)
+            Text("Built with Jetpack Compose", color = subTextColor, fontSize = 12.sp)
+            Spacer(Modifier.height(48.dp))
+        }
+    }
+}
+
+@Composable
+private fun LicenseItem(name: String, license: String, description: String, textColor: Color, subTextColor: Color) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(name, color = textColor, fontWeight = FontWeight.Bold)
+            Text(license, color = subTextColor, fontSize = 11.sp)
+        }
+        Text(description, color = subTextColor, fontSize = 11.sp)
+        HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = subTextColor.copy(alpha = 0.1f))
+    }
+}
+
+@Composable
 fun SettingsContent(appViewModel: AppViewModel) {
     val colors = BookVerseTheme.colors
     val currentTheme by appViewModel.themeMode
-    val useCosmicTouchNav by appViewModel.useCosmicTouchNav
+    val useSpaceTouchNav by appViewModel.useSpaceTouchNav
     
     val textColor = when (currentTheme) {
-        AppThemeMode.COSMIC -> Color.White
+        AppThemeMode.SPACE -> Color.White
         AppThemeMode.NIGHT -> Color.White
         AppThemeMode.DAY -> Color(0xFF5B4636)
     }
     val subTextColor = when (currentTheme) {
-        AppThemeMode.COSMIC -> Color.White.copy(alpha = 0.6f)
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.6f)
         AppThemeMode.DAY -> Color(0xFF8B7355)
     }
     val labelColor = when (currentTheme) {
-        AppThemeMode.COSMIC -> Color(0xFF4A90D9)
+        AppThemeMode.SPACE -> Color(0xFF4A90D9)
         AppThemeMode.NIGHT -> Color(0xFFE50914)
         AppThemeMode.DAY -> Color(0xFF5B4636)
     }
@@ -369,17 +811,17 @@ fun SettingsContent(appViewModel: AppViewModel) {
                 modifier = Modifier.weight(1f)
             )
             ThemeButton(
-                label = "COSMIC",
+                label = "SPACE",
                 icon = Icons.Filled.Star,
-                isSelected = currentTheme == AppThemeMode.COSMIC,
-                onClick = { appViewModel.setTheme(AppThemeMode.COSMIC) },
+                isSelected = currentTheme == AppThemeMode.SPACE,
+                onClick = { appViewModel.setTheme(AppThemeMode.SPACE) },
                 modifier = Modifier.weight(1f)
             )
         }
         
         Spacer(Modifier.height(24.dp))
         
-        if (currentTheme == AppThemeMode.COSMIC) {
+        if (currentTheme == AppThemeMode.SPACE) {
             Text("Navigation Style", color = textColor, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             
@@ -390,14 +832,14 @@ fun SettingsContent(appViewModel: AppViewModel) {
                 NavStyleButton(
                     label = "Touch Pad",
                     icon = Icons.Default.TouchApp,
-                    isSelected = useCosmicTouchNav,
+                    isSelected = useSpaceTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(true) },
                     modifier = Modifier.weight(1f)
                 )
                 NavStyleButton(
                     label = "Classic",
                     icon = Icons.Default.Menu,
-                    isSelected = !useCosmicTouchNav,
+                    isSelected = !useSpaceTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(false) },
                     modifier = Modifier.weight(1f)
                 )
@@ -405,7 +847,7 @@ fun SettingsContent(appViewModel: AppViewModel) {
             
             Spacer(Modifier.height(8.dp))
             Text(
-                text = if (useCosmicTouchNav) "Floating touch pad navigation" else "Traditional bottom navigation bar",
+                text = if (useSpaceTouchNav) "Floating touch pad navigation" else "Traditional bottom navigation bar",
                 color = subTextColor,
                 fontSize = 11.sp
             )
@@ -446,7 +888,7 @@ private fun ThemeButton(
     val bgColor = when {
         isSelected && label == "DAY" -> Color(0xFF5B4636)
         isSelected && label == "NIGHT" -> Color(0xFFE50914)
-        isSelected && label == "COSMIC" -> Color(0xFF4A90D9)
+        isSelected && label == "SPACE" -> Color(0xFF4A90D9)
         !isDarkCurrent -> Color(0xFFFFF8E7)
         else -> Color(0xFF2A2A2A)
     }

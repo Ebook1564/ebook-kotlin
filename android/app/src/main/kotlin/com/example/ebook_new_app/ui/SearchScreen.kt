@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -37,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -110,7 +108,7 @@ fun SearchScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        if (currentTheme == AppThemeMode.COSMIC) {
+        if (currentTheme == AppThemeMode.SPACE) {
             SpaceBackground()
         }
 
@@ -122,12 +120,12 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (currentTheme == AppThemeMode.COSMIC) "EXPLORE" else "E-Book Bundle",
+                    text = if (currentTheme == AppThemeMode.SPACE) "EXPLORE" else "E-Book Bundle",
                     style = BookVerseTheme.typography.headline,
                     color = colors.textPrimary,
-                    fontSize = if (currentTheme == AppThemeMode.COSMIC) 28.sp else 24.sp,
+                    fontSize = if (currentTheme == AppThemeMode.SPACE) 28.sp else 24.sp,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = if (currentTheme == AppThemeMode.COSMIC) 1.sp else 0.sp
+                    letterSpacing = if (currentTheme == AppThemeMode.SPACE) 1.sp else 0.sp
                 )
                 Row {
                     IconButton(onClick = { showAuthors = true }) { Icon(Icons.Default.Group, null, tint = colors.primary) }
@@ -155,8 +153,8 @@ fun SearchScreen(
                 },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.COSMIC) 0.5f else 1f),
-                    unfocusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.COSMIC) 0.5f else 1f),
+                    focusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.SPACE) 0.5f else 1f),
+                    unfocusedContainerColor = colors.surface.copy(alpha = if (currentTheme == AppThemeMode.SPACE) 0.5f else 1f),
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     focusedTextColor = colors.textPrimary,
@@ -166,8 +164,8 @@ fun SearchScreen(
                 shape = RoundedCornerShape(16.dp)
             )
 
-            // COSMIC THEME: Celestial Navigation
-            if (currentTheme == AppThemeMode.COSMIC) {
+            // SPACE THEME: Celestial Navigation
+            if (currentTheme == AppThemeMode.SPACE) {
                 Text(
                     "CURATED GENRE",
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
@@ -193,7 +191,7 @@ fun SearchScreen(
                     }
                 )
                 
-                // COSMIC THEME: Content Area
+                // SPACE THEME: Content Area
                 SpaceSearchContent(
                     uiState = uiState,
                     viewModel = viewModel,
@@ -548,8 +546,7 @@ private fun OverlayBookCard(
     accentColor: Color,
     onClick: () -> Unit
 ) {
-    val coversUrl = ServerConfig.getCoversUrl()
-    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
+    val serverCoverUrl = book.getServerCoverUrl()
     
     Column(
         modifier = Modifier
@@ -566,14 +563,14 @@ private fun OverlayBookCard(
                 .background(BookVerseTheme.colors.surface),
             contentAlignment = Alignment.Center
         ) {
-            val primaryUrl = book.externalCoverUrl ?: fallbackCoverUrl
+            val coverUrl = book.getBestCoverUrl()
             AsyncImage(
-                model = primaryUrl,
+                model = coverUrl,
                 contentDescription = book.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
                 onError = {
-                    // Silent fail, placeholder shows
+                    // Fall back to server cover
                 }
             )
         }
@@ -894,7 +891,8 @@ private fun SpaceCategoryOverlay(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val currentCategory = categories[page]
-            val currentColor = getDrawerColor(currentCategory)
+            val currentPlanet = planetForCategory(currentCategory)
+            val currentColor = currentPlanet.mainColor
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
@@ -927,9 +925,6 @@ private fun SpaceOverlayBookCard(
     accentColor: Color,
     onClick: () -> Unit
 ) {
-    val coversUrl = ServerConfig.getCoversUrl()
-    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
-    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -944,14 +939,14 @@ private fun SpaceOverlayBookCard(
                 .shadow(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            val primaryUrl = book.externalCoverUrl ?: fallbackCoverUrl
+            val coverUrl = book.getBestCoverUrl()
             AsyncImage(
-                model = primaryUrl,
+                model = coverUrl,
                 contentDescription = book.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
                 onError = {
-                    // Silent fail, placeholder shows
+                    // Will show placeholder
                 }
             )
         }
@@ -1028,8 +1023,6 @@ fun SearchResultItem(
     onClick: (Book) -> Unit,
     onAuthorClick: ((String) -> Unit)? = null
 ) {
-    val coversUrl = ServerConfig.getCoversUrl()
-    val fallbackCoverUrl = "$coversUrl/${book.id}_cover_image.jpg"
     val authorColor = getAuthorColor(book.author)
     Row(
         modifier = Modifier
@@ -1039,14 +1032,14 @@ fun SearchResultItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(60.dp, 90.dp).clip(RoundedCornerShape(8.dp)).background(BookVerseTheme.colors.surface).shadow(4.dp)) {
-            val primaryUrl = book.externalCoverUrl ?: fallbackCoverUrl
+            val coverUrl = book.getBestCoverUrl()
             AsyncImage(
-                model = primaryUrl, 
+                model = coverUrl, 
                 contentDescription = book.title, 
                 contentScale = ContentScale.Crop, 
                 modifier = Modifier.fillMaxSize(),
                 onError = {
-                    // Silent fail, placeholder shows
+                    // Will show placeholder
                 }
             )
         }
@@ -1075,7 +1068,7 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
     val viewModel: HomeViewModel = viewModel()
     val appViewModel: AppViewModel = viewModel()
     val currentTheme by appViewModel.themeMode
-    val isCosmicTheme = currentTheme == AppThemeMode.COSMIC
+    val isSpaceTheme = currentTheme == AppThemeMode.SPACE
     val authorUiState by viewModel.uiState.collectAsState()
     val authorItems = viewModel.authorResults.collectAsLazyPagingItems()
     val config = androidx.compose.ui.platform.LocalConfiguration.current
@@ -1084,47 +1077,47 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
     val radius by animateFloatAsState(targetValue = if (visible) maxRadius * 2f else 0f, animationSpec = tween(800), label = "radius")
 
     if (radius > 0f) {
-        Box(modifier = Modifier.fillMaxSize().graphicsLayer { clip = true; shape = SearchCircularRevealShape(radius, Offset(size.width - 40.dp.toPx(), 60.dp.toPx())) }.background(if (isCosmicTheme) Color.Black else BookVerseTheme.colors.background)) {
+        Box(modifier = Modifier.fillMaxSize().graphicsLayer { clip = true; shape = SearchCircularRevealShape(radius, Offset(size.width - 40.dp.toPx(), 60.dp.toPx())) }.background(if (isSpaceTheme) Color.Black else BookVerseTheme.colors.background)) {
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("AUTHORS", style = BookVerseTheme.typography.headline, fontSize = 24.sp, fontWeight = FontWeight.Black, color = if (isCosmicTheme) Color.White else BookVerseTheme.colors.textPrimary)
-                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, null, tint = if (isCosmicTheme) Color.White else BookVerseTheme.colors.textPrimary) }
+                    Text("AUTHORS", style = BookVerseTheme.typography.headline, fontSize = 24.sp, fontWeight = FontWeight.Black, color = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary)
+                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, null, tint = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary) }
                 }
                 TextField(
                     value = authorUiState.authorSearchQuery,
                     onValueChange = { viewModel.onAuthorSearchQueryChanged(it) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    placeholder = { Text("Search authors...", color = if (isCosmicTheme) Color.White.copy(alpha = 0.5f) else BookVerseTheme.colors.textSecondary) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = if (isCosmicTheme) Color.White else BookVerseTheme.colors.primary) },
+                    placeholder = { Text("Search authors...", color = if (isSpaceTheme) Color.White.copy(alpha = 0.5f) else BookVerseTheme.colors.textSecondary) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = if (isSpaceTheme) Color.White else BookVerseTheme.colors.primary) },
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = if (isCosmicTheme) Color.White.copy(alpha = 0.1f) else BookVerseTheme.colors.surface,
-                        unfocusedContainerColor = if (isCosmicTheme) Color.White.copy(alpha = 0.1f) else BookVerseTheme.colors.surface,
+                        focusedContainerColor = if (isSpaceTheme) Color.White.copy(alpha = 0.1f) else BookVerseTheme.colors.surface,
+                        unfocusedContainerColor = if (isSpaceTheme) Color.White.copy(alpha = 0.1f) else BookVerseTheme.colors.surface,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        cursorColor = if (isCosmicTheme) Color.White else BookVerseTheme.colors.primary
+                        cursorColor = if (isSpaceTheme) Color.White else BookVerseTheme.colors.primary
                     )
                 )
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(count = authorItems.itemCount, key = { index -> authorItems[index] ?: index }) { index ->
                         authorItems[index]?.let { author ->
                             val authorColor = getAuthorColor(author)
-                            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (isCosmicTheme) Color.White.copy(alpha = 0.05f) else Color.Transparent).clickable { onClose(); onAuthorClick(author) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (isSpaceTheme) Color.White.copy(alpha = 0.05f) else Color.Transparent).clickable { onClose(); onAuthorClick(author) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 ScribbleAvatar(
                                     authorName = author,
                                     modifier = Modifier.size(50.dp),
-                                    accentColor = if (isCosmicTheme) authorColor.copy(alpha = 0.8f) else authorColor
+                                    accentColor = if (isSpaceTheme) authorColor.copy(alpha = 0.8f) else authorColor
                                 )
                                 Spacer(Modifier.width(16.dp))
                                 Column {
-                                    Text(author, fontWeight = FontWeight.Bold, color = if (isCosmicTheme) Color.White else BookVerseTheme.colors.textPrimary, fontSize = 16.sp)
+                                    Text(author, fontWeight = FontWeight.Bold, color = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary, fontSize = 16.sp)
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         text = getAuthorGenreHint(author),
                                         style = BookVerseTheme.typography.label,
-                                        color = if (isCosmicTheme) Color.White.copy(alpha = 0.6f) else authorColor,
+                                        color = if (isSpaceTheme) Color.White.copy(alpha = 0.6f) else authorColor,
                                         fontSize = 11.sp
                                     )
                                 }

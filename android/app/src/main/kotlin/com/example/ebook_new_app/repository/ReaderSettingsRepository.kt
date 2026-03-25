@@ -16,7 +16,7 @@ class ReaderSettingsRepository(context: Context) {
             } catch (e: Exception) {
                 ReaderTheme.WHITE
             },
-            scrollMode = prefs.getBoolean("scroll_mode", false),
+            scrollMode = prefs.getBoolean("scroll_mode", true),
             fontFamily = prefs.getString("font_family", "serif") ?: "serif"
         )
     }

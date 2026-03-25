@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class ReaderSettings(
     val fontSize: Double = 100.0,
     val theme: ReaderTheme = ReaderTheme.WHITE,
-    val scrollMode: Boolean = false,
+    val scrollMode: Boolean = true,
     val fontFamily: String = "serif"
 )
 

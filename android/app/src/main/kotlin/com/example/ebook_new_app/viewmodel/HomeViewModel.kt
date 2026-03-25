@@ -158,7 +158,22 @@ data class HomeUiState(
     val curatedCollections: List<CuratedCollection> = CuratedCollections.collections,
     val transitionBook: Book? = null,
     val initialBounds: InitialBounds? = null,
-    val isMetadataLoading: Boolean = false
+    val isMetadataLoading: Boolean = false,
+    val dynamicCategories: List<CategoryWithCount> = emptyList(),
+    val popularSubjects: List<SubjectWithCount> = emptyList(),
+    val openAudioPlayer: Boolean = false
+)
+
+data class CategoryWithCount(
+    val code: String,
+    val name: String,
+    val color: String,
+    val bookCount: Int
+)
+
+data class SubjectWithCount(
+    val name: String,
+    val bookCount: Int
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -181,6 +196,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _billboardBooks = MutableStateFlow<List<Book>>(emptyList())
     val billboardBooks: StateFlow<List<Book>> = _billboardBooks.asStateFlow()
+    
+    private val _continueReadingBooks = MutableStateFlow<List<Book>>(emptyList())
+    val continueReadingBooks: StateFlow<List<Book>> = _continueReadingBooks.asStateFlow()
 
     @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val filterResults: Flow<PagingData<Book>> = _searchRequest
@@ -264,14 +282,59 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadStableHomeData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val categories = bookDao.getAllCategories().first()
+            val allCategories = bookDao.getAllCategories().first()
+            
+            // Deduplicate categories by name (some have same name with different codes)
+            // Filter out "None" categories
+            val categories = allCategories
+                .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
+                .groupBy { it.name }
+                .map { (_, group) -> group.first() }
+            
+            // Calculate book counts for each category
+            val categoriesWithCounts = categories.map { cat ->
+                val books = bookDao.getBooksByCategoryLimit(cat.code, 1)
+                CategoryWithCount(
+                    code = cat.code,
+                    name = cat.name,
+                    color = cat.color,
+                    bookCount = if (books.isNotEmpty()) books.first().let { 
+                        // Count by fetching more would be expensive, so we'll use 1+ as placeholder
+                        // For accurate counts, we'd need a COUNT query
+                        1 // Placeholder - will be updated when loading
+                    } else 0
+                )
+            }.filter { it.bookCount > 0 }
+            
+            // Get popular subjects from all books
+            val allBooks = bookDao.getBooksByCategoryLimit("", 1000).take(1000)
+            val subjectCounts = allBooks
+                .flatMap { it.subjects }
+                .groupingBy { it }
+                .eachCount()
+                .filter { it.value >= 5 } // Only show subjects with 5+ books
+                .entries
+                .sortedByDescending { it.value }
+                .take(12)
+                .map { SubjectWithCount(it.key, it.value) }
+            
+            // Create sections with organic ordering (most popular first, not alphabetical)
             val sections = categories.map { cat ->
                 val books = bookDao.getBooksByCategoryLimit(cat.code, 15).map { it.toBook() }
                 HomeSection(cat.name, books)
-            }
+            }.sortedByDescending { it.books.size }
+            
+            // Load recently opened books
+            val recentlyOpened = bookDao.getRecentlyOpenedBooks(10).map { it.toBook() }
+            _continueReadingBooks.value = recentlyOpened
+            
             _homeSections.value = sections
             _billboardBooks.value = sections.flatMap { it.books }.shuffled().take(6)
-            _uiState.value = _uiState.value.copy(isLoading = false)
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                dynamicCategories = categoriesWithCounts,
+                popularSubjects = subjectCounts
+            )
         }
     }
 
@@ -344,6 +407,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(searchQuery = "", activeFilter = SearchFilter.None, selectedCategoryForSearch = null)
     }
 
-    fun startReadTransition(b: Book, bounds: InitialBounds? = null) { _uiState.value = _uiState.value.copy(transitionBook = b, initialBounds = bounds) }
-    fun endReadTransition() { _uiState.value = _uiState.value.copy(transitionBook = null, initialBounds = null) }
+    fun startReadTransition(b: Book, bounds: InitialBounds? = null, openAudioPlayer: Boolean = false) { _uiState.value = _uiState.value.copy(transitionBook = b, initialBounds = bounds, openAudioPlayer = openAudioPlayer) }
+    fun endReadTransition() { _uiState.value = _uiState.value.copy(transitionBook = null, initialBounds = null, openAudioPlayer = false) }
 }
