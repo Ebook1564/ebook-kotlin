@@ -369,6 +369,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     onAuthorClick = { author ->
                         showSheet = false
                         homeViewModel.setAuthorFilter(author)
+                        if (isInteractive) {
+                            scope.launch { pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing)) }
+                        }
                     },
                     onAudioClick = { book ->
                         // Open TTS audio player for this book
