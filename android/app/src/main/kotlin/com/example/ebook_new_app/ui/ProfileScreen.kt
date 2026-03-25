@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
 import com.example.ebook_new_app.db.AppDatabase
 import com.example.ebook_new_app.models.ReadingStatus
 import com.example.ebook_new_app.viewmodel.AppThemeMode
@@ -667,6 +668,9 @@ private fun GenreBar(
 @Composable
 fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     val colors = BookVerseTheme.colors
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    
     val labelColor = when (themeMode) {
         AppThemeMode.SPACE -> Color(0xFF4A90D9)
         else -> colors.primary
@@ -675,15 +679,113 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
         AppThemeMode.SPACE -> Color.White
         else -> colors.textPrimary
     }
+    val subTextColor = when (themeMode) {
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.6f)
+        else -> colors.textSecondary
+    }
+    val cardBg = when (themeMode) {
+        AppThemeMode.SPACE -> Color.White.copy(alpha = 0.05f)
+        else -> colors.surface
+    }
     
-    Column {
-        Text("GET HELP", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("HELP & SUPPORT", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(20.dp))
+        
+        SupportLinkCard(
+            icon = Icons.Default.Email,
+            title = "Contact Support",
+            subtitle = "Send us an email",
+            themeMode = themeMode,
+            cardBg = cardBg,
+            textColor = textColor,
+            subTextColor = subTextColor,
+            onClick = {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                    data = android.net.Uri.parse("mailto:myebookbundle@gmail.com")
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Free Ebook Bundle - Support Request")
+                }
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                }
+            }
+        )
+        
+        Spacer(Modifier.height(12.dp))
+        
+        SupportLinkCard(
+            icon = Icons.Default.Description,
+            title = "Privacy Policy",
+            subtitle = "Read our privacy policy",
+            themeMode = themeMode,
+            cardBg = cardBg,
+            textColor = textColor,
+            subTextColor = subTextColor,
+            onClick = { showPrivacyPolicy = true }
+        )
+        
+        Spacer(Modifier.height(32.dp))
+        
+        Text("ABOUT", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(16.dp))
+        
+        Text(
+            text = "Free Ebook Bundle is a reader app brought to you by Tara Applications. We are committed to providing you with a seamless reading experience.",
+            color = subTextColor,
+            fontSize = 13.sp,
+            lineHeight = 20.sp
+        )
+        
         Spacer(Modifier.height(24.dp))
-        Text("Frequently Asked Questions", color = textColor, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-        Text("Contact Support", color = textColor, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-        Text("Privacy Policy", color = textColor, fontWeight = FontWeight.Bold)
+        
+        Text("Version 1.0.0", color = subTextColor, fontSize = 12.sp)
+    }
+    
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
+    }
+}
+
+@Composable
+private fun SupportLinkCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    themeMode: AppThemeMode,
+    cardBg: Color,
+    textColor: Color,
+    subTextColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = cardBg,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = textColor, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, color = subTextColor, fontSize = 12.sp)
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = subTextColor,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 
@@ -872,6 +974,162 @@ fun SettingsContent(appViewModel: AppViewModel) {
             Switch(checked = false, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedTrackColor = labelColor))
         }
     }
+}
+
+@Composable
+private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
+    val colors = BookVerseTheme.colors
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Privacy Policy",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    Text(
+                        text = "Last updated: March 25, 2026",
+                        fontSize = 11.sp,
+                        color = colors.textSecondary
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "Tara Applications (\"we,\" \"us,\" or \"our\") operates the Free Ebook Bundle mobile application (hereinafter referred to as the \"Service\").",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "INFORMATION WE COLLECT",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "1. Information You Provide\n   • User profile name (stored locally on your device)\n   • Reading preferences and theme settings (stored locally on your device)\n\n2. Information Collected Automatically\n   • Book reading progress (stored locally on your device)\n   • Reading history and recently opened books (stored locally on your device)",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "THIRD-PARTY SERVICES",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "We use the following third-party services:\n   • Google Books API\n   • OpenLibrary API\n   • Our server at 54.254.205.11",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "DATA STORAGE",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "All personal data is stored locally on your device using the Room database. This data is NOT stored on our servers and remains under your device's control.",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "PERMISSIONS",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "• Internet Access: Required to download ebooks and fetch book metadata\n• Storage Access: Required to cache downloaded ebook files",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "CHILDREN'S PRIVACY",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Our Service is not intended for use by children under the age of 13. We do not knowingly collect personally identifiable information from children under 13.",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "SECURITY",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "The security of your data is important to us. We strive to use commercially acceptable means to protect your personal data.",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "YOUR DATA RIGHTS",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "• Access your personal data stored locally\n• Delete all data by uninstalling the app\n• Reset reading progress by clearing app data",
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                
+                item {
+                    Text(
+                        text = "CONTACT US",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "• Company: Tara Applications\n• Email: myebookbundle@gmail.com\n• Website: https://tarapplication.com",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        containerColor = colors.surface,
+        titleContentColor = colors.textPrimary,
+        textContentColor = colors.textSecondary
+    )
 }
 
 @Composable
