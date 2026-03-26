@@ -36,5 +36,8 @@
 -keep interface okhttp3.** { *; }
 
 # Keep data classes
--keep class com.example.ebook_new_app.models.** { *; }
--keep class com.example.ebook_new_app.db.** { *; }
+-keep class com.freeebookbundle.models.** { *; }
+-keep class com.freeebookbundle.db.** { *; }
+
+-dontwarn org.joda.convert.**
+-keep class org.joda.convert.** { *; }

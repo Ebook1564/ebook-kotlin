@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.ebook_new_app"
+    namespace = "com.freeebookbundle"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.ebook_new_app"
+        applicationId = "com.freeebookbundle"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -56,6 +56,10 @@ android {
 dependencies {
     // Desugaring for Java 8+ features used by Readium 3.x
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // Joda Time - required for Readium
+    implementation("joda-time:joda-time:2.12.7")
+    implementation("org.joda:joda-convert:2.2.2")
 
     // AndroidX Core & Compose
     implementation("androidx.core:core-ktx:1.15.0")
@@ -104,4 +108,6 @@ dependencies {
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.joda:joda-convert:2.2.2")
+
 }
