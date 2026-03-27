@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -20,9 +19,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -34,8 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,12 +41,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.models.ReadingStatus
-import com.freeebookbundle.ui.BookVerseTheme.typography
 import com.freeebookbundle.viewmodel.CuratedCollection
 import com.freeebookbundle.viewmodel.CuratedCollections
 import com.freeebookbundle.viewmodel.InitialBounds
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun BookDetailContent(
@@ -60,14 +54,14 @@ fun BookDetailContent(
     onAddToReadingList: (ReadingStatus) -> Unit,
     onClose: () -> Unit,
     onAuthorClick: (String) -> Unit = {},
-    onAudioClick: (Book) -> Unit = {},
-    onChapterClick: (Int) -> Unit = {},
-    onStartOverClick: (InitialBounds?) -> Unit = {}
+    onAudioClick: (Book) -> Unit = {}
 ) {
     var displayBook by remember { mutableStateOf(book) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     
+    LaunchedEffect(book) {
+        displayBook = book
+    }
+
     var coverBounds by remember { mutableStateOf<InitialBounds?>(null) }
     var coverCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     val colors = BookVerseTheme.colors
@@ -216,56 +210,24 @@ fun BookDetailContent(
                         }
                         
                         Spacer(modifier = Modifier.height(16.dp))
-
-                        val hasStartedReading = displayBook.hasStartedReading()
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (hasStartedReading) {
-                                Button(
-                                    onClick = { onReadClick(coverBounds) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp)
-                                        .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("CONTINUE READING", fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 0.5.sp)
-                                }
-
-                                OutlinedButton(
-                                    onClick = { onStartOverClick(coverBounds) },
-                                    modifier = Modifier
-                                        .weight(0.6f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.3f))
-                                ) {
-                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("START OVER", fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.5.sp)
-                                }
-                            } else {
-                                Button(
-                                    onClick = { onReadClick(coverBounds) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp)
-                                        .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("READ NOW", fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
-                                }
+                            Button(
+                                onClick = { onReadClick(coverBounds) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("READ NOW", fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
                             }
                             
                             FilledTonalButton(
@@ -389,137 +351,30 @@ fun BookDetailContent(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // 2-COLUMN NETFLIX-STYLE SECTIONS (About book + About author)
-                NetflixStyleSections(
-                    description = displayBook.description,
-                    isDescriptionLoading = isDescriptionLoading,
-                    authorName = displayBook.author,
-                    onChapterClick = onChapterClick
-                )
+                // DESCRIPTION
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    Text("About this book", style = typography.headline, color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    if (isDescriptionLoading) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.fillMaxWidth().height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.fillMaxWidth(0.9f).height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                        }
+                    } else {
+                        Text(
+                            text = displayBook.description,
+                            style = typography.body,
+                            color = colors.textSecondary.copy(alpha = 0.9f),
+                            lineHeight = 22.sp,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun NetflixStyleSections(
-    description: String,
-    isDescriptionLoading: Boolean,
-    authorName: String,
-    onChapterClick: (Int) -> Unit
-) {
-    val colors = BookVerseTheme.colors
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // COLUMN 1: About this book
-            SectionCard(
-                modifier = Modifier.weight(1f),
-                title = "About this book",
-                icon = "📖"
-            ) {
-                if (isDescriptionLoading) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        repeat(3) {
-                            Box(modifier = Modifier.fillMaxWidth().height(12.dp).background(colors.textSecondary.copy(alpha = 0.1f), RoundedCornerShape(2.dp)))
-                        }
-                    }
-                } else {
-                    Text(
-                        text = description.ifEmpty { "No description available." },
-                        style = androidx.compose.ui.text.TextStyle(
-                            color = colors.textSecondary.copy(alpha = 0.85f),
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp
-                        ),
-                        maxLines = 8,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // COLUMN 2: About the author
-            SectionCard(
-                modifier = Modifier.weight(1f),
-                title = "About author",
-                icon = "✍️"
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        modifier = Modifier.size(32.dp),
-                        shape = CircleShape,
-                        color = colors.primary.copy(alpha = 0.2f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("👤", fontSize = 14.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = authorName.ifEmpty { "Unknown Author" },
-                        style = androidx.compose.ui.text.TextStyle(
-                            color = colors.textPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Click on the author name above to explore more works.",
-                    style = androidx.compose.ui.text.TextStyle(
-                        color = colors.textSecondary.copy(alpha = 0.7f),
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp
-                    ),
-                    maxLines = 3
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    icon: String,
-    content: @Composable () -> Unit
-) {
-    val colors = BookVerseTheme.colors
-    
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = colors.surface.copy(alpha = 0.6f),
-        border = BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.1f))
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(icon, fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = title,
-                    style = androidx.compose.ui.text.TextStyle(
-                        color = colors.textPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            content()
         }
     }
 }

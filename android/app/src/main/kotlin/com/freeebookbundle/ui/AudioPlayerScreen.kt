@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
@@ -464,7 +465,7 @@ fun AudioPlayerScreen(
                         enabled = state.chapters.isNotEmpty()
                     ) {
                         Icon(
-                            Icons.Default.List,
+                            Icons.AutoMirrored.Filled.List,
                             contentDescription = "Chapters",
                             tint = if (state.chapters.isNotEmpty()) accentColor else subTextColor.copy(alpha = 0.4f),
                             modifier = Modifier.size(22.dp)

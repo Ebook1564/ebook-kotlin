@@ -81,7 +81,7 @@ private fun CollectionPageContent(
     
     // Get a backdrop from the first book if available
     val backdropUrl = remember(books.itemCount) {
-        if (books.itemCount > 0) books[0]?.coverImageUrl else ""
+        if (books.itemCount > 0) books[0]?.getBestCoverUrl() else ""
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -178,7 +178,7 @@ fun CollectionBookItem(book: Book, onClick: () -> Unit) {
             shadowElevation = 8.dp
         ) {
             AsyncImage(
-                model = book.coverImageUrl,
+                model = book.getBestCoverUrl(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

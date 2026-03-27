@@ -3,10 +3,15 @@ package com.freeebookbundle.reader
 import android.app.AlertDialog
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.navigation.NavigationView
 import androidx.activity.compose.BackHandler
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -88,6 +93,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.*
@@ -100,6 +106,10 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment.Configuration as Epub
 @OptIn(ExperimentalReadiumApi::class)
 class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
+    companion object {
+        private const val TAG = "ReaderFragment"
+    }
+
     private val viewModel: ReaderViewModel by viewModels()
     private val appViewModel: com.freeebookbundle.viewmodel.AppViewModel by viewModels()
     private var bookId: String = "unknown"
@@ -110,15 +120,19 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     
     private lateinit var topBar: View
     private lateinit var bottomBar: View
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var navView: NavigationView
+    private lateinit var chapterList: RecyclerView
     private lateinit var btnBookmarkStar: ImageButton
     private lateinit var btnHighlight: ImageButton
     private lateinit var btnBookList: ImageButton
     private lateinit var btnSearch: ImageButton
     private lateinit var btnTts: ImageButton
-    private lateinit var btnBack: ImageButton
+    private lateinit var btnMenu: ImageButton
     private lateinit var btnSettings: ImageButton
     private lateinit var readerTitle: TextView
     private lateinit var readerChapter: TextView
+    private lateinit var titleContainer: View
     private lateinit var settingsComposeView: ComposeView
     private lateinit var selectionComposeView: ComposeView
     private lateinit var revealOverlayView: ComposeView
@@ -136,7 +150,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var progressComposeView: ComposeView
     private var progressProgress by mutableStateOf(0f)
     private var showNextChapter by mutableStateOf(false)
-    private var isProgressVisible by mutableStateOf(false)
+    private var bottomBarVisible by mutableStateOf(false)
     
     private var currentSearchLocators = mutableListOf<Locator>()
     private var currentSearchIndex = -1
@@ -174,9 +188,14 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         
         topBar = view.findViewById(R.id.reader_top_bar)
         bottomBar = view.findViewById(R.id.reader_bottom_bar)
+        topBar.visibility = View.GONE // Start hidden like before
+        drawerLayout = view.findViewById(R.id.drawer_layout)
+        navView = view.findViewById(R.id.nav_view)
+        chapterList = view.findViewById(R.id.chapter_list)
         readerTitle = view.findViewById(R.id.reader_title)
         readerChapter = view.findViewById(R.id.reader_chapter)
-        btnBack = view.findViewById(R.id.btn_back)
+        btnMenu = view.findViewById(R.id.btn_menu)
+        titleContainer = view.findViewById(R.id.title_container)
         btnBookmarkStar = view.findViewById(R.id.btn_star_bookmark)
         btnHighlight = view.findViewById<ImageButton>(R.id.btn_highlight)
         btnBookList = view.findViewById(R.id.btn_book_list)
@@ -230,6 +249,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         progressComposeView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         
         setupProgressBar()
+
+        // Set up chapter drawer
+        setupChapterDrawer(publication)
 
         // Set up reading progress tracking
         totalSpineItems = publication.readingOrder.size
@@ -291,7 +313,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         ttsControlComposeView.setContent {
             val playerState = remember { mutableStateOf(TtsPlayerState()) }
             
-            LaunchedEffect(isTtsActive, isTtsPlaying, currentSentenceIndex, currentFullText, ttsSentences.size, currentSpineIndex) {
+            LaunchedEffect(isTtsActive, isTtsPlaying, currentSentenceIndex, currentFullText, ttsSentences.size, currentSpineIndex, ttsVoiceManager.speechRate.value, ttsVoiceManager.currentPiperVoice.value, ttsVoiceManager.availablePiperVoices.value, appViewModel.themeMode.value) {
                 playerState.value = TtsPlayerState(
                     bookTitle = bookTitle,
                     authorName = authorName,
@@ -420,7 +442,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         ttsControlComposeView.visibility = View.GONE
         topBar.visibility = View.VISIBLE
         bottomBar.visibility = View.VISIBLE
-        isProgressVisible = true
+        bottomBarVisible = true
     }
 
     private fun speakCurrentPage() {
@@ -577,12 +599,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             configuration = config,
             listener = object : EpubNavigatorFragment.Listener {
                 override fun onExternalLinkActivated(url: AbsoluteUrl) {}
+                override fun onJumpToLocator(locator: Locator) {
+                    activity?.runOnUiThread {
+                        updateReadingProgress(locator)
+                    }
+                }
             }
         )
         val navigatorFragment = fragmentFactory.instantiate(requireContext().classLoader, EpubNavigatorFragment::class.java.name) as EpubNavigatorFragment
         this.navigator = navigatorFragment
         childFragmentManager.beginTransaction().replace(R.id.fragment_reader_container, navigatorFragment).commit()
         
+        // Collect locator changes for responsive progress updates
         viewLifecycleOwner.lifecycleScope.launch {
             navigatorFragment.currentLocator.collect { locator ->
                 updateReadingProgress(locator)
@@ -607,6 +635,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         )
     }
 
+    private var chapterProgression = 0f
+    
     private fun updateReadingProgress(locator: Locator) {
         val publication = ReaderRepository.currentPublication ?: return
         val href = locator.href.toString()
@@ -617,12 +647,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             currentSpineIndex = spineIndex
         }
         
-        // Calculate overall progress
-        val progress = if (totalSpineItems > 0) {
-            ((currentSpineIndex.toFloat() / totalSpineItems) * 100).toInt()
-        } else {
-            0
-        }
+        // Get intra-chapter progress from locator (0.0 to 1.0)
+        chapterProgression = locator.locations?.progression?.toFloat() ?: 0f
+        
+        Log.d(TAG, "[Progress] locator=$locator, progression=$chapterProgression, spineIndex=$currentSpineIndex, total=$totalSpineItems")
         
         activity?.runOnUiThread {
             updateProgressUI()
@@ -630,17 +658,17 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     private fun updateProgressUI() {
-        val progress = if (totalSpineItems > 0) {
-            ((currentSpineIndex.toFloat() / totalSpineItems) * 100).toInt().coerceIn(0, 100)
+        progressProgress = chapterProgression.coerceIn(0f, 1f)
+        
+        val isLastChapter = currentSpineIndex >= totalSpineItems - 1
+        val isNearEndOfChapter = chapterProgression >= 0.85f
+        showNextChapter = isNearEndOfChapter || isLastChapter
+        
+        val chapterTitle = if (tableOfContents.isNotEmpty() && currentSpineIndex < tableOfContents.size) {
+            tableOfContents[currentSpineIndex].title ?: "Chapter ${currentSpineIndex + 1}"
         } else {
-            0
+            "Chapter ${currentSpineIndex + 1}"
         }
-        
-        progressProgress = progress / 100f
-        showNextChapter = currentSpineIndex >= totalSpineItems - 1
-        
-        // Update chapter subtitle in top bar
-        val chapterTitle = "Chapter ${currentSpineIndex + 1}"
         readerChapter.text = chapterTitle
     }
 
@@ -648,62 +676,77 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         progressComposeView.setContent {
             val animatedProgress by animateFloatAsState(
                 targetValue = progressProgress,
-                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                animationSpec = tween(durationMillis = 100, easing = LinearEasing),
                 label = "progress"
             )
-            val animatedAlpha by animateFloatAsState(
-                targetValue = if (isProgressVisible) 1f else 0f,
-                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-                label = "alpha"
-            )
             
-            val bottomPadding = if (isProgressVisible && bottomBar.visibility == View.VISIBLE) 80.dp else 16.dp
+            val systemNavPadding = androidx.compose.foundation.layout.WindowInsets.systemBars.asPaddingValues()
             
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .padding(bottom = bottomPadding)
-                    .graphicsLayer { alpha = animatedAlpha }
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 8.dp,
+                        bottom = systemNavPadding.calculateBottomPadding()
+                    )
+                    .background(Color.Transparent)
             ) {
-                if (showNextChapter && isProgressVisible) {
+                if (showNextChapter) {
                     Button(
                         onClick = {
-                            if (currentSpineIndex < totalSpineItems - 1) {
-                                lifecycleScope.launch {
-                                    navigator?.goForward(animated = true)
+                            lifecycleScope.launch {
+                                try {
+                                    val publication = ReaderRepository.currentPublication
+                                    if (publication != null && currentSpineIndex < totalSpineItems - 1) {
+                                        val nextLink = publication.readingOrder.getOrNull(currentSpineIndex + 1)
+                                        if (nextLink != null) {
+                                            publication.locatorFromLink(nextLink)?.let { locator ->
+                                                navigator?.go(locator, animated = true)
+                                            }
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error going to next chapter: ${e.message}")
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFE50914)
                         ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 8.dp,
+                            pressedElevation = 4.dp
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    ) {
                         Text(
-                            text = if (currentSpineIndex < totalSpineItems - 1) "Next Chapter" else "Last Chapter",
-                            style = MaterialTheme.typography.labelLarge
+                            text = if (currentSpineIndex < totalSpineItems - 1) "Next Chapter →" else "Finish",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 
-                LinearProgressIndicator(
-                    progress = { animatedProgress },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFFE50914),
-                    trackColor = Color.White.copy(alpha = 0.2f),
-                )
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color.White.copy(alpha = 0.3f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedProgress)
+                            .background(Color(0xFFE50914))
+                    )
+                }
             }
         }
     }
@@ -725,7 +768,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     private fun setupToolbar() {
-        btnBack.setOnClickListener { activity?.finish() }
+        btnMenu.setOnClickListener { openChapterDrawer() }
+        titleContainer.setOnClickListener { openChapterDrawer() }
         btnBookmarkStar.setOnClickListener { bookmarkCurrentLocation() }
         btnHighlight.setOnClickListener {
             lifecycleScope.launch {
@@ -746,18 +790,103 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         btnSettings.setOnClickListener { showSettingsDialog() }
     }
 
+    private fun openChapterDrawer() {
+        drawerLayout.openDrawer(Gravity.START)
+    }
+
+    private var tableOfContents: List<org.readium.r2.shared.publication.Link> = emptyList()
+    
+    private fun setupChapterDrawer(publication: org.readium.r2.shared.publication.Publication) {
+        tableOfContents = publication.tableOfContents
+        val toc = tableOfContents
+        val chapterCountText = view?.findViewById<TextView>(R.id.drawer_chapter_count)
+        chapterCountText?.text = "${toc.size} chapters"
+        
+        // Enable swipe gesture to open drawer
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+        
+        chapterList.layoutManager = LinearLayoutManager(context)
+        val adapter = ChapterAdapter(toc, currentSpineIndex) { index ->
+            lifecycleScope.launch {
+                toc.getOrNull(index)?.let { link ->
+                    drawerLayout.closeDrawers()
+                    publication.locatorFromLink(link)?.let { locator ->
+                        navigator?.go(locator, animated = true)
+                    }
+                }
+            }
+        }
+        chapterList.adapter = adapter
+    }
+
+    private class ChapterAdapter(
+        private val chapters: List<org.readium.r2.shared.publication.Link>,
+        private val currentChapterIndex: Int,
+        private val onChapterClick: (Int) -> Unit
+    ) : RecyclerView.Adapter<ChapterAdapter.ChapterViewHolder>() {
+
+        class ChapterViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val titleText: TextView = itemView.findViewById(android.R.id.text1)
+            val container: View = itemView
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChapterViewHolder {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(android.R.layout.simple_list_item_1, parent, false)
+            view.setPadding(64, 32, 16, 32)
+            view.setBackgroundResource(android.R.drawable.list_selector_background)
+            return ChapterViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ChapterViewHolder, position: Int) {
+            val isCurrentChapter = position == currentChapterIndex
+            holder.titleText.text = chapters[position].title ?: "Chapter ${position + 1}"
+            holder.titleText.setTextColor(if (isCurrentChapter) 0xFFE50914.toInt() else 0xFFFFFFFF.toInt())
+            holder.titleText.textSize = 15f
+            holder.titleText.alpha = if (isCurrentChapter) 1f else 0.7f
+            holder.container.setOnClickListener { onChapterClick(position) }
+        }
+
+        override fun getItemCount() = chapters.size
+    }
+
     fun toggleBars() {
         if (!::topBar.isInitialized || !::bottomBar.isInitialized || isTtsActive) return
         if (topBar.visibility == View.VISIBLE) {
             topBar.visibility = View.GONE
             bottomBar.visibility = View.GONE
-            isProgressVisible = false
+            bottomBarVisible = false
         } else {
             topBar.visibility = View.VISIBLE
             bottomBar.visibility = View.VISIBLE
-            isProgressVisible = true
+            bottomBarVisible = true
             topBar.bringToFront()
-            bottomBar.bringToFront()
+        }
+    }
+    
+    fun toggleBottomBar() {
+        if (isTtsActive) return
+        if (bottomBar.visibility == View.VISIBLE) {
+            bottomBar.visibility = View.GONE
+            bottomBarVisible = false
+        } else {
+            bottomBar.visibility = View.VISIBLE
+            bottomBarVisible = true
+        }
+    }
+    
+    fun onTap(x: Float, y: Float) {
+        if (!::topBar.isInitialized || !::bottomBar.isInitialized) return
+        
+        if (topBar.visibility == View.VISIBLE) {
+            topBar.visibility = View.GONE
+            bottomBar.visibility = View.GONE
+            bottomBarVisible = false
+        } else {
+            topBar.visibility = View.VISIBLE
+            bottomBar.visibility = View.VISIBLE
+            bottomBarVisible = true
+            topBar.bringToFront()
         }
     }
 
@@ -861,7 +990,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         val listView = dialogView.findViewById<ListView>(R.id.list_navigation)
         val btnContents = dialogView.findViewById<Button>(R.id.btn_tab_contents)
         val btnBookmarks = dialogView.findViewById<Button>(R.id.btn_tab_bookmarks)
-        val btnHighlights = dialogView.findViewById<Button>(R.id.btn_highlight)
+        val btnHighlights = dialogView.findViewById<Button>(R.id.btn_tab_highlights)
+        
+        // Hide Contents tab since we now have it in the slide-out drawer
+        btnContents.visibility = View.GONE
+        
+        // Make Bookmarks and Highlights share the space equally
+        btnBookmarks.layoutParams = (btnBookmarks.layoutParams as LinearLayout.LayoutParams).apply {
+            weight = 1f
+        }
+        btnHighlights.layoutParams = (btnHighlights.layoutParams as LinearLayout.LayoutParams).apply {
+            weight = 1f
+        }
         
         val toc = ReaderRepository.currentPublication?.tableOfContents ?: emptyList()
         
@@ -870,29 +1010,46 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             others.forEach { it.setBackgroundColor(0xFF222222.toInt()) }
         }
         
-        fun showChaptersList() {
-            highlightTab(btnContents, listOf(btnBookmarks, btnHighlights))
-            listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, toc.map { it.title ?: "Untitled" })
-            listView.setOnItemClickListener { _: android.widget.AdapterView<*>, _: View, pos: Int, _: Long ->
-                ReaderRepository.currentPublication?.locatorFromLink(toc[pos])?.let { navigator?.go(it, animated = true) }
-            }
-            listView.setOnItemLongClickListener(null)
-        }
-        
         fun showBookmarksList() {
-            highlightTab(btnBookmarks, listOf(btnContents, btnHighlights))
+            highlightTab(btnBookmarks, listOf(btnHighlights))
             lifecycleScope.launch {
                 viewModel.getBookmarks(bookId).collectLatest { bookmarks ->
                     if (bookmarks.isEmpty()) {
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No bookmarks yet"))
                         listView.setOnItemClickListener(null)
                     } else {
-                        val bookmarkTitles = bookmarks.map { bookmark ->
+                        val publication = ReaderRepository.currentPublication
+                        val tocLinks = publication?.tableOfContents ?: emptyList()
+                        val bookmarkTitles = bookmarks.mapIndexed { index, bookmark ->
                             try {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmark.locator))
-                                locator?.text?.highlight?.take(50)?.let { "\"$it...\"" } ?: "Bookmark ${bookmark.id}"
+                                if (locator != null) {
+                                    val locatorHref = locator.href.toString()
+                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
+                                    for (tocLink in tocLinks) {
+                                        val tocHref = tocLink.href.toString()
+                                        if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
+                                            chapterName = tocLink.title ?: chapterName
+                                            break
+                                        }
+                                    }
+                                    
+                                    val locationInfo = locator.locations?.fragments?.firstOrNull()?.let { fragment ->
+                                        fragment.replace("cfi=", "").take(20)
+                                    } ?: locator.locations?.progression?.let { 
+                                        "${(it * 100).toInt()}%"
+                                    } ?: ""
+                                    
+                                    if (locationInfo.isNotEmpty()) {
+                                        "$chapterName ($locationInfo)"
+                                    } else {
+                                        chapterName
+                                    }
+                                } else {
+                                    "Bookmark ${index + 1}"
+                                }
                             } catch (e: Exception) {
-                                "Bookmark ${bookmark.id}"
+                                "Bookmark ${index + 1}"
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, bookmarkTitles)
@@ -917,19 +1074,49 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
         
         fun showHighlightsList() {
-            highlightTab(btnHighlights, listOf(btnContents, btnBookmarks))
+            highlightTab(btnHighlights, listOf(btnBookmarks))
             lifecycleScope.launch {
                 viewModel.getHighlights(bookId).collectLatest { highlights ->
                     if (highlights.isEmpty()) {
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No highlights yet"))
                         listView.setOnItemClickListener(null)
                     } else {
-                        val highlightTitles = highlights.map { highlight ->
+                        val publication = ReaderRepository.currentPublication
+                        val tocLinks = publication?.tableOfContents ?: emptyList()
+                        val highlightTitles = highlights.mapIndexed { index, highlight ->
                             try {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlight.locator))
-                                locator?.text?.highlight?.take(50)?.let { "\"$it...\"" } ?: "Highlight ${highlight.id}"
+                                if (locator != null) {
+                                    val locatorHref = locator.href.toString()
+                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
+                                    for (tocLink in tocLinks) {
+                                        val tocHref = tocLink.href.toString()
+                                        if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
+                                            chapterName = tocLink.title ?: chapterName
+                                            break
+                                        }
+                                    }
+                                    
+                                    val locationInfo = locator.locations?.fragments?.firstOrNull()?.let { fragment ->
+                                        fragment.replace("cfi=", "").take(20)
+                                    } ?: locator.locations?.progression?.let { 
+                                        "${(it * 100).toInt()}%"
+                                    } ?: ""
+                                    
+                                    val highlightText = locator.text?.highlight?.take(30)
+                                    val displayText = if (highlightText != null) "\"$highlightText...\"" else null
+                                    
+                                    val prefix = if (displayText != null) "$displayText - " else ""
+                                    if (locationInfo.isNotEmpty()) {
+                                        "$prefix$chapterName ($locationInfo)"
+                                    } else {
+                                        "$prefix$chapterName"
+                                    }
+                                } else {
+                                    "Highlight ${index + 1}"
+                                }
                             } catch (e: Exception) {
-                                "Highlight ${highlight.id}"
+                                "Highlight ${index + 1}"
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, highlightTitles)
@@ -953,7 +1140,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             }
         }
         
-        btnContents.setOnClickListener { showChaptersList() }
         btnBookmarks.setOnClickListener { showBookmarksList() }
         btnHighlights.setOnClickListener { showHighlightsList() }
         
@@ -962,7 +1148,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             .setNegativeButton("Close", null)
             .create()
         
-        showChaptersList()
+        // Start with Highlights tab
+        showHighlightsList()
         dialog.show()
     }
 

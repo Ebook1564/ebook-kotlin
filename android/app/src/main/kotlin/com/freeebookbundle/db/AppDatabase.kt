@@ -5,9 +5,13 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Bookmark::class, Highlight::class, BookEntity::class, CategoryEntity::class],
+    entities = [Bookmark::class, Highlight::class, BookEntity::class, CategoryEntity::class, CatalogMetaEntity::class],
     version = 3,
     exportSchema = false
 )
@@ -15,6 +19,7 @@ import androidx.room.TypeConverters
 abstract class AppDatabase : RoomDatabase() {
     abstract fun locatorDao(): LocatorDao
     abstract fun bookDao(): BookDao
+    abstract fun catalogMetaDao(): CatalogMetaDao
 
     companion object {
         @Volatile
@@ -28,7 +33,11 @@ abstract class AppDatabase : RoomDatabase() {
                     "library.db"
                 )
                 .createFromAsset("library.db")
-                .fallbackToDestructiveMigration(true)
+                .addCallback(object : Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                    }
+                })
                 .build()
                 INSTANCE = instance
                 instance

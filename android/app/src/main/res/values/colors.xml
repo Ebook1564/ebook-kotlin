@@ -10,4 +10,7 @@
     <!-- Standard colors for compatibility -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- App Icon -->
+    <color name="ic_launcher_background">#E50914</color>
 </resources>

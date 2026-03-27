@@ -35,6 +35,15 @@ class Converters {
     fun fromReadingStatus(status: ReadingStatus) = status.name
 }
 
+@Entity(tableName = "catalog_meta")
+data class CatalogMetaEntity(
+    @PrimaryKey val id: Int = 1,
+    val catalogHash: String,
+    val bookCount: Int,
+    val lastUpdated: Long,
+    val bundledAt: Long
+)
+
 @Entity(tableName = "categories")
 data class CategoryEntity(
     @PrimaryKey val code: String,

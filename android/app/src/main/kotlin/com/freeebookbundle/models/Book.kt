@@ -103,8 +103,5 @@ data class Book(
         }
         return getServerCoverUrl()
     }
-    
-    fun hasStartedReading(): Boolean {
-        return dateStarted != null
-    }
 }
+

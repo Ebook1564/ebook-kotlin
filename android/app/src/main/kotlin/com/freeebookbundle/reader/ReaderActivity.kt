@@ -3,8 +3,6 @@ package com.freeebookbundle.reader
 import android.annotation.SuppressLint
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
 import androidx.activity.enableEdgeToEdge
@@ -15,7 +13,6 @@ import com.freeebookbundle.EbookApp
 import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.repository.ReaderSettingsRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.readium.r2.shared.util.toUrl
 import java.io.File
@@ -23,8 +20,6 @@ import java.io.File
 class ReaderActivity : AppCompatActivity() {
 
     private lateinit var gestureDetector: GestureDetector
-    private var lastTapTime = 0L
-    private var isReadingContent = false
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +33,7 @@ class ReaderActivity : AppCompatActivity() {
         setContentView(R.layout.activity_reader)
 
         val filePath = intent.getStringExtra("FILE_PATH") ?: return
+        @Suppress("DEPRECATION")
         val book = intent.getParcelableExtra<Book>("BOOK") ?: return
         val openAudioPlayer = intent.getBooleanExtra("OPEN_AUDIO_PLAYER", false)
         val file = File(filePath)
@@ -49,13 +45,7 @@ class ReaderActivity : AppCompatActivity() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 val fragment = supportFragmentManager.findFragmentById(R.id.reader_container) as? ReaderFragment
-                fragment?.toggleBars()
-                return true
-            }
-
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                val fragment = supportFragmentManager.findFragmentById(R.id.reader_container) as? ReaderFragment
-                fragment?.toggleBars()
+                fragment?.onTap(e.x, e.y)
                 return true
             }
         })

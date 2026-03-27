@@ -243,10 +243,13 @@ fun BookTransitionOverlay(
                         ) {
                             if (currentFlipIndex <= 1) {
                                 AsyncImage(
-                                    model = book.coverImageUrl,
+                                    model = book.getBestCoverUrl(),
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    onError = {
+                                        // Fallback to server cover if external cover fails
+                                    }
                                 )
                             }
                             

@@ -118,11 +118,17 @@ class MainActivity : ComponentActivity() {
             }
 
             if (!userProfile.isOnboarded) {
-                BookVerseTheme(AppThemeMode.NIGHT) {
+                BookVerseTheme(themeMode) {
                     OnboardingScreen(
-                        onFinish = { name, theme ->
-                            appViewModel.setTheme(theme)
+                        onFinish = { name, selectedTheme ->
+                            appViewModel.setTheme(selectedTheme)
                             appViewModel.completeOnboarding(name)
+                        },
+                        onSyncRequired = { 
+                            val syncRepo = com.freeebookbundle.repository.LibrarySyncRepository(this@MainActivity)
+                            val result = syncRepo.syncWithServer()
+                            syncRepo.logDiscrepancies(result)
+                            result.success
                         }
                     )
                 }
@@ -218,6 +224,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
     val themeMode = appViewModel.themeMode.value
+    val isTransitioning = appViewModel.isTransitioning.value
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentPage) {
@@ -232,11 +239,27 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
-            Box(modifier = Modifier.align(Alignment.BottomCenter).then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
+            AnimatedVisibility(
+                visible = true,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(initialOffsetY = { it }),
+                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing))
+            ) {
                 if (themeMode == AppThemeMode.SPACE) {
-                    SpaceEasyTouchNav(currentPage) { }
+                    SpaceEasyTouchNav(selectedIndex = currentPage, onTabSelected = { }, forceCollapsed = isTransitioning)
+                } else if (themeMode == AppThemeMode.DAY) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = BookVerseTheme.colors.surface,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 12.dp
+                    ) {
+                        ElegantNavBar(currentPage, themeMode) { }
+                    }
                 } else {
-                    ElegantNavBar(currentPage, themeMode) { }
+                    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp)) {
+                        ElegantNavBar(currentPage, themeMode) { }
+                    }
                 }
             }
         }
@@ -315,31 +338,36 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
             }
             
             AnimatedVisibility(
-                visible = !shouldHideNavBar,
+                visible = !shouldHideNavBar && !appViewModel.isTransitioning.value,
                 modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically(
-                    initialOffsetY = { it }, 
-                    animationSpec = tween(600, easing = PremiumEasing)
-                ) + fadeIn(animationSpec = tween(400)),
-                exit = slideOutVertically(
-                    targetOffsetY = { it }, 
-                    animationSpec = tween(600, easing = PremiumEasing)
-                ) + fadeOut(animationSpec = tween(400))
+                enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing)),
+                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing))
             ) {
                 if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
                     Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
-                        SpaceEasyTouchNav(pagerState.currentPage) { index ->
+                        SpaceEasyTouchNav(selectedIndex = pagerState.currentPage, onTabSelected = { index ->
                             if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                        }
+                        })
                     }
                 } else if (themeMode == AppThemeMode.SPACE) {
                     SpaceElegantNavBar(pagerState.currentPage) { index ->
                         if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
                     }
+                } else if (themeMode == AppThemeMode.DAY) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = BookVerseTheme.colors.surface,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 12.dp
+                    ) {
+                        ElegantNavBar(pagerState.currentPage, themeMode) { index ->
+                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
+                        }
+                    }
                 } else {
-                    Box(modifier = Modifier.then(if (themeMode == AppThemeMode.DAY) Modifier.background(BookVerseTheme.colors.surface) else Modifier)) {
-                        ElegantNavBar(pagerState.currentPage, themeMode) { index -> 
-                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) } 
+                    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp)) {
+                        ElegantNavBar(pagerState.currentPage, themeMode) { index ->
+                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
                         }
                     }
                 }
@@ -377,17 +405,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                         // Open TTS audio player for this book
                         // The reader will be opened with TTS mode
                         onReadClick(book, null, openAudioPlayer = true)
-                    },
-                    onChapterClick = { chapterIndex ->
-                        // Navigate to specific chapter
-                        val updatedBook = selectedBookForSheet!!.copy(currentChapterIndex = chapterIndex)
-                        showSheet = false
-                        homeViewModel.startReadTransition(updatedBook, openAudioPlayer = false)
-                    },
-                    onStartOverClick = { bounds ->
-                        // Start reading from beginning (reset progress)
-                        val resetBook = selectedBookForSheet!!.copy(currentChapterIndex = 0, readingProgress = 0)
-                        onReadClick(resetBook, bounds)
                     }
                 )
             }
@@ -463,38 +480,34 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
 fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (Int) -> Unit) {
     val tabs = listOf("HOME", "SEARCH", "LIBRARY")
     if (themeMode == AppThemeMode.NIGHT) {
-        Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp), contentAlignment = Alignment.Center) {
-            Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)).background(Color.Black.copy(alpha = 0.94f)).blur(30.dp).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(32.dp)))
-            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                tabs.forEachIndexed { index, title ->
-                    val isSelected = selectedIndex == index
-                    val color by animateColorAsState(
-                        targetValue = if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f),
-                        animationSpec = tween(600, easing = PremiumEasing)
-                    )
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = title, color = color, fontSize = 11.sp, fontWeight = if(isSelected) FontWeight.Black else FontWeight.Bold, letterSpacing = 1.sp)
-                            if (isSelected) Box(Modifier.padding(top = 4.dp).size(4.dp).background(color, CircleShape))
-                        }
+        Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)).background(Color(0xFF111111)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(32.dp)))
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            tabs.forEachIndexed { index, title ->
+                val isSelected = selectedIndex == index
+                val color by animateColorAsState(
+                    targetValue = if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f),
+                    animationSpec = tween(600, easing = PremiumEasing)
+                )
+                Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = title, color = color, fontSize = 11.sp, fontWeight = if(isSelected) FontWeight.Black else FontWeight.Bold, letterSpacing = 1.sp)
+                        if (isSelected) Box(Modifier.padding(top = 4.dp).size(4.dp).background(color, CircleShape))
                     }
                 }
             }
         }
     } else {
-        Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFFF5F1E0), tonalElevation = 4.dp, shadowElevation = 12.dp) {
-            Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(72.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                tabs.forEachIndexed { index, title ->
-                    val isSelected = selectedIndex == index
-                    val color by animateColorAsState(
-                        targetValue = if (isSelected) Color(0xFF5B4636) else Color(0xFF8D7A66).copy(alpha = 0.6f),
-                        animationSpec = tween(600, easing = PremiumEasing)
-                    )
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = title, color = color, style = BookVerseTheme.typography.label, fontSize = 13.sp, fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal)
-                            if (isSelected) Box(Modifier.padding(top = 4.dp).width(24.dp).height(2.dp).background(color))
-                        }
+        Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(72.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            tabs.forEachIndexed { index, title ->
+                val isSelected = selectedIndex == index
+                val color by animateColorAsState(
+                    targetValue = if (isSelected) Color(0xFF5B4636) else Color(0xFF8D7A66).copy(alpha = 0.6f),
+                    animationSpec = tween(600, easing = PremiumEasing)
+                )
+                Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = title, color = color, style = BookVerseTheme.typography.label, fontSize = 13.sp, fontWeight = if(isSelected) FontWeight.Bold else FontWeight.Normal)
+                        if (isSelected) Box(Modifier.padding(top = 4.dp).width(24.dp).height(2.dp).background(color))
                     }
                 }
             }
@@ -678,8 +691,18 @@ fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
 }
 
 @Composable
-fun SpaceEasyTouchNav(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+fun SpaceEasyTouchNav(
+    selectedIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    forceCollapsed: Boolean = false
+) {
     var expanded by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(forceCollapsed) {
+        if (forceCollapsed && expanded) {
+            expanded = false
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current

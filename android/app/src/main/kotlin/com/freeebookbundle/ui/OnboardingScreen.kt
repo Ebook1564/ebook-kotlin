@@ -16,7 +16,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Star
@@ -30,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -39,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.freeebookbundle.R
 import com.freeebookbundle.utils.ServerConfig
 import com.freeebookbundle.viewmodel.AppThemeMode
 import kotlinx.coroutines.delay
@@ -49,11 +53,16 @@ import kotlin.random.Random
 
 @Composable
 fun OnboardingScreen(
-    onFinish: (String, AppThemeMode) -> Unit
+    onFinish: (String, AppThemeMode) -> Unit,
+    onSyncRequired: suspend () -> Boolean = { true }
 ) {
     var name by remember { mutableStateOf("") }
     var selectedTheme by remember { mutableStateOf(AppThemeMode.NIGHT) }
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    var isSyncing by remember { mutableStateOf(false) }
+    var syncComplete by remember { mutableStateOf(false) }
+    var syncError by remember { mutableStateOf<String?>(null) }
+    
+    val pagerState = rememberPagerState(pageCount = { 4 })
     val scope = rememberCoroutineScope()
     
     val bgColor = when (selectedTheme) {
@@ -96,6 +105,24 @@ fun OnboardingScreen(
         label = "cosmicRotation"
     )
 
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage == 2 && !isSyncing && !syncComplete) {
+            isSyncing = true
+            try {
+                val success = onSyncRequired()
+                if (success) {
+                    syncComplete = true
+                } else {
+                    syncError = "Failed to sync with server"
+                }
+            } catch (e: Exception) {
+                syncError = e.message ?: "Sync failed"
+            } finally {
+                isSyncing = false
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(bgColor).animateContentSize()) {
         when (selectedTheme) {
             AppThemeMode.SPACE -> SpaceOnboardingBackground(cosmicRotation, starTwinkle)
@@ -122,33 +149,77 @@ fun OnboardingScreen(
                 when(page) {
                     0 -> WelcomeStep(logoScale, textColor, selectedTheme)
                     1 -> FeaturesStep(textColor, accentColor, selectedTheme)
-                    2 -> ProfileStep(name, { name = it }, selectedTheme, { selectedTheme = it }, textColor, accentColor, bgColor)
+                    2 -> SyncStep(
+                        isSyncing = isSyncing,
+                        syncComplete = syncComplete,
+                        syncError = syncError,
+                        textColor = textColor,
+                        accentColor = accentColor,
+                        themeMode = selectedTheme
+                    )
+                    3 -> ProfileStep(name, { name = it }, selectedTheme, { selectedTheme = it }, textColor, accentColor, bgColor)
                 }
                 
                 Spacer(modifier = Modifier.height(64.dp))
 
+                val canProceed = when (pagerState.currentPage) {
+                    2 -> syncComplete && !isSyncing
+                    3 -> name.isNotEmpty()
+                    else -> true
+                }
+                
+                val buttonText = when (pagerState.currentPage) {
+                    0, 1 -> "CONTINUE"
+                    2 -> if (syncComplete) "CONTINUE" else if (isSyncing) "SYNCING..." else "RETRY"
+                    3 -> "GET STARTED"
+                    else -> "CONTINUE"
+                }
+
                 Button(
                     onClick = {
-                        if (pagerState.currentPage < 2) {
-                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                        } else if (name.isNotEmpty()) {
-                            onFinish(name, selectedTheme)
+                        when (pagerState.currentPage) {
+                            0, 1 -> scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            2 -> {
+                                if (!syncComplete && !isSyncing) {
+                                    isSyncing = true
+                                    syncError = null
+                                    scope.launch {
+                                        try {
+                                            val success = onSyncRequired()
+                                            if (success) {
+                                                syncComplete = true
+                                            } else {
+                                                syncError = "Failed to sync"
+                                            }
+                                        } catch (e: Exception) {
+                                            syncError = e.message
+                                        } finally {
+                                            isSyncing = false
+                                        }
+                                    }
+                                } else if (syncComplete) {
+                                    scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                                }
+                            }
+                            3 -> if (name.isNotEmpty()) onFinish(name, selectedTheme)
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(60.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = accentColor),
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor),
                     shape = RoundedCornerShape(30.dp),
-                    enabled = if (pagerState.currentPage == 2) name.isNotEmpty() else true
+                    enabled = canProceed || pagerState.currentPage < 2
                 ) {
-                    Text(if (pagerState.currentPage < 2) "CONTINUE" else "GET STARTED", fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Color.White)
+                    Text(buttonText, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Color.White)
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Default.ChevronRight, null, tint = Color.White)
+                    if (pagerState.currentPage < 3) {
+                        Icon(Icons.Default.ChevronRight, null, tint = Color.White)
+                    }
                 }
             }
         }
         
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(3) { i ->
+            repeat(4) { i ->
                 val color = if (pagerState.currentPage == i) accentColor else textColor.copy(0.3f)
                 Box(Modifier.size(8.dp).clip(CircleShape).background(color))
             }
@@ -246,9 +317,12 @@ private fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode)
                 },
                 border = if (themeMode == AppThemeMode.SPACE) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A90D9).copy(alpha = 0.5f)) else null
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("EBB", color = textColor, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                }
+                AsyncImage(
+                    model = R.mipmap.ic_launcher,
+                    contentDescription = "App Icon",
+                    modifier = Modifier.size(64.dp).clip(CircleShape),
+                    contentScale = ContentScale.Fit
+                )
             }
         }
         Spacer(Modifier.height(32.dp))
@@ -266,6 +340,135 @@ private fun FeaturesStep(textColor: Color, accentColor: Color, themeMode: AppThe
         FeatureRow("✨", "Personalized Recommendations", textColor, themeMode)
         FeatureRow("🚀", "Reading Statistics", textColor, themeMode)
         FeatureRow("🌙", "Day, Night & Space Themes", textColor, themeMode)
+    }
+}
+
+@Composable
+private fun SyncStep(
+    isSyncing: Boolean,
+    syncComplete: Boolean,
+    syncError: String?,
+    textColor: Color,
+    accentColor: Color,
+    themeMode: AppThemeMode
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "sync")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
+        label = "rotation"
+    )
+    
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOutSine), RepeatMode.Reverse),
+        label = "pulse"
+    )
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("SYNC", color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(48.dp))
+        
+        Box(
+            modifier = Modifier.size(120.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (syncComplete) {
+                Surface(
+                    modifier = Modifier.size(100.dp),
+                    shape = CircleShape,
+                    color = accentColor.copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(3.dp, accentColor)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Sync Complete",
+                            tint = accentColor,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                }
+            } else if (isSyncing) {
+                Surface(
+                    modifier = Modifier.size(100.dp * pulseScale),
+                    shape = CircleShape,
+                    color = accentColor.copy(alpha = 0.1f)
+                ) {}
+                Surface(
+                    modifier = Modifier.size(80.dp),
+                    shape = CircleShape,
+                    color = accentColor.copy(alpha = 0.2f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.CloudSync,
+                            contentDescription = "Syncing",
+                            tint = accentColor,
+                            modifier = Modifier.size(40.dp).graphicsLayer { rotationZ = rotation }
+                        )
+                    }
+                }
+            } else if (syncError != null) {
+                Surface(
+                    modifier = Modifier.size(100.dp),
+                    shape = CircleShape,
+                    color = Color.Red.copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(3.dp, Color.Red)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.CloudSync,
+                            contentDescription = "Sync Error",
+                            tint = Color.Red,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    modifier = Modifier.size(100.dp),
+                    shape = CircleShape,
+                    color = textColor.copy(alpha = 0.1f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.CloudSync,
+                            contentDescription = "Start Sync",
+                            tint = textColor.copy(0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.height(32.dp))
+        
+        when {
+            syncComplete -> {
+                Text("Library Synced!", color = accentColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Your library is up to date with the server", color = textColor.copy(0.6f), fontSize = 14.sp)
+            }
+            isSyncing -> {
+                Text("Syncing Library...", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Sync is running in the background", color = textColor.copy(0.6f), fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("You can continue exploring the app!", color = accentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+            syncError != null -> {
+                Text("Sync Failed", color = Color.Red, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(syncError, color = textColor.copy(0.6f), fontSize = 14.sp, textAlign = TextAlign.Center)
+            }
+            else -> {
+                Text("Ready to Sync", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Tap to sync your library with the server", color = textColor.copy(0.6f), fontSize = 14.sp)
+            }
+        }
     }
 }
 

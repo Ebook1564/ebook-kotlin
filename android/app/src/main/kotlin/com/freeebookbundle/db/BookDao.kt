@@ -75,4 +75,10 @@ interface BookDao {
 
     @Query("UPDATE books SET date_finished = :dateFinished, reading_status = :status WHERE id = :bookId")
     suspend fun markAsCompleted(bookId: String, status: ReadingStatus = ReadingStatus.COMPLETED, dateFinished: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBook(book: BookEntity)
+
+    @Query("SELECT COUNT(*) FROM books")
+    suspend fun getBookCount(): Int
 }

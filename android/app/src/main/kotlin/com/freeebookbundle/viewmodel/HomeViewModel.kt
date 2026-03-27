@@ -9,6 +9,7 @@ import com.freeebookbundle.EbookApp
 import com.freeebookbundle.db.toBook
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.repository.ExternalMetadataRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -176,6 +177,7 @@ data class SubjectWithCount(
     val bookCount: Int
 )
 
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()

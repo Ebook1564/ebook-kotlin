@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base application theme. -->
-    <style name="Theme.BookVerse" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.EbookBundle" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:colorPrimary">@color/netflix_red</item>
         <item name="android:windowBackground">@color/background_black</item>
         <item name="android:statusBarColor">@color/background_black</item>
     </style>
 
-    <style name="LaunchTheme" parent="Theme.BookVerse">
+    <style name="LaunchTheme" parent="Theme.EbookBundle">
         <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
 </resources>

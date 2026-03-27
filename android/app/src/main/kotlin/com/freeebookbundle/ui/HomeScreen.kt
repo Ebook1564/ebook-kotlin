@@ -357,8 +357,8 @@ fun BillboardItem(book: Book, onReadClick: () -> Unit, onInfoClick: () -> Unit, 
                 Box(modifier = Modifier.padding(top = 260.dp).width(180.dp).height(20.dp).graphicsLayer { rotationX = 80f; scaleX = 1.2f + (floatAnim / 40f) }.background(Brush.radialGradient(listOf(Color.Black.copy(0.4f), Color.Transparent))))
                 Box(modifier = Modifier.width(180.dp).height(270.dp).graphicsLayer { rotationY = -25f + (pagerOffset * 10f); rotationX = 10f; rotationZ = floatAnim / 4f; translationY = floatAnim; cameraDistance = 12f * density }.shadow(24.dp, RoundedCornerShape(4.dp))) {
                     
-                    // Priority: External API > Local DB
-                    val imageUrl = displayBook.externalCoverUrl ?: displayBook.coverImageUrl
+                    // Priority: External API > Server cover (via getBestCoverUrl)
+                    val imageUrl = displayBook.getBestCoverUrl()
                     
                     // BLOOM ANIMATION
                     AnimatedContent(
@@ -507,7 +507,7 @@ fun BookPoster(book: Book, onClick: () -> Unit) {
     
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(modifier = Modifier.height(180.dp).fillMaxWidth().then(if (!isDark) Modifier.shadow(8.dp, RoundedCornerShape(8.dp)) else Modifier).clip(RoundedCornerShape(8.dp)).then(if (!isDark) Modifier.border(0.5.dp, Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp)) else Modifier).background(BookVerseTheme.colors.surface)) {
-            val imageUrl = displayBook.externalCoverUrl ?: displayBook.coverImageUrl
+            val imageUrl = displayBook.getBestCoverUrl()
             
             // BLOOM ANIMATION
             AnimatedContent(

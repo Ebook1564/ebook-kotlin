@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.freeebookbundle.db.AppDatabase
 import com.freeebookbundle.models.ReadingStatus
+import kotlinx.coroutines.flow.first
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 
@@ -320,12 +321,7 @@ fun StatisticsContent(
         if (database != null) {
             isLoading = true
             try {
-                val bookDao = database.bookDao()
-                val allBooks = bookDao.getAllBooks().let { flow ->
-                    var result = emptyList<com.freeebookbundle.db.BookEntity>()
-                    flow.collect { result = it }
-                    result
-                }
+                val allBooks = database.bookDao().getAllBooks().first()
                 val totalBooks = allBooks.size
                 val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
                 val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
@@ -334,8 +330,8 @@ fun StatisticsContent(
                     totalBooks = totalBooks,
                     completedBooks = completedBooks,
                     currentlyReading = currentlyReading,
-                    pagesRead = (totalBooks * 250), // Estimated
-                    hoursRead = (totalBooks * 8), // Estimated
+                    pagesRead = (totalBooks * 250),
+                    hoursRead = (totalBooks * 8),
                     streak = if (currentlyReading > 0 || completedBooks > 0) 1 else 0
                 )
             } catch (e: Exception) {

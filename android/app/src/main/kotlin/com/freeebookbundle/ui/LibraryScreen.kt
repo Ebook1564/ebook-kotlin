@@ -544,7 +544,7 @@ fun TransitioningShelfBooks(
                     .shadow(shadowSize, RoundedCornerShape(2.dp))
                     .clickable(enabled = isExpanded) { onBookClick(book) }.zIndex(10f - relativeIndex.absoluteValue)
             ) {
-                AsyncImage(model = book.externalCoverUrl ?: book.coverImageUrl, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, Color.White.copy(alpha = androidx.compose.ui.util.lerp(0.1f, 0.25f, expansionProgress)), RoundedCornerShape(2.dp)))
+                AsyncImage(model = book.getBestCoverUrl(), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, Color.White.copy(alpha = androidx.compose.ui.util.lerp(0.1f, 0.25f, expansionProgress)), RoundedCornerShape(2.dp)))
             }
         }
     }

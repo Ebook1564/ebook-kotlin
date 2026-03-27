@@ -48,6 +48,10 @@ object ServerConfig {
         return "http://${getServerIp()}:5000"
     }
 
+    fun getCatalogUrl(): String {
+        return "${getServerUrl()}/catalog.json"
+    }
+
     fun setServerIp(ip: String) {
         getPrefs().edit().putString(KEY_SERVER_IP, ip).apply()
     }
