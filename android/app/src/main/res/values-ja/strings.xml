@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">eBook Bundle</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ホーム</string>
+    <string name="nav_search">検索</string>
+    <string name="nav_library">ライブラリ</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">E-BOOK BUNDLE</string>
+    <string name="onboarding_tagline">物語の宇宙</string>
+    <string name="onboarding_features">機能</string>
+    <string name="onboarding_feature_collections">精选图书合集</string>
+    <string name="onboarding_feature_recommendations">个性化推荐</string>
+    <string name="onboarding_feature_statistics">阅读统计</string>
+    <string name="onboarding_feature_themes">白天、夜晚和太空主题</string>
+    <string name="onboarding_sync_title">同步</string>
+    <string name="onboarding_sync_complete">ライブラリ同期完了！</string>
+    <string name="onboarding_sync_up_to_date">ライブラリはサーバーと同じ状態です</string>
+    <string name="onboarding_sync_loading">ライブラリを同期中…</string>
+    <string name="onboarding_sync_background">バックグラウンドで同期を実行中</string>
+    <string name="onboarding_sync_continue">アプリの探索を続けることができます！</string>
+    <string name="onboarding_sync_failed">同期に失敗しました</string>
+    <string name="onboarding_sync_ready">同期準備完了</string>
+    <string name="onboarding_sync_tap">タップしてライブラリをサーバーと同期</string>
+    <string name="onboarding_customize_title">体験をカスタマイズ</string>
+    <string name="onboarding_name_placeholder">お名前は何と呼べばよろしいですか？</string>
+    <string name="onboarding_theme_label">テーマを選択</string>
+    <string name="onboarding_theme_day"> день</string>
+    <string name="onboarding_theme_night">夜</string>
+    <string name="onboarding_theme_space">宇宙</string>
+    <string name="onboarding_btn_continue">続ける</string>
+    <string name="onboarding_btn_syncing">同期中…</string>
+    <string name="onboarding_btn_retry">再試行</string>
+    <string name="onboarding_btn_get_started">始める</string>
+    <string name="onboarding_sync_complete_desc">同期完了</string>
+    <string name="onboarding_sync_desc">同期中</string>
+    <string name="onboarding_sync_error_desc">同期エラー</string>
+    <string name="onboarding_sync_start_desc">同期開始</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">読み続ける</string>
+    <string name="home_curated_for_you">あなたへのおすすめ</string>
+    <string name="home_read_now">今すぐ読む</string>
+    <string name="home_more_info">詳細</string>
+    <string name="home_toggle_theme">テーマ切替</string>
+    <string name="greeting_morning">おはよう</string>
+    <string name="greeting_afternoon">こんにちは</string>
+    <string name="greeting_evening">こんばんは</string>
+    <string name="greeting_night">おやすみ</string>
+    <string name="greeting_punchline_quiet">世界は静かです</string>
+    <string name="greeting_punchline_midnight">深夜読書に最適な時間</string>
+    <string name="greeting_punchline_sleep">他者が眠る間に世界を探索</string>
+    <string name="greeting_punchline_early">一日を物語から始めよう</string>
+    <string name="greeting_punchline_morning_await">朝の読書がお待ちしています</string>
+    <string name="greeting_punchline_rise">起きて読書しよう！</string>
+    <string name="greeting_punchline_adventure">新しい冒険の準備はできましたか？</string>
+    <string name="greeting_punchline_discover">今日は何を発見しますか？</string>
+    <string name="greeting_punchline_dive">新しい本に飛び込む時間</string>
+    <string name="greeting_punchline_lunch">昼休みの読書はいかがですか？</string>
+    <string name="greeting_punchline_afternoon_escape">午後の逃避行がお待ちしています</string>
+    <string name="greeting_punchline_break">読書休憩を取りましょう</string>
+    <string name="greeting_punchline_momentum">勢いを保ちましょう</string>
+    <string name="greeting_punchline_storytime">物語の時間はずっと今</string>
+    <string name="greeting_punchline_chapter">どの章に到達しますか？</string>
+    <string name="greeting_punchline_unwind">良い本でリラックス</string>
+    <string name="greeting_punchline_evening">夕方の読書セッション</string>
+    <string name="greeting_punchline_perfect">物語に最適な時間</string>
+    <string name="greeting_punchline_cozy">本をながらのんびりと</string>
+    <string name="greeting_punchline_nighttime">夜間の読書がお待ちしています</string>
+    <string name="greeting_punchline_transport">物語でTravelしましょう</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">探索</string>
+    <string name="search_placeholder">60,000以上の本を検索…</string>
+    <string name="search_clear">クリア</string>
+    <string name="search_curated_genre">精选ジャンル</string>
+    <string name="search_explore_all">すべての本を検索</string>
+    <string name="search_authors">著者</string>
+    <string name="search_authors_placeholder">著者を検索…</string>
+    <string name="search_close">閉じる</string>
+    <string name="search_see_all">すべて見る</string>
+    <string name="category_fiction">フィクション</string>
+    <string name="category_history">アメリカの歴史</string>
+    <string name="category_science">科学</string>
+    <string name="category_romance">ロマンス</string>
+    <string name="category_fantasy">ファンタジー</string>
+    <string name="category_mystery">ミステリー</string>
+    <string name="category_biography">伝記</string>
+    <string name="category_adventure">冒険</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">マイコレクション</string>
+    <string name="library_profile">プロフィール</string>
+    <string name="library_authors">著者</string>
+    <string name="library_currently_reading">現在読書中</string>
+    <string name="library_finished">読了</string>
+    <string name="library_want_to_read">読みたい本</string>
+    <string name="library_finished_collection">読了コレクション</string>
+    <string name="library_wishlist">ウィッシュリスト</string>
+    <string name="library_see_all">すべて見る</string>
+    <string name="library_continue_reading">読み続ける</string>
+    <string name="library_tap_to_return">どこでもタップして戻る</string>
+    <string name="library_back">戻る</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">プロフィール</string>
+    <string name="profile_back">戻る</string>
+    <string name="profile_toggle_theme">テーマ切替</string>
+    <string name="profile_level">読書家レベル1</string>
+    <string name="profile_reading_statistics">読書統計</string>
+    <string name="profile_settings">設定</string>
+    <string name="profile_help_support">ヘルプ＆サポート</string>
+    <string name="profile_licenses">ライセンス＆謝辞</string>
+    <string name="profile_reading_journey">あなたの読書旅</string>
+    <string name="profile_stat_books">冊</string>
+    <string name="profile_stat_completed">読了</string>
+    <string name="profile_stat_reading">読書中</string>
+    <string name="profile_stat_in_progress">進行中</string>
+    <string name="profile_stat_pages">ページ</string>
+    <string name="profile_stat_read">読了</string>
+    <string name="profile_stat_hours">時間</string>
+    <string name="profile_stat_of_reading">読書</string>
+    <string name="profile_completion_rate">読了率</string>
+    <string name="profile_books_finished">読了</string>
+    <string name="profile_reading_streak">読書連続日数</string>
+    <string name="profile_streak_days">%d日</string>
+    <string name="profile_streak_message">この調子で頑張りましょう！</string>
+    <string name="profile_genre_breakdown">ジャンル内訳</string>
+    <string name="profile_help_title">ヘルプ＆サポート</string>
+    <string name="profile_contact_support">サポートに連絡</string>
+    <string name="profile_send_email">メールを送る</string>
+    <string name="profile_privacy_policy">プライバシーポリシー</string>
+    <string name="profile_privacy_desc">プライバシーポリシーをお読みください</string>
+    <string name="profile_about_title">概要</string>
+    <string name="profile_about_description">Free Ebook Bundleは、最高の無料文学をお届けするリーダーアプリです。</string>
+    <string name="profile_open_source">オープンソースライブラリ</string>
+    <string name="profile_privacy_title">プライバシー</string>
+    <string name="profile_privacy_statement">このアプリはすべてデータをデバイスにローカル保存します。</string>
+    <string name="profile_attribution_title">帰属</string>
+    <string name="profile_attribution_text">本のカバーとメタデータはOpen Library提供。</string>
+    <string name="profile_copyright">すべての本のカバーとコンテンツは各所有者の財産です。</string>
+    <string name="profile_version_title">バージョン</string>
+    <string name="profile_built_with">Jetpack Composeで構築</string>
+    <string name="profile_appearance_title">外観</string>
+    <string name="profile_theme_label">テーマ</string>
+    <string name="profile_nav_style">ナビゲーションスタイル</string>
+    <string name="profile_touch_pad">タッチパッド</string>
+    <string name="profile_classic">クラシック</string>
+    <string name="profile_touch_pad_desc">フローティングタッチパッドナビゲーション</string>
+    <string name="profile_classic_desc">従来のボトムナビゲーションバー</string>
+    <string name="profile_notifications_title">通知</string>
+    <string name="profile_push_notifications">プッシュ通知</string>
+    <string name="profile_enabled">有効</string>
+    <string name="profile_wifi_only">Wi-Fiでのみダウンロード</string>
+    <string name="profile_disabled">無効</string>
+    <string name="profile_privacy_dialog_title">プライバシーポリシー</string>
+    <string name="profile_privacy_last_updated">最終更新：2026年3月25日</string>
+    <string name="profile_close">閉じる</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">再生中</string>
+    <string name="audio_close">閉じる</string>
+    <string name="audio_chapters">チャプター</string>
+    <string name="audio_settings">設定</string>
+    <string name="audio_bookmarks">ブックマーク</string>
+    <string name="audio_jump_chapter">チャプターへジャンプ</string>
+    <string name="audio_quick_settings">クイック設定</string>
+    <string name="audio_reading_settings">読書設定</string>
+    <string name="audio_settings_desc">テーマ、フォントサイズ、スクロールモード</string>
+    <string name="audio_empty_state">読み始めると現在のテキストが表示されます…</string>
+    <string name="audio_voice">音声</string>
+    <string name="audio_skip_back">巻き戻し</string>
+    <string name="audio_skip_forward">早送り</string>
+    <string name="audio_pause">一時停止</string>
+    <string name="audio_play">再生</string>
+    <string name="audio_current">現在</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">次の章 →</string>
+    <string name="reader_finish">終了</string>
+    <string name="reader_select_text">まずテキストを選択してください</string>
+    <string name="reader_no_text">このページには読むべきテキストがありません。</string>
+    <string name="reader_unknown_author">著者不明</string>
+    <string name="reader_unknown_book">タイトル不明</string>
+    <string name="reader_search_title">本を検索</string>
+    <string name="reader_search_placeholder">検索…</string>
+    <string name="reader_search_action">検索</string>
+    <string name="reader_cancel">キャンセル</string>
+    <string name="reader_close">閉じる</string>
+    <string name="reader_highlight_title">ハイライト</string>
+    <string name="reader_add_note">メモを追加</string>
+    <string name="reader_lookup">調べる</string>
+    <string name="reader_note_placeholder">メモ…</string>
+    <string name="reader_save">保存</string>
+    <string name="reader_no_bookmarks">ブックマークはまだありません</string>
+    <string name="reader_bookmark_deleted">ブックマークを削除しました</string>
+    <string name="reader_bookmark_error">ブックマークの読み込みエラー</string>
+    <string name="reader_no_highlights">ハイライトはまだありません</string>
+    <string name="reader_highlight_deleted">ハイライトを削除しました</string>
+    <string name="reader_highlight_error">ハイライトの読み込みエラー</string>
+    <string name="reader_reading_settings_title">読書設定</string>
+    <string name="reader_theme_label">テーマ</string>
+    <string name="reader_font_size">フォントサイズ：%d%%</string>
+    <string name="reader_vertical_scroll">縦スクロール</string>
+    <string name="reader_scroll_desc">シームレスな読書のために常に有効</string>
+    <string name="reader_enabled">有効</string>
+    <string name="reader_chapters_count">%1$dチャプター</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">アプリアイコン</string>
+    <string name="cd_profile">プロフィール</string>
+    <string name="cd_see_all">すべて見る</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">読書中</string>
+    <string name="book_detail_finished">完了</string>
+    <string name="book_detail_wishlist">ウィッシュリスト</string>
+    <string name="book_detail_add_to_list">リストに追加</string>
+    <string name="book_detail_collections">これらのコレクションの一部</string>
+    <string name="book_detail_about">この本について</string>
+    <string name="book_detail_currently_reading">現在読書中</string>
+    <string name="book_detail_completed">完了</string>
+    <string name="book_detail_want_to_read">読めたい</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">言語を切り替える</string>
+    <string name="debug_select_language">言語を選択</string>
+    <string name="debug_system_default">システムのデフォルト</string>
+    <string name="debug_restart_required">適用するにはアプリを再起動</string>
+    <string name="debug_restart_now">今すぐ再起動</string>
+    <string name="debug_later">後で</string>
+</resources>

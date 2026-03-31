@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.freeebookbundle.R
 import com.freeebookbundle.viewmodel.AppThemeMode
 import kotlinx.coroutines.delay
 import kotlin.math.sin
@@ -161,14 +163,14 @@ fun AudioPlayerScreen(
                 IconButton(onClick = onClose) {
                     Icon(
                         Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.audio_close),
                         tint = textColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
                 
                 Text(
-                    "NOW PLAYING",
+                    stringResource(R.string.audio_now_playing),
                     color = subTextColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -352,7 +354,7 @@ fun AudioPlayerScreen(
                     IconButton(onClick = { showVoiceMenu = true }) {
                         Icon(
                             Icons.Default.RecordVoiceOver,
-                            contentDescription = "Voice",
+                            contentDescription = stringResource(R.string.audio_voice),
                             tint = subTextColor,
                             modifier = Modifier.size(24.dp)
                         )
@@ -384,7 +386,7 @@ fun AudioPlayerScreen(
                 ) {
                     Icon(
                         Icons.Default.Replay10,
-                        contentDescription = "Skip back",
+                        contentDescription = stringResource(R.string.audio_skip_back),
                         tint = textColor,
                         modifier = Modifier.size(28.dp)
                     )
@@ -398,7 +400,7 @@ fun AudioPlayerScreen(
                 ) {
                     Icon(
                         if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Pause" else "Play",
+                        contentDescription = if (state.isPlaying) stringResource(R.string.audio_pause) else stringResource(R.string.audio_play),
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -409,7 +411,7 @@ fun AudioPlayerScreen(
                 ) {
                     Icon(
                         Icons.Default.Forward10,
-                        contentDescription = "Skip forward",
+                        contentDescription = stringResource(R.string.audio_skip_forward),
                         tint = textColor,
                         modifier = Modifier.size(28.dp)
                     )
@@ -466,12 +468,12 @@ fun AudioPlayerScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.List,
-                            contentDescription = "Chapters",
+                            contentDescription = stringResource(R.string.audio_chapters),
                             tint = if (state.chapters.isNotEmpty()) accentColor else subTextColor.copy(alpha = 0.4f),
                             modifier = Modifier.size(22.dp)
                         )
                     }
-                    Text("Chapters", color = if (state.chapters.isNotEmpty()) accentColor else subTextColor.copy(alpha = 0.4f), fontSize = 10.sp)
+                    Text(stringResource(R.string.audio_chapters), color = if (state.chapters.isNotEmpty()) accentColor else subTextColor.copy(alpha = 0.4f), fontSize = 10.sp)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -480,12 +482,12 @@ fun AudioPlayerScreen(
                     ) {
                         Icon(
                             Icons.Default.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = stringResource(R.string.audio_settings),
                             tint = subTextColor,
                             modifier = Modifier.size(22.dp)
                         )
                     }
-                    Text("Settings", color = subTextColor, fontSize = 10.sp)
+                    Text(stringResource(R.string.audio_settings), color = subTextColor, fontSize = 10.sp)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -494,12 +496,12 @@ fun AudioPlayerScreen(
                     ) {
                         Icon(
                             Icons.Default.BookmarkBorder,
-                            contentDescription = "Bookmarks",
+                            contentDescription = stringResource(R.string.audio_bookmarks),
                             tint = subTextColor,
                             modifier = Modifier.size(22.dp)
                         )
                     }
-                    Text("Bookmarks", color = subTextColor, fontSize = 10.sp)
+                    Text(stringResource(R.string.audio_bookmarks), color = subTextColor, fontSize = 10.sp)
                 }
             }
 
@@ -583,7 +585,7 @@ private fun AnimatedParagraph(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Start reading to see the current text...",
+                    text = stringResource(R.string.audio_empty_state),
                     color = subTextColor,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -714,7 +716,7 @@ private fun ChapterSelectionSheet(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Jump to Chapter",
+            text = stringResource(R.string.audio_jump_chapter),
             style = MaterialTheme.typography.titleLarge,
             color = Color.White,
             fontWeight = FontWeight.Bold,
@@ -757,7 +759,7 @@ private fun ChapterSelectionSheet(
                         if (isCurrentChapter) {
                             Icon(
                                 Icons.Default.PlayArrow,
-                                contentDescription = "Current",
+                                contentDescription = stringResource(R.string.audio_current),
                                 tint = accentColor,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -782,7 +784,7 @@ private fun SettingsSheet(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Quick Settings",
+            text = stringResource(R.string.audio_quick_settings),
             style = MaterialTheme.typography.titleLarge,
             color = Color.White,
             fontWeight = FontWeight.Bold,
@@ -809,13 +811,13 @@ private fun SettingsSheet(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Reading Settings",
+                        text = stringResource(R.string.audio_reading_settings),
                         color = textColor,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Theme, font size, scroll mode",
+                        text = stringResource(R.string.audio_settings_desc),
                         color = Color.Gray,
                         fontSize = 12.sp
                     )

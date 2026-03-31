@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.freeebookbundle.utils.LocaleManager
 import com.freeebookbundle.viewmodel.AppThemeMode
 
 data class AppColors(
@@ -120,12 +121,30 @@ fun BookVerseTheme(
             }
         }
     }
+    
+    val arabicFont = remember {
+        val assets = context.assets.list("fonts") ?: emptyArray()
+        val regularFontFile = "NotoSansArabic-Regular.ttf"
+        val boldFontFile = "NotoSansArabic-Bold.ttf"
+        
+        if (assets.contains(regularFontFile) && assets.contains(boldFontFile)) {
+            FontFamily(
+                Font(assetManager = context.assets, path = "fonts/$regularFontFile", weight = FontWeight.Normal),
+                Font(assetManager = context.assets, path = "fonts/$boldFontFile", weight = FontWeight.Bold)
+            )
+        } else {
+            FontFamily.SansSerif
+        }
+    }
+    
+    val isRTL = remember { LocaleManager.isCurrentLocaleRTL(context) }
 
     val colors = when (themeMode) {
         AppThemeMode.DAY -> DayColors
         AppThemeMode.NIGHT -> NightColors
         AppThemeMode.SPACE -> SpaceColors
     }
+    
     val typography = when (themeMode) {
         AppThemeMode.DAY -> DayTypography
         AppThemeMode.NIGHT -> NightTypography
@@ -135,10 +154,20 @@ fun BookVerseTheme(
             label = SpaceTypography.label.copy(fontFamily = spaceFont)
         )
     }
+    
+    val finalTypography = if (isRTL) {
+        typography.copy(
+            headline = typography.headline.copy(fontFamily = arabicFont),
+            body = typography.body.copy(fontFamily = arabicFont),
+            label = typography.label.copy(fontFamily = arabicFont)
+        )
+    } else {
+        typography
+    }
 
     CompositionLocalProvider(
         LocalAppColors provides colors,
-        LocalAppTypography provides typography,
+        LocalAppTypography provides finalTypography,
         content = content
     )
 }

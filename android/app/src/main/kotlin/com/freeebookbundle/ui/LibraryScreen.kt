@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -58,6 +59,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.freeebookbundle.PremiumEasing
+import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.utils.ServerConfig
@@ -110,7 +112,7 @@ fun LibraryScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "My Collection",
+                    text = stringResource(R.string.library_title),
                     style = BookVerseTheme.typography.headline,
                     color = BookVerseTheme.colors.textPrimary,
                     fontSize = 28.sp,
@@ -122,7 +124,7 @@ fun LibraryScreen(
                         .clip(CircleShape)
                         .background(BookVerseTheme.colors.surface)
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = "Profile", tint = BookVerseTheme.colors.primary)
+                    Icon(Icons.Default.Person, contentDescription = stringResource(R.string.library_profile), tint = BookVerseTheme.colors.primary)
                 }
             }
 
@@ -145,7 +147,7 @@ fun LibraryScreen(
                         Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.People, null, modifier = Modifier.size(14.dp), tint = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Authors", color = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.library_authors), color = if (isSelected) Color.White else BookVerseTheme.colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -187,7 +189,7 @@ fun LibraryScreen(
                             .padding(bottom = 140.dp)
                     ) {
                         ShelfTier(
-                            title = "Currently Reading",
+                            title = stringResource(R.string.library_currently_reading),
                             books = uiState.currentlyReading,
                             themeMode = currentTheme,
                             isExpanded = expandedTier == "current",
@@ -199,7 +201,7 @@ fun LibraryScreen(
                         Spacer(modifier = Modifier.height(40.dp))
                         
                         ShelfTier(
-                            title = "Finished",
+                            title = stringResource(R.string.library_finished),
                             books = uiState.completed,
                             themeMode = currentTheme,
                             isExpanded = expandedTier == "finished",
@@ -211,7 +213,7 @@ fun LibraryScreen(
                         Spacer(modifier = Modifier.height(40.dp))
                         
                         ShelfTier(
-                            title = "Want to Read",
+                            title = stringResource(R.string.library_want_to_read),
                             books = uiState.wishlist,
                             themeMode = currentTheme,
                             isExpanded = expandedTier == "wishlist",
@@ -276,9 +278,9 @@ fun LibraryScreen(
                 val pagedBooks = viewModel.getPagedBooks(status).collectAsLazyPagingItems()
                 SeeAllPage(
                     title = when(status) {
-                        ReadingStatus.CURRENTLY_READING -> "Currently Reading"
-                        ReadingStatus.COMPLETED -> "Finished Collection"
-                        ReadingStatus.WISHLIST -> "Wishlist"
+                        ReadingStatus.CURRENTLY_READING -> stringResource(R.string.library_currently_reading)
+                        ReadingStatus.COMPLETED -> stringResource(R.string.library_finished_collection)
+                        ReadingStatus.WISHLIST -> stringResource(R.string.library_wishlist)
                         else -> ""
                     },
                     books = pagedBooks,
@@ -379,7 +381,7 @@ fun ShelfTier(
             )
             
             IconButton(onClick = onSeeAll, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, "See All", tint = BookVerseTheme.colors.primary, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.library_see_all), tint = BookVerseTheme.colors.primary, modifier = Modifier.size(18.dp))
             }
         }
 
@@ -572,10 +574,10 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
             }
             Spacer(modifier = Modifier.height(48.dp))
             Button(onClick = onReadNow, colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary), shape = RoundedCornerShape(30.dp), modifier = Modifier.height(54.dp).width(240.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = BookVerseTheme.colors.primary)) {
-                Text("CONTINUE READING", style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 13.sp, color = Color.White)
+                Text(stringResource(R.string.library_continue_reading), style = BookVerseTheme.typography.label, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 13.sp, color = Color.White)
             }
             Spacer(modifier = Modifier.height(40.dp))
-            Text("TAP ANYWHERE TO RETURN", style = BookVerseTheme.typography.label, color = Color.White.copy(alpha = 0.3f), letterSpacing = 2.sp, fontSize = 10.sp)
+            Text(stringResource(R.string.library_tap_to_return), style = BookVerseTheme.typography.label, color = Color.White.copy(alpha = 0.3f), letterSpacing = 2.sp, fontSize = 10.sp)
         }
     }
 }
@@ -585,7 +587,7 @@ fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, 
     val colors = BookVerseTheme.colors
     Column(modifier = Modifier.fillMaxSize().background(colors.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = colors.textPrimary) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.library_back), tint = colors.textPrimary) }
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = BookVerseTheme.typography.headline, color = colors.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Black)
         }

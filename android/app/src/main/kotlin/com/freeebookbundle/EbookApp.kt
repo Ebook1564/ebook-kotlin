@@ -2,6 +2,7 @@ package com.freeebookbundle
 
 import android.app.Application
 import com.freeebookbundle.db.AppDatabase
+import com.freeebookbundle.utils.LocaleManager
 import com.freeebookbundle.utils.ServerConfig
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -16,6 +17,7 @@ class EbookApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        LocaleManager.applySavedLocale(this)
         ServerConfig.initialize(this)
 
         val httpClient = DefaultHttpClient()

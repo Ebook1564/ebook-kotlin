@@ -110,4 +110,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.joda:joda-convert:2.2.2")
 
+    // AppCompat for locale support
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
 }

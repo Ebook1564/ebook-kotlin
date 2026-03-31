@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
+import com.freeebookbundle.R
 import com.freeebookbundle.db.AppDatabase
 import com.freeebookbundle.models.ReadingStatus
 import kotlinx.coroutines.flow.first
@@ -89,10 +91,10 @@ fun ProfileScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(activeSubScreen ?: "PROFILE", fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 20.sp, color = textColor) },
+                    title = { Text(activeSubScreen ?: stringResource(R.string.profile_title), fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 20.sp, color = textColor) },
                     navigationIcon = {
                         IconButton(onClick = { if (activeSubScreen != null) activeSubScreen = null else onBackClick() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textColor)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.profile_back), tint = textColor)
                         }
                     },
                     actions = {
@@ -110,7 +112,7 @@ fun ProfileScreen(
                                     AppThemeMode.NIGHT -> Icons.Filled.Star
                                     AppThemeMode.SPACE -> Icons.Default.LightMode
                                 },
-                                contentDescription = "Toggle Theme",
+                                contentDescription = stringResource(R.string.profile_toggle_theme),
                                 tint = accentColor
                             )
                         }
@@ -131,14 +133,14 @@ fun ProfileScreen(
                     
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(userName, style = MaterialTheme.typography.headlineMedium, color = textColor, fontWeight = FontWeight.Black)
-                    Text("Bibliophile Level 1", color = accentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(stringResource(R.string.profile_level), color = accentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     
                     Spacer(modifier = Modifier.height(48.dp))
                     
-                    ProfileOption("Reading Statistics", Icons.Default.BarChart, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "STATISTICS" }
-                    ProfileOption("Settings", Icons.Default.Settings, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SETTINGS" }
-                    ProfileOption("Help & Support", Icons.AutoMirrored.Filled.HelpOutline, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SUPPORT" }
-                    ProfileOption("Licenses & Acknowledgements", Icons.Default.Description, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "LICENSES" }
+                    ProfileOption(stringResource(R.string.profile_reading_statistics), Icons.Default.BarChart, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "STATISTICS" }
+                    ProfileOption(stringResource(R.string.profile_settings), Icons.Default.Settings, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SETTINGS" }
+                    ProfileOption(stringResource(R.string.profile_help_support), Icons.AutoMirrored.Filled.HelpOutline, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "SUPPORT" }
+                    ProfileOption(stringResource(R.string.profile_licenses), Icons.Default.Description, themeMode = themeMode, accentColor = accentColor, surfaceColor = surfaceColor, textColor = textColor) { activeSubScreen = "LICENSES" }
                 }
 
                 AnimatedVisibility(
@@ -346,7 +348,7 @@ fun StatisticsContent(
     
     LazyColumn {
         item {
-            Text("YOUR READING JOURNEY", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_reading_journey), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(24.dp))
         }
         
@@ -367,9 +369,9 @@ fun StatisticsContent(
                 ) {
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Books",
+                        title = stringResource(R.string.profile_stat_books),
                         value = "${stats.totalBooks}",
-                        subtitle = "${stats.completedBooks} completed",
+                        subtitle = "${stats.completedBooks} ${stringResource(R.string.profile_stat_completed)}",
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -377,9 +379,9 @@ fun StatisticsContent(
                     )
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Reading",
+                        title = stringResource(R.string.profile_stat_reading),
                         value = "${stats.currentlyReading}",
-                        subtitle = "in progress",
+                        subtitle = stringResource(R.string.profile_stat_in_progress),
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -396,9 +398,9 @@ fun StatisticsContent(
                 ) {
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Pages",
+                        title = stringResource(R.string.profile_stat_pages),
                         value = "${stats.pagesRead}",
-                        subtitle = "read",
+                        subtitle = stringResource(R.string.profile_stat_read),
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -406,9 +408,9 @@ fun StatisticsContent(
                     )
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Hours",
+                        title = stringResource(R.string.profile_stat_hours),
                         value = "${stats.hoursRead}",
-                        subtitle = "of reading",
+                        subtitle = stringResource(R.string.profile_stat_of_reading),
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -540,10 +542,10 @@ private fun CircularProgressCard(
             }
             Spacer(Modifier.width(20.dp))
             Column {
-                Text("COMPLETION RATE", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Text(stringResource(R.string.profile_completion_rate), color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(4.dp))
                 Text("$completed of $total books", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("finished", color = subTextColor, fontSize = 12.sp)
+                Text(stringResource(R.string.profile_books_finished), color = subTextColor, fontSize = 12.sp)
             }
         }
     }
@@ -577,10 +579,10 @@ private fun StreakCard(
             }
             Spacer(Modifier.width(16.dp))
             Column {
-                Text("READING STREAK", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Text(stringResource(R.string.profile_reading_streak), color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(4.dp))
-                Text("$streak days", color = textColor, fontSize = 22.sp, fontWeight = FontWeight.Black)
-                Text("Keep it up!", color = subTextColor, fontSize = 12.sp)
+                Text(stringResource(R.string.profile_streak_days, streak), color = textColor, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(stringResource(R.string.profile_streak_message), color = subTextColor, fontSize = 12.sp)
             }
         }
     }
@@ -607,7 +609,7 @@ private fun GenreBreakdownCard(
         color = bgColor
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("GENRE BREAKDOWN", color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_genre_breakdown), color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
             
             genres.forEach { genre ->
@@ -685,13 +687,13 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     }
     
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("HELP & SUPPORT", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Text(stringResource(R.string.profile_help_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(20.dp))
         
         SupportLinkCard(
             icon = Icons.Default.Email,
-            title = "Contact Support",
-            subtitle = "Send us an email",
+            title = stringResource(R.string.profile_contact_support),
+            subtitle = stringResource(R.string.profile_send_email),
             themeMode = themeMode,
             cardBg = cardBg,
             textColor = textColor,
@@ -711,8 +713,8 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
         
         SupportLinkCard(
             icon = Icons.Default.Description,
-            title = "Privacy Policy",
-            subtitle = "Read our privacy policy",
+            title = stringResource(R.string.profile_privacy_policy),
+            subtitle = stringResource(R.string.profile_privacy_desc),
             themeMode = themeMode,
             cardBg = cardBg,
             textColor = textColor,
@@ -722,11 +724,11 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
         
         Spacer(Modifier.height(32.dp))
         
-        Text("ABOUT", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Text(stringResource(R.string.profile_about_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(16.dp))
         
         Text(
-            text = "Free Ebook Bundle is a reader app brought to you by Tara Applications. We are committed to providing you with a seamless reading experience.",
+            text = stringResource(R.string.profile_about_description),
             color = subTextColor,
             fontSize = 13.sp,
             lineHeight = 20.sp
@@ -734,7 +736,7 @@ fun SupportContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
         
         Spacer(Modifier.height(24.dp))
         
-        Text("Version 1.0.0", color = subTextColor, fontSize = 12.sp)
+        Text(stringResource(R.string.profile_version_title) + " 1.0.0", color = subTextColor, fontSize = 12.sp)
     }
     
     if (showPrivacyPolicy) {
@@ -803,7 +805,7 @@ fun LicensesContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
     
     LazyColumn {
         item {
-            Text("OPEN SOURCE LIBRARIES", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_open_source), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
         }
         
@@ -824,26 +826,26 @@ fun LicensesContent(themeMode: AppThemeMode = AppThemeMode.NIGHT) {
         
         item {
             Spacer(Modifier.height(24.dp))
-            Text("PRIVACY", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_privacy_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
-            Text("This app stores all data locally on your device. We do not collect, store, or share any personal information. Your reading history, bookmarks, and preferences remain private.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(stringResource(R.string.profile_privacy_statement), color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
             Spacer(Modifier.height(24.dp))
         }
         
         item {
-            Text("ATTRIBUTION", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_attribution_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
-            Text("Book covers and metadata are provided by OpenLibrary and Google Books APIs. Content descriptions may be sourced from these services or generated based on public domain information.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(stringResource(R.string.profile_attribution_text), color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
             Spacer(Modifier.height(16.dp))
-            Text("All book covers and content are property of their respective authors and publishers. This app does not claim ownership of any copyrighted material.", color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(stringResource(R.string.profile_copyright), color = subTextColor, fontSize = 12.sp, lineHeight = 18.sp)
             Spacer(Modifier.height(24.dp))
         }
         
         item {
-            Text("VERSION", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.profile_version_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
             Text("Ebook Bundle v1.0", color = textColor, fontWeight = FontWeight.Bold)
-            Text("Built with Jetpack Compose", color = subTextColor, fontSize = 12.sp)
+            Text(stringResource(R.string.profile_built_with), color = subTextColor, fontSize = 12.sp)
             Spacer(Modifier.height(48.dp))
         }
     }
@@ -884,10 +886,10 @@ fun SettingsContent(appViewModel: AppViewModel) {
     }
     
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("APPEARANCE", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Text(stringResource(R.string.profile_appearance_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(16.dp))
         
-        Text("Theme", color = textColor, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.profile_theme_label), color = textColor, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         
         Row(
@@ -895,21 +897,21 @@ fun SettingsContent(appViewModel: AppViewModel) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ThemeButton(
-                label = "DAY",
+                label = stringResource(R.string.onboarding_theme_day),
                 icon = Icons.Default.LightMode,
                 isSelected = currentTheme == AppThemeMode.DAY,
                 onClick = { appViewModel.setTheme(AppThemeMode.DAY) },
                 modifier = Modifier.weight(1f)
             )
             ThemeButton(
-                label = "NIGHT",
+                label = stringResource(R.string.onboarding_theme_night),
                 icon = Icons.Default.Nightlight,
                 isSelected = currentTheme == AppThemeMode.NIGHT,
                 onClick = { appViewModel.setTheme(AppThemeMode.NIGHT) },
                 modifier = Modifier.weight(1f)
             )
             ThemeButton(
-                label = "SPACE",
+                label = stringResource(R.string.onboarding_theme_space),
                 icon = Icons.Filled.Star,
                 isSelected = currentTheme == AppThemeMode.SPACE,
                 onClick = { appViewModel.setTheme(AppThemeMode.SPACE) },
@@ -920,7 +922,7 @@ fun SettingsContent(appViewModel: AppViewModel) {
         Spacer(Modifier.height(24.dp))
         
         if (currentTheme == AppThemeMode.SPACE) {
-            Text("Navigation Style", color = textColor, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.profile_nav_style), color = textColor, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             
             Row(
@@ -928,14 +930,14 @@ fun SettingsContent(appViewModel: AppViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 NavStyleButton(
-                    label = "Touch Pad",
+                    label = stringResource(R.string.profile_touch_pad),
                     icon = Icons.Default.TouchApp,
                     isSelected = useSpaceTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(true) },
                     modifier = Modifier.weight(1f)
                 )
                 NavStyleButton(
-                    label = "Classic",
+                    label = stringResource(R.string.profile_classic),
                     icon = Icons.Default.Menu,
                     isSelected = !useSpaceTouchNav,
                     onClick = { appViewModel.setUseSpaceTouchNav(false) },
@@ -945,7 +947,7 @@ fun SettingsContent(appViewModel: AppViewModel) {
             
             Spacer(Modifier.height(8.dp))
             Text(
-                text = if (useSpaceTouchNav) "Floating touch pad navigation" else "Traditional bottom navigation bar",
+                text = if (useSpaceTouchNav) stringResource(R.string.profile_touch_pad_desc) else stringResource(R.string.profile_classic_desc),
                 color = subTextColor,
                 fontSize = 11.sp
             )
@@ -956,17 +958,17 @@ fun SettingsContent(appViewModel: AppViewModel) {
         HorizontalDivider(color = subTextColor.copy(alpha = 0.1f))
         Spacer(Modifier.height(24.dp))
         
-        Text("NOTIFICATIONS", style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Text(stringResource(R.string.profile_notifications_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(16.dp))
-        Text("Push Notifications", color = textColor, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.profile_push_notifications), color = textColor, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Enabled", color = subTextColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.profile_enabled), color = subTextColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Switch(checked = true, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedTrackColor = labelColor))
         }
         Spacer(Modifier.height(16.dp))
-        Text("Download over Wi-Fi only", color = textColor, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.profile_wifi_only), color = textColor, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Disabled", color = subTextColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.profile_disabled), color = subTextColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Switch(checked = false, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedTrackColor = labelColor))
         }
     }
@@ -980,7 +982,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Privacy Policy",
+                stringResource(R.string.profile_privacy_dialog_title),
                 fontWeight = FontWeight.Bold
             )
         },
@@ -990,7 +992,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
             ) {
                 item {
                     Text(
-                        text = "Last updated: March 25, 2026",
+                        text = stringResource(R.string.profile_privacy_last_updated),
                         fontSize = 11.sp,
                         color = colors.textSecondary
                     )
@@ -1119,7 +1121,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(stringResource(R.string.profile_close))
             }
         },
         containerColor = colors.surface,

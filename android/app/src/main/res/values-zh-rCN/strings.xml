@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">eBook Bundle</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_search">搜索</string>
+    <string name="nav_library">书库</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">电子书套装</string>
+    <string name="onboarding_tagline">您的故事宇宙</string>
+    <string name="onboarding_features">功能特点</string>
+    <string name="onboarding_feature_collections">精选图书合集</string>
+    <string name="onboarding_feature_recommendations">个性化推荐</string>
+    <string name="onboarding_feature_statistics">阅读统计</string>
+    <string name="onboarding_feature_themes">白天、夜晚和星空主题</string>
+    <string name="onboarding_sync_title">同步</string>
+    <string name="onboarding_sync_complete">书库已同步！</string>
+    <string name="onboarding_sync_up_to_date">您的书库已是最新版本</string>
+    <string name="onboarding_sync_loading">正在同步书库…</string>
+    <string name="onboarding_sync_background">同步正在后台运行</string>
+    <string name="onboarding_sync_continue">您可以继续探索应用！</string>
+    <string name="onboarding_sync_failed">同步失败</string>
+    <string name="onboarding_sync_ready">准备同步</string>
+    <string name="onboarding_sync_tap">点击与服务器同步您的书库</string>
+    <string name="onboarding_customize_title">自定义您的体验</string>
+    <string name="onboarding_name_placeholder">我们该怎么称呼您？</string>
+    <string name="onboarding_theme_label">选择您的主题</string>
+    <string name="onboarding_theme_day">白天</string>
+    <string name="onboarding_theme_night">夜晚</string>
+    <string name="onboarding_theme_space">星空</string>
+    <string name="onboarding_btn_continue">继续</string>
+    <string name="onboarding_btn_syncing">同步中…</string>
+    <string name="onboarding_btn_retry">重试</string>
+    <string name="onboarding_btn_get_started">开始使用</string>
+    <string name="onboarding_sync_complete_desc">同步完成</string>
+    <string name="onboarding_sync_desc">正在同步</string>
+    <string name="onboarding_sync_error_desc">同步错误</string>
+    <string name="onboarding_sync_start_desc">开始同步</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">继续阅读</string>
+    <string name="home_curated_for_you">为您精选</string>
+    <string name="home_read_now">立即阅读</string>
+    <string name="home_more_info">更多信息</string>
+    <string name="home_toggle_theme">切换主题</string>
+    <string name="greeting_morning">早上好</string>
+    <string name="greeting_afternoon">下午好</string>
+    <string name="greeting_evening">晚上好</string>
+    <string name="greeting_night">晚安</string>
+    <string name="greeting_punchline_quiet">此刻世界安静了</string>
+    <string name="greeting_punchline_midnight">是时候来点午夜阅读了</string>
+    <string name="greeting_punchline_sleep">在他人熟睡时探索书海</string>
+    <string name="greeting_punchline_early">用故事开始您的一天</string>
+    <string name="greeting_punchline_morning_await">清晨阅读在等着您</string>
+    <string name="greeting_punchline_rise">起床阅读吧！</string>
+    <string name="greeting_punchline_adventure">准备好新的冒险了吗？</string>
+    <string name="greeting_punchline_discover">今天您会发现什么？</string>
+    <string name="greeting_punchline_dive">是时候沉浸在一本新书中了</string>
+    <string name="greeting_punchline_lunch">午休阅读时间？</string>
+    <string name="greeting_punchline_afternoon_escape">下午的阅读时光等着您</string>
+    <string name="greeting_punchline_break">来一段阅读休息吧</string>
+    <string name="greeting_punchline_momentum">保持阅读的势头</string>
+    <string name="greeting_punchline_storytime">故事时间随时可开始</string>
+    <string name="greeting_punchline_chapter">您会读到哪一章？</string>
+    <string name="greeting_punchline_unwind">用一本好书放松身心</string>
+    <string name="greeting_punchline_evening">晚间阅读时光</string>
+    <string name="greeting_punchline_perfect">现在是读故事的最佳时机</string>
+    <string name="greeting_punchline_cozy">蜷缩在书中享受阅读</string>
+    <string name="greeting_punchline_nighttime">夜间阅读时光等着您</string>
+    <string name="greeting_punchline_transport">让故事带您穿梭时空</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">探索</string>
+    <string name="search_placeholder">搜索60,000+图书…</string>
+    <string name="search_clear">清除</string>
+    <string name="search_curated_genre">精选类型</string>
+    <string name="search_explore_all">探索全部图书</string>
+    <string name="search_authors">作者</string>
+    <string name="search_authors_placeholder">搜索作者…</string>
+    <string name="search_close">关闭</string>
+    <string name="search_see_all">查看全部</string>
+    <string name="category_fiction">小说</string>
+    <string name="category_history">美洲历史</string>
+    <string name="category_science">科学</string>
+    <string name="category_romance">言情</string>
+    <string name="category_fantasy">奇幻</string>
+    <string name="category_mystery">悬疑</string>
+    <string name="category_biography">传记</string>
+    <string name="category_adventure">冒险</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">我的收藏</string>
+    <string name="library_profile">个人资料</string>
+    <string name="library_authors">作者</string>
+    <string name="library_currently_reading">正在阅读</string>
+    <string name="library_finished">已完成</string>
+    <string name="library_want_to_read">想读</string>
+    <string name="library_finished_collection">已完成书单</string>
+    <string name="library_wishlist">心愿单</string>
+    <string name="library_see_all">查看全部</string>
+    <string name="library_continue_reading">继续阅读</string>
+    <string name="library_tap_to_return">点击任意处返回</string>
+    <string name="library_back">返回</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">个人资料</string>
+    <string name="profile_back">返回</string>
+    <string name="profile_toggle_theme">切换主题</string>
+    <string name="profile_level">书虫一级</string>
+    <string name="profile_reading_statistics">阅读统计</string>
+    <string name="profile_settings">设置</string>
+    <string name="profile_help_support">帮助与支持</string>
+    <string name="profile_licenses">许可证与致谢</string>
+    <string name="profile_reading_journey">您的阅读之旅</string>
+    <string name="profile_stat_books">图书</string>
+    <string name="profile_stat_completed">已完成</string>
+    <string name="profile_stat_reading">阅读中</string>
+    <string name="profile_stat_in_progress">进行中</string>
+    <string name="profile_stat_pages">页数</string>
+    <string name="profile_stat_read">已读</string>
+    <string name="profile_stat_hours">小时</string>
+    <string name="profile_stat_of_reading">阅读时长</string>
+    <string name="profile_completion_rate">完成率</string>
+    <string name="profile_books_finished">已完成</string>
+    <string name="profile_reading_streak">连续阅读</string>
+    <string name="profile_streak_days">%d 天</string>
+    <string name="profile_streak_message">继续保持！</string>
+    <string name="profile_genre_breakdown">类型分布</string>
+    <string name="profile_help_title">帮助与支持</string>
+    <string name="profile_contact_support">联系客服</string>
+    <string name="profile_send_email">给我们发送邮件</string>
+    <string name="profile_privacy_policy">隐私政策</string>
+    <string name="profile_privacy_desc">阅读我们的隐私政策</string>
+    <string name="profile_about_title">关于</string>
+    <string name="profile_about_description">免费电子书套装是一款阅读器应用，旨在为您提供最好的免费文学作品。</string>
+    <string name="profile_open_source">开源库</string>
+    <string name="profile_privacy_title">隐私</string>
+    <string name="profile_privacy_statement">此应用将所有数据存储在您的设备本地。</string>
+    <string name="profile_attribution_title">归属</string>
+    <string name="profile_attribution_text">图书封面和元数据由Open Library提供。</string>
+    <string name="profile_copyright">所有图书封面和内容均为其各自所有者所有。</string>
+    <string name="profile_version_title">版本</string>
+    <string name="profile_built_with">使用Jetpack Compose构建</string>
+    <string name="profile_appearance_title">外观</string>
+    <string name="profile_theme_label">主题</string>
+    <string name="profile_nav_style">导航样式</string>
+    <string name="profile_touch_pad">触控板</string>
+    <string name="profile_classic">经典</string>
+    <string name="profile_touch_pad_desc">悬浮触控板导航</string>
+    <string name="profile_classic_desc">传统底部导航栏</string>
+    <string name="profile_notifications_title">通知</string>
+    <string name="profile_push_notifications">推送通知</string>
+    <string name="profile_enabled">已启用</string>
+    <string name="profile_wifi_only">仅在Wi-Fi下下载</string>
+    <string name="profile_disabled">已禁用</string>
+    <string name="profile_privacy_dialog_title">隐私政策</string>
+    <string name="profile_privacy_last_updated">最后更新：2026年3月25日</string>
+    <string name="profile_close">关闭</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">正在播放</string>
+    <string name="audio_close">关闭</string>
+    <string name="audio_chapters">章节</string>
+    <string name="audio_settings">设置</string>
+    <string name="audio_bookmarks">书签</string>
+    <string name="audio_jump_chapter">跳转到章节</string>
+    <string name="audio_quick_settings">快速设置</string>
+    <string name="audio_reading_settings">阅读设置</string>
+    <string name="audio_settings_desc">主题、字体大小、滚动模式</string>
+    <string name="audio_empty_state">开始阅读以查看当前文本…</string>
+    <string name="audio_voice">语音</string>
+    <string name="audio_skip_back">后退</string>
+    <string name="audio_skip_forward">前进</string>
+    <string name="audio_pause">暂停</string>
+    <string name="audio_play">播放</string>
+    <string name="audio_current">当前</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">下一章 →</string>
+    <string name="reader_finish">结束</string>
+    <string name="reader_select_text">请先选择文本</string>
+    <string name="reader_no_text">此页未找到可阅读的文本。</string>
+    <string name="reader_unknown_author">未知作者</string>
+    <string name="reader_unknown_book">未知图书</string>
+    <string name="reader_search_title">搜索图书</string>
+    <string name="reader_search_placeholder">搜索…</string>
+    <string name="reader_search_action">搜索</string>
+    <string name="reader_cancel">取消</string>
+    <string name="reader_close">关闭</string>
+    <string name="reader_highlight_title">高亮</string>
+    <string name="reader_add_note">添加笔记</string>
+    <string name="reader_lookup">查询</string>
+    <string name="reader_note_placeholder">笔记…</string>
+    <string name="reader_save">保存</string>
+    <string name="reader_no_bookmarks">暂无书签</string>
+    <string name="reader_bookmark_deleted">书签已删除</string>
+    <string name="reader_bookmark_error">加载书签出错</string>
+    <string name="reader_no_highlights">暂无高亮</string>
+    <string name="reader_highlight_deleted">高亮已删除</string>
+    <string name="reader_highlight_error">加载高亮出错</string>
+    <string name="reader_reading_settings_title">阅读设置</string>
+    <string name="reader_theme_label">主题</string>
+    <string name="reader_font_size">字体大小：%d%%</string>
+    <string name="reader_vertical_scroll">垂直滚动</string>
+    <string name="reader_scroll_desc">始终启用，流畅阅读</string>
+    <string name="reader_enabled">已启用</string>
+    <string name="reader_chapters_count">%1$d 章</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">应用图标</string>
+    <string name="cd_profile">个人资料</string>
+    <string name="cd_see_all">查看全部</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">阅读中</string>
+    <string name="book_detail_finished">已完成</string>
+    <string name="book_detail_wishlist">愿望单</string>
+    <string name="book_detail_add_to_list">添加到列表</string>
+    <string name="book_detail_collections">属于这些系列</string>
+    <string name="book_detail_about">关于本书</string>
+    <string name="book_detail_currently_reading">正在阅读</string>
+    <string name="book_detail_completed">已完成</string>
+    <string name="book_detail_want_to_read">想读</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">切换语言</string>
+    <string name="debug_select_language">选择语言</string>
+    <string name="debug_system_default">系统默认</string>
+    <string name="debug_restart_required">重启应用以应用更改</string>
+    <string name="debug_restart_now">立即重启</string>
+    <string name="debug_later">稍后</string>
+</resources>

@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">eBook Bundle</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ACCUEIL</string>
+    <string name="nav_search">RECHERCHER</string>
+    <string name="nav_library">BIBLIOTHÈQUE</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">E-BOOK BUNDLE</string>
+    <string name="onboarding_tagline">Votre Univers de Récits</string>
+    <string name="onboarding_features">FONCTIONNALITÉS</string>
+    <string name="onboarding_feature_collections">Collections de Livres Soignées</string>
+    <string name="onboarding_feature_recommendations">Recommandations Personnalisées</string>
+    <string name="onboarding_feature_statistics">Statistiques de Lecture</string>
+    <string name="onboarding_feature_themes">Thèmes Jour, Nuit et Espace</string>
+    <string name="onboarding_sync_title">SYNCHRONISATION</string>
+    <string name="onboarding_sync_complete">Bibliothèque Synchronisée !</string>
+    <string name="onboarding_sync_up_to_date">Votre bibliothèque est à jour avec le serveur</string>
+    <string name="onboarding_sync_loading">Synchronisation en cours…</string>
+    <string name="onboarding_sync_background">La synchronisation s\'exécute en arrière-plan</string>
+    <string name="onboarding_sync_continue">Vous pouvez continuer à explorer l\'application !</string>
+    <string name="onboarding_sync_failed">Échec de la Synchronisation</string>
+    <string name="onboarding_sync_ready">Prêt à Synchroniser</string>
+    <string name="onboarding_sync_tap">Appuyez pour synchroniser votre bibliothèque avec le serveur</string>
+    <string name="onboarding_customize_title">PERSONNALISEZ VOTRE EXPÉRIENCE</string>
+    <string name="onboarding_name_placeholder">Comment devrions-nous vous appeler ?</string>
+    <string name="onboarding_theme_label">Choisissez Votre Thème</string>
+    <string name="onboarding_theme_day">Jour</string>
+    <string name="onboarding_theme_night">Nuit</string>
+    <string name="onboarding_theme_space">Espace</string>
+    <string name="onboarding_btn_continue">CONTINUER</string>
+    <string name="onboarding_btn_syncing">SYNCHRONISATION…</string>
+    <string name="onboarding_btn_retry">RÉESSAYER</string>
+    <string name="onboarding_btn_get_started">COMMENCER</string>
+    <string name="onboarding_sync_complete_desc">Synchronisation Terminée</string>
+    <string name="onboarding_sync_desc">Synchronisation</string>
+    <string name="onboarding_sync_error_desc">Erreur de Synchronisation</string>
+    <string name="onboarding_sync_start_desc">Démarrer la Synchronisation</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">Continuer la Lecture</string>
+    <string name="home_curated_for_you">Sélectionné Pour Vous</string>
+    <string name="home_read_now">LIRE MAINTENANT</string>
+    <string name="home_more_info">PLUS D\'INFOS</string>
+    <string name="home_toggle_theme">Changer de Thème</string>
+    <string name="greeting_morning">Bonjour</string>
+    <string name="greeting_afternoon">Bon après-midi</string>
+    <string name="greeting_evening">Bonsoir</string>
+    <string name="greeting_night">Bonne nuit</string>
+    <string name="greeting_punchline_quiet">Le monde est silencieux maintenant</string>
+    <string name="greeting_punchline_midnight">L\'heure de la lecture de minuit</string>
+    <string name="greeting_punchline_sleep">Explorez des mondes pendant que les autres dorment</string>
+    <string name="greeting_punchline_early">Commencez votre journée par une histoire</string>
+    <string name="greeting_punchline_morning_await">Des lectures matinales vous attendent</string>
+    <string name="greeting_punchline_rise">Lisez et brillez !</string>
+    <string name="greeting_punchline_adventure">Prêt pour une nouvelle aventure ?</string>
+    <string name="greeting_punchline_discover">Qu\'allons-vous découvrir aujourd\'hui ?</string>
+    <string name="greeting_punchline_dive">Il est temps de vous immerger dans un nouveau livre</string>
+    <string name="greeting_punchline_lunch">Une pause déjeuner pour lire ?</string>
+    <string name="greeting_punchline_afternoon_escape">L\'évasion de l\'après-midi vous attend</string>
+    <string name="greeting_punchline_break">Faites une pause lecture</string>
+    <string name="greeting_punchline_momentum">Gardez la dynamique</string>
+    <string name="greeting_punchline_storytime">L\'heure du conte est toujours</string>
+    <string name="greeting_punchline_chapter">Quel chapitre atteindrez-vous ?</string>
+    <string name="greeting_punchline_unwind">Détendez-vous avec un bon livre</string>
+    <string name="greeting_punchline_evening">Session de lecture du soir</string>
+    <string name="greeting_punchline_perfect">Moment idéal pour des histoires</string>
+    <string name="greeting_punchline_cozy">Blottissez-vous avec un livre</string>
+    <string name="greeting_punchline_nighttime">La lecture nocturne vous attend</string>
+    <string name="greeting_punchline_transport">Laissez les histoires vous transporter</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">EXPLORER</string>
+    <string name="search_placeholder">Rechercher 60 000+ livres…</string>
+    <string name="search_clear">Effacer</string>
+    <string name="search_curated_genre">GENRE SÉLECTIONNÉ</string>
+    <string name="search_explore_all">EXPLORER TOUS LES LIVRES</string>
+    <string name="search_authors">AUTEURS</string>
+    <string name="search_authors_placeholder">Rechercher des auteurs…</string>
+    <string name="search_close">Fermer</string>
+    <string name="search_see_all">TOUT VOIR</string>
+    <string name="category_fiction">Fiction</string>
+    <string name="category_history">Histoire des Amériques</string>
+    <string name="category_science">Science</string>
+    <string name="category_romance">Romance</string>
+    <string name="category_fantasy">Fantaisie</string>
+    <string name="category_mystery">Mystère</string>
+    <string name="category_biography">Biographie</string>
+    <string name="category_adventure">Aventure</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">Ma Collection</string>
+    <string name="library_profile">Profil</string>
+    <string name="library_authors">Auteurs</string>
+    <string name="library_currently_reading">En Cours de Lecture</string>
+    <string name="library_finished">Terminé</string>
+    <string name="library_want_to_read">À Lire</string>
+    <string name="library_finished_collection">Collection Terminée</string>
+    <string name="library_wishlist">Liste de Souhaits</string>
+    <string name="library_see_all">Tout Voir</string>
+    <string name="library_continue_reading">CONTINUER LA LECTURE</string>
+    <string name="library_tap_to_return">APPUYEZ N\'IMPORTE OÙ POUR REVenir</string>
+    <string name="library_back">Retour</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">PROFIL</string>
+    <string name="profile_back">Retour</string>
+    <string name="profile_toggle_theme">Changer de Thème</string>
+    <string name="profile_level">Niveau Bibliophile 1</string>
+    <string name="profile_reading_statistics">Statistiques de Lecture</string>
+    <string name="profile_settings">Paramètres</string>
+    <string name="profile_help_support">Aide et Support</string>
+    <string name="profile_licenses">Licences et Remerciements</string>
+    <string name="profile_reading_journey">VOTRE PARCOURS DE LECTURE</string>
+    <string name="profile_stat_books">Livres</string>
+    <string name="profile_stat_completed">terminés</string>
+    <string name="profile_stat_reading">Lecture</string>
+    <string name="profile_stat_in_progress">en cours</string>
+    <string name="profile_stat_pages">Pages</string>
+    <string name="profile_stat_read">lues</string>
+    <string name="profile_stat_hours">Heures</string>
+    <string name="profile_stat_of_reading">de lecture</string>
+    <string name="profile_completion_rate">TAUX D\'ACHÈVEMENT</string>
+    <string name="profile_books_finished">terminés</string>
+    <string name="profile_reading_streak">SÉRIE DE LECTURE</string>
+    <string name="profile_streak_days">%d jours</string>
+    <string name="profile_streak_message">Continuez ainsi !</string>
+    <string name="profile_genre_breakdown">RÉPARTITION PAR GENRE</string>
+    <string name="profile_help_title">AIDE ET SUPPORT</string>
+    <string name="profile_contact_support">Contacter le Support</string>
+    <string name="profile_send_email">Envoyez-nous un email</string>
+    <string name="profile_privacy_policy">Politique de Confidentialité</string>
+    <string name="profile_privacy_desc">Lisez notre politique de confidentialité</string>
+    <string name="profile_about_title">À PROPOS</string>
+    <string name="profile_about_description">eBook Bundle est une application de lecture conçue pour vous offrir le meilleur de la littérature gratuite.</string>
+    <string name="profile_open_source">BIBLIOTHÈQUES OPEN SOURCE</string>
+    <string name="profile_privacy_title">Confidentialité</string>
+    <string name="profile_privacy_statement">Cette application stocke toutes les données localement sur votre appareil.</string>
+    <string name="profile_attribution_title">ATTRIBUTION</string>
+    <string name="profile_attribution_text">Les couvertures de livres et les métadonnées sont fournies par Open Library.</string>
+    <string name="profile_copyright">Toutes les couvertures de livres et le contenu sont la propriété de leurs détenteurs respectifs.</string>
+    <string name="profile_version_title">VERSION</string>
+    <string name="profile_built_with">Développé avec Jetpack Compose</string>
+    <string name="profile_appearance_title">APPARENCE</string>
+    <string name="profile_theme_label">Thème</string>
+    <string name="profile_nav_style">Style de Navigation</string>
+    <string name="profile_touch_pad">Pavé Tactile</string>
+    <string name="profile_classic">Classique</string>
+    <string name="profile_touch_pad_desc">Navigation par pavé tactile flottant</string>
+    <string name="profile_classic_desc">Barre de navigation classique en bas</string>
+    <string name="profile_notifications_title">NOTIFICATIONS</string>
+    <string name="profile_push_notifications">Notifications Push</string>
+    <string name="profile_enabled">Activé</string>
+    <string name="profile_wifi_only">Télécharger uniquement en Wi-Fi</string>
+    <string name="profile_disabled">Désactivé</string>
+    <string name="profile_privacy_dialog_title">Politique de Confidentialité</string>
+    <string name="profile_privacy_last_updated">Dernière mise à jour : 25 mars 2026</string>
+    <string name="profile_close">Fermer</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">EN LECTURE</string>
+    <string name="audio_close">Fermer</string>
+    <string name="audio_chapters">Chapitres</string>
+    <string name="audio_settings">Paramètres</string>
+    <string name="audio_bookmarks">Signets</string>
+    <string name="audio_jump_chapter">Aller au Chapitre</string>
+    <string name="audio_quick_settings">Raccourcis</string>
+    <string name="audio_reading_settings">Paramètres de Lecture</string>
+    <string name="audio_settings_desc">Thème, taille de police, mode de défilement</string>
+    <string name="audio_empty_state">Commencez à lire pour voir le texte actuel…</string>
+    <string name="audio_voice">Voix</string>
+    <string name="audio_skip_back">Reculer</string>
+    <string name="audio_skip_forward">Avancer</string>
+    <string name="audio_pause">Pause</string>
+    <string name="audio_play">Lecture</string>
+    <string name="audio_current">Actuel</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">Chapitre Suivant →</string>
+    <string name="reader_finish">Terminer</string>
+    <string name="reader_select_text">Sélectionnez d\'abord le texte</string>
+    <string name="reader_no_text">Aucun texte trouvé à lire sur cette page.</string>
+    <string name="reader_unknown_author">Auteur Inconnu</string>
+    <string name="reader_unknown_book">Livre Inconnu</string>
+    <string name="reader_search_title">Rechercher un Livre</string>
+    <string name="reader_search_placeholder">Rechercher…</string>
+    <string name="reader_search_action">Rechercher</string>
+    <string name="reader_cancel">Annuler</string>
+    <string name="reader_close">Fermer</string>
+    <string name="reader_highlight_title">Surlignage</string>
+    <string name="reader_add_note">Ajouter une Note</string>
+    <string name="reader_lookup">Définition</string>
+    <string name="reader_note_placeholder">Note…</string>
+    <string name="reader_save">Enregistrer</string>
+    <string name="reader_no_bookmarks">Aucun signet pour le moment</string>
+    <string name="reader_bookmark_deleted">Signet supprimé</string>
+    <string name="reader_bookmark_error">Erreur lors du chargement du signet</string>
+    <string name="reader_no_highlights">Aucun surlignage pour le moment</string>
+    <string name="reader_highlight_deleted">Surlignage supprimé</string>
+    <string name="reader_highlight_error">Erreur lors du chargement du surlignage</string>
+    <string name="reader_reading_settings_title">Paramètres de Lecture</string>
+    <string name="reader_theme_label">Thème</string>
+    <string name="reader_font_size">Taille de Police : %d%%</string>
+    <string name="reader_vertical_scroll">Défilement Vertical</string>
+    <string name="reader_scroll_desc">Toujours activé pour une lecture fluide</string>
+    <string name="reader_enabled">Activé</string>
+    <string name="reader_chapters_count">%1$d chapitres</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">Icône de l\'Application</string>
+    <string name="cd_profile">Profil</string>
+    <string name="cd_see_all">Tout Voir</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">LECTURE</string>
+    <string name="book_detail_finished">TERMINÉ</string>
+    <string name="book_detail_wishlist">LISTE</string>
+    <string name="book_detail_add_to_list">AJOUTER À LA LISTE</string>
+    <string name="book_detail_collections">Collections Associées</string>
+    <string name="book_detail_about">À Propos de ce Livre</string>
+    <string name="book_detail_currently_reading">En Cours de Lecture</string>
+    <string name="book_detail_completed">Terminé</string>
+    <string name="book_detail_want_to_read">À Lire</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">Changer de Langue</string>
+    <string name="debug_select_language">Sélectionner la Langue</string>
+    <string name="debug_system_default">Valeur par Défaut du Système</string>
+    <string name="debug_restart_required">Redémarrer l\'app pour appliquer</string>
+    <string name="debug_restart_now">Redémarrer</string>
+    <string name="debug_later">Plus Tard</string>
+</resources>

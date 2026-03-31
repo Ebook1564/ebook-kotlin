@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">حزمة الكتب الإلكترونية</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_search">البحث</string>
+    <string name="nav_library">المكتبة</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">حزمة الكتب الإلكترونية</string>
+    <string name="onboarding_tagline">عالمك من القصص</string>
+    <string name="onboarding_features">المميزات</string>
+    <string name="onboarding_feature_collections">مجموعات كتب منتقاة</string>
+    <string name="onboarding_feature_recommendations">توصيات مخصصة</string>
+    <string name="onboarding_feature_statistics">إحصائيات القراءة</string>
+    <string name="onboarding_feature_themes">سمات النهار والليل والفضاء</string>
+    <string name="onboarding_sync_title">المزامنة</string>
+    <string name="onboarding_sync_complete">تمت مزامنة المكتبة!</string>
+    <string name="onboarding_sync_up_to_date">مكتبتك محدثة مع الخادم</string>
+    <string name="onboarding_sync_loading">جاري مزامنة المكتبة…</string>
+    <string name="onboarding_sync_background">المزامنة تعمل في الخلفية</string>
+    <string name="onboarding_sync_continue">يمكنك متابعة استكشاف التطبيق!</string>
+    <string name="onboarding_sync_failed">فشلت المزامنة</string>
+    <string name="onboarding_sync_ready">جاهز للمزامنة</string>
+    <string name="onboarding_sync_tap">انقر لمزامنة مكتبتك مع الخادم</string>
+    <string name="onboarding_customize_title">خصص تجربتك</string>
+    <string name="onboarding_name_placeholder">ما الذي يجب أن نُسميك؟</string>
+    <string name="onboarding_theme_label">اختر سمتك</string>
+    <string name="onboarding_theme_day">النهار</string>
+    <string name="onboarding_theme_night">الليل</string>
+    <string name="onboarding_theme_space">الفضاء</string>
+    <string name="onboarding_btn_continue">متابعة</string>
+    <string name="onboarding_btn_syncing">جاري المزامنة…</string>
+    <string name="onboarding_btn_retry">إعادة المحاولة</string>
+    <string name="onboarding_btn_get_started">ابدأ الآن</string>
+    <string name="onboarding_sync_complete_desc">اكتملت المزامنة</string>
+    <string name="onboarding_sync_desc">جاري المزامنة</string>
+    <string name="onboarding_sync_error_desc">خطأ في المزامنة</string>
+    <string name="onboarding_sync_start_desc">بدء المزامنة</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">متابعة القراءة</string>
+    <string name="home_curated_for_you">منتقاة لك</string>
+    <string name="home_read_now">اقرأ الآن</string>
+    <string name="home_more_info">المزيد</string>
+    <string name="home_toggle_theme">تبديل السمة</string>
+    <string name="greeting_morning">صباح الخير</string>
+    <string name="greeting_afternoon">مساء الخير</string>
+    <string name="greeting_evening">مساء الخير</string>
+    <string name="greeting_night">تصبح على خير</string>
+    <string name="greeting_punchline_quiet">العالم هادئ الآن</string>
+    <string name="greeting_punchline_midnight">وقت القراءة في منتصف الليل</string>
+    <string name="greeting_punchline_sleep">استكشف عوالم بينما الآخرون نائمون</string>
+    <string name="greeting_punchline_early">ابدأ يومك بقصة</string>
+    <string name="greeting_punchline_morning_await">قراءات الصباح في انتظارك</string>
+    <string name="greeting_punchline_rise">قم واقرأ!</string>
+    <string name="greeting_punchline_adventure">مستعد لمغامرة جديدة؟</string>
+    <string name="greeting_punchline_discover">ماذا ستكتشف اليوم؟</string>
+    <string name="greeting_punchline_dive">حان الوقت للغوص في كتاب جديد</string>
+    <string name="greeting_punchline_lunch">استراحة غداء للقراءة؟</string>
+    <string name="greeting_punchline_afternoon_escape">هرب الظهيرة في انتظارك</string>
+    <string name="greeting_punchline_break">خذ استراحة قراءة</string>
+    <string name="greeting_punchline_momentum">حافظ على الزخم</string>
+    <string name="greeting_punchline_storytime">وقت القصة في أي وقت</string>
+    <string name="greeting_punchline_chapter">أي فصل ستصل إليه؟</string>
+    <string name="greeting_punchline_unwind">استرخِ مع كتاب جيد</string>
+    <string name="greeting_punchline_evening">جلسة قراءة مسائية</string>
+    <string name="greeting_punchline_perfect">وقت مثالي للحكايات</string>
+    <string name="greeting_punchline_cozy">تدثر مع كتاب</string>
+    <string name="greeting_punchline_nighttime">القراءة الليلية في انتظارك</string>
+    <string name="greeting_punchline_transport">دع القصص تنقلك</string>
+    <!-- Punchlines for HomeScreen -->
+    <string name="punchline_quiet_world">العالم هادئ الآن</string>
+    <string name="punchline_midnight_reading">وقت القراءة في منتصف الليل</string>
+    <string name="punchline_explore_worlds">استكشف عوالم بينما الآخرون نائمون</string>
+    <string name="punchline_morning_story">ابدأ يومك بقصة</string>
+    <string name="punchline_morning_reads">قراءات الصباح في انتظارك</string>
+    <string name="punchline_rise_read">قم واقرأ!</string>
+    <string name="punchline_new_adventure">مستعد لمغامرة جديدة؟</string>
+    <string name="punchline_discover">ماذا ستكتشف اليوم؟</string>
+    <string name="punchline_dive_book">حان الوقت للغوص في كتاب جديد</string>
+    <string name="punchline_lunch_reading">استراحة غداء للقراءة؟</string>
+    <string name="punchline_afternoon_escape">هرب الظهيرة في انتظارك</string>
+    <string name="punchline_reading_break">خذ استراحة قراءة</string>
+    <string name="punchline_momentum">حافظ على الزخم</string>
+    <string name="punchline_story_time">وقت القصة في أي وقت</string>
+    <string name="punchline_chapter">أي فصل ستصل إليه؟</string>
+    <string name="punchline_unwind">استرخِ مع كتاب جيد</string>
+    <string name="punchline_evening">جلسة قراءة مسائية</string>
+    <string name="punchline_perfect_stories">وقت مثالي للحكايات</string>
+    <string name="punchline_cozy">تدثر مع كتاب</string>
+    <string name="punchline_nighttime">القراءة الليلية في انتظارك</string>
+    <string name="punchline_transport">دع القصص تنقلك</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">استكشف</string>
+    <string name="search_placeholder">ابحث في أكثر من 60,000 كتاب…</string>
+    <string name="search_clear">مسح</string>
+    <string name="search_curated_genre">نوع منقح</string>
+    <string name="search_explore_all">استكشف جميع الكتب</string>
+    <string name="search_authors">المؤلفون</string>
+    <string name="search_authors_placeholder">ابحث عن المؤلفين…</string>
+    <string name="search_close">إغلاق</string>
+    <string name="search_see_all">عرض الكل</string>
+    <string name="category_fiction">الروايات</string>
+    <string name="category_history">تاريخ أمريكا</string>
+    <string name="category_science">العلوم</string>
+    <string name="category_romance">الرومانسية</string>
+    <string name="category_fantasy">الخيال</string>
+    <string name="category_mystery">الغموض</string>
+    <string name="category_biography">السيرة الذاتية</string>
+    <string name="category_adventure">المغامرة</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">مجموعتي</string>
+    <string name="library_profile">الملف الشخصي</string>
+    <string name="library_authors">المؤلفون</string>
+    <string name="library_currently_reading">أقرأ حاليًا</string>
+    <string name="library_finished">مكتمل</string>
+    <string name="library_want_to_read">أريد أن أقرأ</string>
+    <string name="library_finished_collection">مجموعة مكتملة</string>
+    <string name="library_wishlist">قائمة الأمنيات</string>
+    <string name="library_see_all">عرض الكل</string>
+    <string name="library_continue_reading">متابعة القراءة</string>
+    <string name="library_tap_to_return">انقر في أي مكان للعودة</string>
+    <string name="library_back">رجوع</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">الملف الشخصي</string>
+    <string name="profile_back">رجوع</string>
+    <string name="profile_toggle_theme">تبديل السمة</string>
+    <string name="profile_level">مستوى محبي الكتب 1</string>
+    <string name="profile_reading_statistics">إحصائيات القراءة</string>
+    <string name="profile_settings">الإعدادات</string>
+    <string name="profile_help_support">المساعدة والدعم</string>
+    <string name="profile_licenses">التراخيص والشكر</string>
+    <string name="profile_reading_journey">رحلة القراءة</string>
+    <string name="profile_stat_books">كتب</string>
+    <string name="profile_stat_completed">مكتمل</string>
+    <string name="profile_stat_reading">قراءة</string>
+    <string name="profile_stat_in_progress">قيد التنفيذ</string>
+    <string name="profile_stat_pages">صفحات</string>
+    <string name="profile_stat_read">مقروء</string>
+    <string name="profile_stat_hours">ساعات</string>
+    <string name="profile_stat_of_reading">من القراءة</string>
+    <string name="profile_completion_rate">معدل الإكمال</string>
+    <string name="profile_books_finished">مكتمل</string>
+    <string name="profile_reading_streak">سلسلة القراءة</string>
+    <string name="profile_streak_days">%d أيام</string>
+    <string name="profile_streak_message">استمر!</string>
+    <string name="profile_genre_breakdown">توزيع الأنواع</string>
+    <string name="profile_help_title">المساعدة والدعم</string>
+    <string name="profile_contact_support">تواصل مع الدعم</string>
+    <string name="profile_send_email">أرسل لنا بريدًا إلكترونيًا</string>
+    <string name="profile_privacy_policy">سياسة الخصوصية</string>
+    <string name="profile_privacy_desc">اقرأ سياسة الخصوصية الخاصة بنا</string>
+    <string name="profile_about_title">حول</string>
+    <string name="profile_about_description">حزمة الكتب الإلكترونية هي تطبيق قراءة مصمم لجلب لك أفضل الأدب المجاني.</string>
+    <string name="profile_open_source">مكتبات مفتوحة المصدر</string>
+    <string name="profile_privacy_title">الخصوصية</string>
+    <string name="profile_privacy_statement">هذا التطبيق يخزن جميع البيانات محليًا على جهازك.</string>
+    <string name="profile_attribution_title">الإسناد</string>
+    <string name="profile_attribution_text">تقدم أغلفة الكتب والبيانات الوصفية بواسطة Open Library.</string>
+    <string name="profile_copyright">جميع أغلفة الكتب والمحتوى ملك لأصحابها.</string>
+    <string name="profile_version_title">الإصدار</string>
+    <string name="profile_built_with">صُنع باستخدام Jetpack Compose</string>
+    <string name="profile_appearance_title">المظهر</string>
+    <string name="profile_theme_label">السمة</string>
+    <string name="profile_nav_style">نمط التنقل</string>
+    <string name="profile_touch_pad">لوحة اللمس</string>
+    <string name="profile_classic">كلاسيكي</string>
+    <string name="profile_touch_pad_desc">تنقل بلوحة لمس عائمة</string>
+    <string name="profile_classic_desc">شريط تنقل سفلي تقليدي</string>
+    <string name="profile_notifications_title">الإشعارات</string>
+    <string name="profile_push_notifications">إشعارات الدفع</string>
+    <string name="profile_enabled">مُفعّل</string>
+    <string name="profile_wifi_only">التحميل عبر Wi-Fi فقط</string>
+    <string name="profile_disabled">مُعطّل</string>
+    <string name="profile_privacy_dialog_title">سياسة الخصوصية</string>
+    <string name="profile_privacy_last_updated">آخر تحديث: 25 مارس 2026</string>
+    <string name="profile_close">إغلاق</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">قيد التشغيل</string>
+    <string name="audio_close">إغلاق</string>
+    <string name="audio_chapters">الفصول</string>
+    <string name="audio_settings">الإعدادات</string>
+    <string name="audio_bookmarks">الإشارات المرجعية</string>
+    <string name="audio_jump_chapter">انتقل إلى الفصل</string>
+    <string name="audio_quick_settings">إعدادات سريعة</string>
+    <string name="audio_reading_settings">إعدادات القراءة</string>
+    <string name="audio_settings_desc">السمة، حجم الخط، وضع التمرير</string>
+    <string name="audio_empty_state">ابدأ القراءة لرؤية النص الحالي…</string>
+    <string name="audio_voice">الصوت</string>
+    <string name="audio_skip_back">تراجع</string>
+    <string name="audio_skip_forward">تقديم</string>
+    <string name="audio_pause">إيقاف مؤقت</string>
+    <string name="audio_play">تشغيل</string>
+    <string name="audio_current">الحالي</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">الفصل التالي ←</string>
+    <string name="reader_finish">إنهاء</string>
+    <string name="reader_select_text">حدد النص أولاً</string>
+    <string name="reader_no_text">لم يتم العثور على نص للقراءة في هذه الصفحة.</string>
+    <string name="reader_unknown_author">مؤلف غير معروف</string>
+    <string name="reader_unknown_book">كتاب غير معروف</string>
+    <string name="reader_search_title">البحث في الكتاب</string>
+    <string name="reader_search_placeholder">بحث…</string>
+    <string name="reader_search_action">بحث</string>
+    <string name="reader_cancel">إلغاء</string>
+    <string name="reader_close">إغلاق</string>
+    <string name="reader_highlight_title">تمييز</string>
+    <string name="reader_add_note">إضافة ملاحظة</string>
+    <string name="reader_lookup">تعريف</string>
+    <string name="reader_note_placeholder">ملاحظة…</string>
+    <string name="reader_save">حفظ</string>
+    <string name="reader_no_bookmarks">لا توجد إشارات مرجعية بعد</string>
+    <string name="reader_bookmark_deleted">تم حذف الإشارة المرجعية</string>
+    <string name="reader_bookmark_error">خطأ في تحميل الإشارة المرجعية</string>
+    <string name="reader_no_highlights">لا توجد تمييزات بعد</string>
+    <string name="reader_highlight_deleted">تم حذف التمييز</string>
+    <string name="reader_highlight_error">خطأ في تحميل التمييز</string>
+    <string name="reader_reading_settings_title">إعدادات القراءة</string>
+    <string name="reader_theme_label">السمة</string>
+    <string name="reader_font_size">حجم الخط: %d%%</string>
+    <string name="reader_vertical_scroll">التمرير العمودي</string>
+    <string name="reader_scroll_desc">مُفعّل دائمًا للقراءة السلسة</string>
+    <string name="reader_enabled">مُفعّل</string>
+    <string name="reader_chapters_count">%1$d فصول</string>
+    <string name="reader_chapter_default">الفصل %1$d</string>
+    <string name="reader_bookmark_default">الإشارة المرجعية %1$d</string>
+    <string name="reader_highlight_default">التمييز %1$d</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">أيقونة التطبيق</string>
+    <string name="cd_profile">الملف الشخصي</string>
+    <string name="cd_see_all">عرض الكل</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">قراءة</string>
+    <string name="book_detail_finished">مكتمل</string>
+    <string name="book_detail_wishlist">قائمة الأمنيات</string>
+    <string name="book_detail_add_to_list">إضافة إلى القائمة</string>
+    <string name="book_detail_collections">جزء من هذه المجموعات</string>
+    <string name="book_detail_about">حول هذا الكتاب</string>
+    <string name="book_detail_currently_reading">أقرأ حاليًا</string>
+    <string name="book_detail_completed">مكتمل</string>
+    <string name="book_detail_want_to_read">أريد أن أقرأ</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">تبديل اللغة</string>
+    <string name="debug_select_language">اختر اللغة</string>
+    <string name="debug_system_default">افتراضي النظام</string>
+    <string name="debug_restart_required">أعد تشغيل التطبيق لتطبيق التغييرات</string>
+    <string name="debug_restart_now">إعادة التشغيل الآن</string>
+    <string name="debug_later">لاحقًا</string>
+</resources>

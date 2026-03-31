@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">eBook Bundle</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">होम</string>
+    <string name="nav_search">खोजें</string>
+    <string name="nav_library">पुस्तकालय</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">ई-बुक बंडल</string>
+    <string name="onboarding_tagline">आपकी कहानियों की दुनिया</string>
+    <string name="onboarding_features">विशेषताएं</string>
+    <string name="onboarding_feature_collections">क्यूरेटेड पुस्तक संग्रह</string>
+    <string name="onboarding_feature_recommendations">व्यक्तिगत सुझाव</string>
+    <string name="onboarding_feature_statistics">पढ़ने के आंकड़े</string>
+    <string name="onboarding_feature_themes">दिन, रात और स्पेस थीम</string>
+    <string name="onboarding_sync_title">सिंक</string>
+    <string name="onboarding_sync_complete">पुस्तकालय सिंक हो गया!</string>
+    <string name="onboarding_sync_up_to_date">आपका पुस्तकालय सर्वर के साथ अप-टू-डेट है</string>
+    <string name="onboarding_sync_loading">पुस्तकालय सिंक हो रहा है…</string>
+    <string name="onboarding_sync_background">सिंक पृष्ठभूमि में चल रहा है</string>
+    <string name="onboarding_sync_continue">आप ऐप का अन्वेषण जारी रख सकते हैं!</string>
+    <string name="onboarding_sync_failed">सिंक विफल</string>
+    <string name="onboarding_sync_ready">सिंक के लिए तैयार</string>
+    <string name="onboarding_sync_tap">अपने पुस्तकालय को सर्वर के साथ सिंक करने के लिए टैप करें</string>
+    <string name="onboarding_customize_title">अपना अनुभव अनुकूलित करें</string>
+    <string name="onboarding_name_placeholder">हमें आपको क्या कहकर बुलाना चाहिए?</string>
+    <string name="onboarding_theme_label">अपनी थीम चुनें</string>
+    <string name="onboarding_theme_day">दिन</string>
+    <string name="onboarding_theme_night">रात</string>
+    <string name="onboarding_theme_space">स्पेस</string>
+    <string name="onboarding_btn_continue">जारी रखें</string>
+    <string name="onboarding_btn_syncing">सिंक हो रहा है…</string>
+    <string name="onboarding_btn_retry">पुनः प्रयास करें</string>
+    <string name="onboarding_btn_get_started">शुरू करें</string>
+    <string name="onboarding_sync_complete_desc">सिंक पूर्ण</string>
+    <string name="onboarding_sync_desc">सिंक हो रहा है</string>
+    <string name="onboarding_sync_error_desc">सिंक त्रुटि</string>
+    <string name="onboarding_sync_start_desc">सिंक शुरू करें</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">पढ़ना जारी रखें</string>
+    <string name="home_curated_for_you">आपके लिए चयनित</string>
+    <string name="home_read_now">अभी पढ़ें</string>
+    <string name="home_more_info">अधिक जानकारी</string>
+    <string name="home_toggle_theme">थीम बदलें</string>
+    <string name="greeting_morning">सुप्रभात</string>
+    <string name="greeting_afternoon">शुभ दोपहर</string>
+    <string name="greeting_evening">शुभ संध्या</string>
+    <string name="greeting_night">शुभ रात्रि</string>
+    <string name="greeting_punchline_quiet">दुनिया अभी शांत है</string>
+    <string name="greeting_punchline_midnight">आधी रात में पढ़ने का समय</string>
+    <string name="greeting_punchline_sleep">जब दूसरे सो रहे हों तो दुनियाओं का अन्वेषण करें</string>
+    <string name="greeting_punchline_early">कहानी के साथ अपना दिन शुरू करें</string>
+    <string name="greeting_punchline_morning_await">सुबह की किताबें इंतजार कर रही हैं</string>
+    <string name="greeting_punchline_rise">उठो और पढ़ो!</string>
+    <string name="greeting_punchline_adventure">नए साहस के लिए तैयार?</string>
+    <string name="greeting_punchline_discover">आज आप क्या खोजेंगे?</string>
+    <string name="greeting_punchline_dive">नई किताब में गोता लगाने का समय</string>
+    <string name="greeting_punchline_lunch">दोपहर के भोजन का ब्रेक पढ़ाई?</string>
+    <string name="greeting_punchline_afternoon_escape">दोपहर की सैर इंतजार कर रही है</string>
+    <string name="greeting_punchline_break">पढ़ने का ब्रेक लें</string>
+    <string name="greeting_punchline_momentum">गति बनाए रखें</string>
+    <string name="greeting_punchline_storytime">कहानी का समय कभी भी हो सकता है</string>
+    <string name="greeting_punchline_chapter">आप कौन सा अध्याय पहुंचेंगे?</string>
+    <string name="greeting_punchline_unwind">अच्छी किताब के साथ आराम करें</string>
+    <string name="greeting_punchline_evening">शाम का पढ़ने का सत्र</string>
+    <string name="greeting_punchline_perfect">कहानियों के लिए सही समय</string>
+    <string name="greeting_punchline_cozy">किताब के साथ आरामदायक बनें</string>
+    <string name="greeting_punchline_nighttime">रात में पढ़ना इंतजार कर रहा है</string>
+    <string name="greeting_punchline_transport">कहानियां आपको ले जाएं</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">अन्वेषण करें</string>
+    <string name="search_placeholder">60,000+ किताबें खोजें…</string>
+    <string name="search_clear">साफ़ करें</string>
+    <string name="search_curated_genre">क्यूरेटेड शैली</string>
+    <string name="search_explore_all">सभी किताबें देखें</string>
+    <string name="search_authors">लेखक</string>
+    <string name="search_authors_placeholder">लेखक खोजें…</string>
+    <string name="search_close">बंद करें</string>
+    <string name="search_see_all">सभी देखें</string>
+    <string name="category_fiction">कथा साहित्य</string>
+    <string name="category_history">अमेरिका का इतिहास</string>
+    <string name="category_science">विज्ञान</string>
+    <string name="category_romance">रोमांस</string>
+    <string name="category_fantasy">काल्पनिक</string>
+    <string name="category_mystery">रहस्य</string>
+    <string name="category_biography">जीवनी</string>
+    <string name="category_adventure">साहसिक</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">मेरा संग्रह</string>
+    <string name="library_profile">प्रोफ़ाइल</string>
+    <string name="library_authors">लेखक</string>
+    <string name="library_currently_reading">वर्तमान में पढ़ रहा हूं</string>
+    <string name="library_finished">पूर्ण</string>
+    <string name="library_want_to_read">पढ़ना चाहता हूं</string>
+    <string name="library_finished_collection">पूर्ण संग्रह</string>
+    <string name="library_wishlist">विशलिस्ट</string>
+    <string name="library_see_all">सभी देखें</string>
+    <string name="library_continue_reading">पढ़ना जारी रखें</string>
+    <string name="library_tap_to_return">वापस जाने के लिए कहीं भी टैप करें</string>
+    <string name="library_back">वापस</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">प्रोफ़ाइल</string>
+    <string name="profile_back">वापस</string>
+    <string name="profile_toggle_theme">थीम बदलें</string>
+    <string name="profile_level">ग्रंथ प्रेमी स्तर 1</string>
+    <string name="profile_reading_statistics">पढ़ने के आंकड़े</string>
+    <string name="profile_settings">सेटिंग्स</string>
+    <string name="profile_help_support">सहायता और समर्थन</string>
+    <string name="profile_licenses">लाइसेंस और स्वीकृतियां</string>
+    <string name="profile_reading_journey">आपकी पढ़ने की यात्रा</string>
+    <string name="profile_stat_books">किताबें</string>
+    <string name="profile_stat_completed">पूर्ण</string>
+    <string name="profile_stat_reading">पढ़ रहा हूं</string>
+    <string name="profile_stat_in_progress">जारी है</string>
+    <string name="profile_stat_pages">पृष्ठ</string>
+    <string name="profile_stat_read">पढ़े</string>
+    <string name="profile_stat_hours">घंटे</string>
+    <string name="profile_stat_of_reading">पढ़ने के</string>
+    <string name="profile_completion_rate">पूर्णता दर</string>
+    <string name="profile_books_finished">पूर्ण</string>
+    <string name="profile_reading_streak">पढ़ने की लगातार</string>
+    <string name="profile_streak_days">%d दिन</string>
+    <string name="profile_streak_message">जारी रखें!</string>
+    <string name="profile_genre_breakdown">शैली विवरण</string>
+    <string name="profile_help_title">सहायता और समर्थन</string>
+    <string name="profile_contact_support">समर्थन से संपर्क करें</string>
+    <string name="profile_send_email">हमें ईमेल भेजें</string>
+    <string name="profile_privacy_policy">गोपनीयता नीति</string>
+    <string name="profile_privacy_desc">हमारी गोपनीयता नीति पढ़ें</string>
+    <string name="profile_about_title">के बारे में</string>
+    <string name="profile_about_description">फ्री ईबुक बंडल एक रीडर ऐप है जो आपको मुफ्त साहित्य में सर्वश्रेष्ठ प्रदान करता है।</string>
+    <string name="profile_open_source">ओपन सोर्स लाइब्रेरी</string>
+    <string name="profile_privacy_title">गोपनीयता</string>
+    <string name="profile_privacy_statement">यह ऐप सभी डेटा आपके डिवाइस पर स्थानीय रूप से संग्रहीत करता है।</string>
+    <string name="profile_attribution_title">श्रेय</string>
+    <string name="profile_attribution_text">पुस्तक कवर और मेटाडेटा ओपन लाइब्रेरी द्वारा प्रदान किए जाते हैं।</string>
+    <string name="profile_copyright">सभी पुस्तक कवर और सामग्री उनके संबंधित मालिकों की संपत्ति है।</string>
+    <string name="profile_version_title">संस्करण</string>
+    <string name="profile_built_with">जेटपैक कंपोज़ के साथ बनाया गया</string>
+    <string name="profile_appearance_title">दिखावट</string>
+    <string name="profile_theme_label">थीम</string>
+    <string name="profile_nav_style">नेविगेशन शैली</string>
+    <string name="profile_touch_pad">टच पैड</string>
+    <string name="profile_classic">क्लासिक</string>
+    <string name="profile_touch_pad_desc">फ्लोटिंग टच पैड नेविगेशन</string>
+    <string name="profile_classic_desc">पारंपरिक बॉटम नेविगेशन बार</string>
+    <string name="profile_notifications_title">सूचनाएं</string>
+    <string name="profile_push_notifications">पुश सूचनाएं</string>
+    <string name="profile_enabled">सक्षम</string>
+    <string name="profile_wifi_only">केवल वाई-फाई पर डाउनलोड करें</string>
+    <string name="profile_disabled">अक्षम</string>
+    <string name="profile_privacy_dialog_title">गोपनीयता नीति</string>
+    <string name="profile_privacy_last_updated">अंतिम अपडेट: 25 मार्च, 2026</string>
+    <string name="profile_close">बंद करें</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">अभी चल रहा है</string>
+    <string name="audio_close">बंद करें</string>
+    <string name="audio_chapters">अध्याय</string>
+    <string name="audio_settings">सेटिंग्स</string>
+    <string name="audio_bookmarks">बुकमार्क</string>
+    <string name="audio_jump_chapter">अध्याय पर जाएं</string>
+    <string name="audio_quick_settings">त्वरित सेटिंग्स</string>
+    <string name="audio_reading_settings">पढ़ने की सेटिंग्स</string>
+    <string name="audio_settings_desc">थीम, फ़ॉन्ट आकार, स्क्रोल मोड</string>
+    <string name="audio_empty_state">वर्तमान टेक्स्ट देखने के लिए पढ़ना शुरू करें…</string>
+    <string name="audio_voice">आवाज़</string>
+    <string name="audio_skip_back">पीछे छोड़ें</string>
+    <string name="audio_skip_forward">आगे छोड़ें</string>
+    <string name="audio_pause">रोकें</string>
+    <string name="audio_play">चलाएं</string>
+    <string name="audio_current">वर्तमान</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">अगला अध्याय →</string>
+    <string name="reader_finish">समाप्त</string>
+    <string name="reader_select_text">पहले टेक्स्ट चुनें</string>
+    <string name="reader_no_text">इस पृष्ठ पर पढ़ने के लिए कोई टेक्स्ट नहीं मिला।</string>
+    <string name="reader_unknown_author">अज्ञात लेखक</string>
+    <string name="reader_unknown_book">अज्ञात पुस्तक</string>
+    <string name="reader_search_title">पुस्तक खोजें</string>
+    <string name="reader_search_placeholder">खोजें…</string>
+    <string name="reader_search_action">खोजें</string>
+    <string name="reader_cancel">रद्द करें</string>
+    <string name="reader_close">बंद करें</string>
+    <string name="reader_highlight_title">हाइलाइट</string>
+    <string name="reader_add_note">नोट जोड़ें</string>
+    <string name="reader_lookup">देखें</string>
+    <string name="reader_note_placeholder">नोट…</string>
+    <string name="reader_save">सहेजें</string>
+    <string name="reader_no_bookmarks">अभी तक कोई बुकमार्क नहीं</string>
+    <string name="reader_bookmark_deleted">बुकमार्क हटाया गया</string>
+    <string name="reader_bookmark_error">बुकमार्क लोड करने में त्रुटि</string>
+    <string name="reader_no_highlights">अभी तक कोई हाइलाइट नहीं</string>
+    <string name="reader_highlight_deleted">हाइलाइट हटाया गया</string>
+    <string name="reader_highlight_error">हाइलाइट लोड करने में त्रुटि</string>
+    <string name="reader_reading_settings_title">पढ़ने की सेटिंग्स</string>
+    <string name="reader_theme_label">थीम</string>
+    <string name="reader_font_size">फ़ॉन्ट आकार: %d%%</string>
+    <string name="reader_vertical_scroll">वर्टिकल स्क्रोलिंग</string>
+    <string name="reader_scroll_desc">निरंतर पढ़ने के लिए हमेशा सक्षम</string>
+    <string name="reader_enabled">सक्षम</string>
+    <string name="reader_chapters_count">%1$d अध्याय</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">ऐप आइकन</string>
+    <string name="cd_profile">प्रोफ़ाइल</string>
+    <string name="cd_see_all">सभी देखें</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">पढ़ रहे हैं</string>
+    <string name="book_detail_finished">पूर्ण</string>
+    <string name="book_detail_wishlist">विशलिस्ट</string>
+    <string name="book_detail_add_to_list">सूची में जोड़ें</string>
+    <string name="book_detail_collections">इन संग्रहों का भाग</string>
+    <string name="book_detail_about">इस पुस्तक के बारे में</string>
+    <string name="book_detail_currently_reading">वर्तमान में पढ़ रहे हैं</string>
+    <string name="book_detail_completed">पूर्ण</string>
+    <string name="book_detail_want_to_read">पढ़ना चाहते हैं</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">भाषा बदलें</string>
+    <string name="debug_select_language">भाषा चुनें</string>
+    <string name="debug_system_default">सिस्टम डिफ़ॉल्ट</string>
+    <string name="debug_restart_required">लागू करने के लिए ऐप रीस्टार्ट करें</string>
+    <string name="debug_restart_now">अभी रीस्टार्ट करें</string>
+    <string name="debug_later">बाद में</string>
+</resources>

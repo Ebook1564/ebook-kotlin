@@ -33,12 +33,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.viewmodel.CuratedCollection
@@ -219,15 +221,21 @@ fun BookDetailContent(
                                 onClick = { onReadClick(coverBounds) },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
                                     .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                                contentPadding = PaddingValues(0.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                             ) {
                                 Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("READ NOW", fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.sp)
+                                Text(
+                                    text = stringResource(R.string.home_read_now),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 12.sp,
+                                    letterSpacing = 0.5.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                             
                             FilledTonalButton(
@@ -265,10 +273,10 @@ fun BookDetailContent(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = when(displayBook.readingStatus) {
-                                        ReadingStatus.CURRENTLY_READING -> "READING"
-                                        ReadingStatus.COMPLETED -> "FINISHED"
-                                        ReadingStatus.WISHLIST -> "WISHLIST"
-                                        else -> "ADD TO LIST"
+                                        ReadingStatus.CURRENTLY_READING -> stringResource(R.string.book_detail_reading)
+                                        ReadingStatus.COMPLETED -> stringResource(R.string.book_detail_finished)
+                                        ReadingStatus.WISHLIST -> stringResource(R.string.book_detail_wishlist)
+                                        else -> stringResource(R.string.book_detail_add_to_list)
                                     },
                                     fontSize = 11.sp, fontWeight = FontWeight.Bold
                                 )
@@ -281,7 +289,14 @@ fun BookDetailContent(
                             ) {
                                 ReadingStatus.entries.filter { it != ReadingStatus.NONE }.forEach { status ->
                                     DropdownMenuItem(
-                                        text = { Text(when(status) { ReadingStatus.CURRENTLY_READING -> "Currently Reading"; ReadingStatus.COMPLETED -> "Completed"; else -> "Want to Read" }, color = colors.textPrimary) },
+                                        text = { Text(
+                                            when(status) { 
+                                                ReadingStatus.CURRENTLY_READING -> stringResource(R.string.book_detail_currently_reading)
+                                                ReadingStatus.COMPLETED -> stringResource(R.string.book_detail_completed)
+                                                else -> stringResource(R.string.book_detail_want_to_read)
+                                            }, 
+                                            color = colors.textPrimary
+                                        ) },
                                         onClick = { onAddToReadingList(status); showStatusMenu = false },
                                         leadingIcon = { Icon(if (status == ReadingStatus.CURRENTLY_READING) Icons.Default.PlayArrow else Icons.Default.Add, null, tint = if (displayBook.readingStatus == status) colors.primary else colors.textSecondary) }
                                     )
@@ -313,7 +328,7 @@ fun BookDetailContent(
                 if (matchingCollections.isNotEmpty()) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Part of These Collections",
+                            text = stringResource(R.string.book_detail_collections),
                             style = typography.headline,
                             color = colors.textPrimary,
                             fontSize = 14.sp,
@@ -353,7 +368,7 @@ fun BookDetailContent(
 
                 // DESCRIPTION
                 Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-                    Text("About this book", style = typography.headline, color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.book_detail_about), style = typography.headline, color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     if (isDescriptionLoading) {

@@ -71,6 +71,8 @@ import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.ui.*
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
+import androidx.compose.ui.res.stringResource
+import com.freeebookbundle.R
 import com.freeebookbundle.viewmodel.HomeViewModel
 import com.freeebookbundle.viewmodel.LibraryViewModel
 import com.freeebookbundle.models.ReadingStatus
@@ -478,7 +480,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
 
 @Composable
 fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("HOME", "SEARCH", "LIBRARY")
+    val tabs = listOf(stringResource(R.string.nav_home), stringResource(R.string.nav_search), stringResource(R.string.nav_library))
     if (themeMode == AppThemeMode.NIGHT) {
         Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)).background(Color(0xFF111111)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(32.dp)))
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -532,7 +534,7 @@ fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
         label = "rotation"
     )
     
-    val tabs = listOf("HOME", "SEARCH", "LIBRARY")
+    val tabs = listOf(stringResource(R.string.nav_home), stringResource(R.string.nav_search), stringResource(R.string.nav_library))
     
     Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
         Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
@@ -831,19 +833,19 @@ fun SpaceEasyTouchNav(
                     ) {
                         EasyTouchNavItem(
                             icon = Icons.Outlined.Public,
-                            label = "HOME",
+                            label = stringResource(R.string.nav_home),
                             isSelected = selectedIndex == 0,
                             onClick = { onTabSelected(0); expanded = false }
                         )
                         EasyTouchNavItem(
                             icon = Icons.Outlined.TravelExplore,
-                            label = "SEARCH",
+                            label = stringResource(R.string.nav_search),
                             isSelected = selectedIndex == 1,
                             onClick = { onTabSelected(1); expanded = false }
                         )
                         EasyTouchNavItem(
                             icon = Icons.Outlined.AccountTree,
-                            label = "LIBRARY",
+                            label = stringResource(R.string.nav_library),
                             isSelected = selectedIndex == 2,
                             onClick = { onTabSelected(2); expanded = false }
                         )

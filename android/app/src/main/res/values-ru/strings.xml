@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">eBook Bundle</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ГЛАВНАЯ</string>
+    <string name="nav_search">ПОИСК</string>
+    <string name="nav_library">БИБЛИОТЕКА</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">E-BOOK BUNDLE</string>
+    <string name="onboarding_tagline">Ваша Вселенная Историй</string>
+    <string name="onboarding_features">ФУНКЦИИ</string>
+    <string name="onboarding_feature_collections">Тщательно подобранные коллекции книг</string>
+    <string name="onboarding_feature_recommendations">Персональные рекомендации</string>
+    <string name="onboarding_feature_statistics">Статистика чтения</string>
+    <string name="onboarding_feature_themes">Дневная, Ночная и Космическая темы</string>
+    <string name="onboarding_sync_title">СИНХРОНИЗАЦИЯ</string>
+    <string name="onboarding_sync_complete">Библиотека синхронизирована!</string>
+    <string name="onboarding_sync_up_to_date">Ваша библиотека обновлена с сервером</string>
+    <string name="onboarding_sync_loading">Синхронизация библиотеки…</string>
+    <string name="onboarding_sync_background">Синхронизация выполняется в фоновом режиме</string>
+    <string name="onboarding_sync_continue">Вы можете продолжить изучение приложения!</string>
+    <string name="onboarding_sync_failed">Синхронизация не удалась</string>
+    <string name="onboarding_sync_ready">Готов к синхронизации</string>
+    <string name="onboarding_sync_tap">Нажмите, чтобы синхронизировать библиотеку с сервером</string>
+    <string name="onboarding_customize_title">НАСТРОЙТЕ СВОЙ ОПЫТ</string>
+    <string name="onboarding_name_placeholder">Как вас называть?</string>
+    <string name="onboarding_theme_label">Выберите тему</string>
+    <string name="onboarding_theme_day">День</string>
+    <string name="onboarding_theme_night">Ночь</string>
+    <string name="onboarding_theme_space">Космос</string>
+    <string name="onboarding_btn_continue">ПРОДОЛЖИТЬ</string>
+    <string name="onboarding_btn_syncing">СИНХРОНИЗАЦИЯ…</string>
+    <string name="onboarding_btn_retry">ПОВТОРИТЬ</string>
+    <string name="onboarding_btn_get_started">НАЧАТЬ</string>
+    <string name="onboarding_sync_complete_desc">Синхронизация завершена</string>
+    <string name="onboarding_sync_desc">Синхронизация</string>
+    <string name="onboarding_sync_error_desc">Ошибка синхронизации</string>
+    <string name="onboarding_sync_start_desc">Начать синхронизацию</string>
+
+    <!-- Home Screen -->
+    <string name="home_continue_reading">Продолжить чтение</string>
+    <string name="home_curated_for_you">Подобрано для вас</string>
+    <string name="home_read_now">ЧИТАТЬ</string>
+    <string name="home_more_info">ПОДРОБНЕЕ</string>
+    <string name="home_toggle_theme">Сменить тему</string>
+    <string name="greeting_morning">Доброе утро</string>
+    <string name="greeting_afternoon">Добрый день</string>
+    <string name="greeting_evening">Добрый вечер</string>
+    <string name="greeting_night">Спокойной ночи</string>
+    <string name="greeting_punchline_quiet">Мир сейчас тих</string>
+    <string name="greeting_punchline_midnight">Время для чтения в полночь</string>
+    <string name="greeting_punchline_sleep">Исследуйте миры, пока другие спят</string>
+    <string name="greeting_punchline_early">Начните день с истории</string>
+    <string name="greeting_punchline_morning_await">Утреннее чтение ждёт</string>
+    <string name="greeting_punchline_rise">Подъём и чтение!</string>
+    <string name="greeting_punchline_adventure">Готовы к новому приключению?</string>
+    <string name="greeting_punchline_discover">Что вы откроете сегодня?</string>
+    <string name="greeting_punchline_dive">Время погрузиться в новую книгу</string>
+    <string name="greeting_punchline_lunch">Чтение в обеденный перерыв?</string>
+    <string name="greeting_punchline_afternoon_escape">Послеобеденный отдых ждёт</string>
+    <string name="greeting_punchline_break">Сделайте перерыв на чтение</string>
+    <string name="greeting_punchline_momentum">Поддержите темп</string>
+    <string name="greeting_punchline_storytime">Время историй всегда</string>
+    <string name="greeting_punchline_chapter">Какую главу вы достигнете?</string>
+    <string name="greeting_punchline_unwind">Расслабьтесь с хорошей книгой</string>
+    <string name="greeting_punchline_evening">Вечерняя сессия чтения</string>
+    <string name="greeting_punchline_perfect">Идеальное время для историй</string>
+    <string name="greeting_punchline_cozy">Уютно устройтесь с книгой</string>
+    <string name="greeting_punchline_nighttime">Ночное чтение ждёт</string>
+    <string name="greeting_punchline_transport">Пусть истории унесут вас</string>
+
+    <!-- Search Screen -->
+    <string name="search_explore">ИССЛЕДОВАТЬ</string>
+    <string name="search_placeholder">Поиск 60 000+ книг…</string>
+    <string name="search_clear">Очистить</string>
+    <string name="search_curated_genre">ПОДОБРАННЫЙ ЖАНР</string>
+    <string name="search_explore_all">ВСЕ КНИГИ</string>
+    <string name="search_authors">АВТОРЫ</string>
+    <string name="search_authors_placeholder">Поиск авторов…</string>
+    <string name="search_close">Закрыть</string>
+    <string name="search_see_all">ВСЕ</string>
+    <string name="category_fiction">Художественная литература</string>
+    <string name="category_history">История Америки</string>
+    <string name="category_science">Наука</string>
+    <string name="category_romance">Романтика</string>
+    <string name="category_fantasy">Фэнтези</string>
+    <string name="category_mystery">Детектив</string>
+    <string name="category_biography">Биография</string>
+    <string name="category_adventure">Приключения</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">Моя коллекция</string>
+    <string name="library_profile">Профиль</string>
+    <string name="library_authors">Авторы</string>
+    <string name="library_currently_reading">Сейчас читаю</string>
+    <string name="library_finished">Завершено</string>
+    <string name="library_want_to_read">Хочу прочитать</string>
+    <string name="library_finished_collection">Завершённая коллекция</string>
+    <string name="library_wishlist">Список желаний</string>
+    <string name="library_see_all">Все</string>
+    <string name="library_continue_reading">ПРОДОЛЖИТЬ ЧТЕНИЕ</string>
+    <string name="library_tap_to_return">НАЖМИТЕ ЧТОБЫ ВЕРНУТЬСЯ</string>
+    <string name="library_back">Назад</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_title">ПРОФИЛЬ</string>
+    <string name="profile_back">Назад</string>
+    <string name="profile_toggle_theme">Сменить тему</string>
+    <string name="profile_level">Уровень библиофила 1</string>
+    <string name="profile_reading_statistics">Статистика чтения</string>
+    <string name="profile_settings">Настройки</string>
+    <string name="profile_help_support">Помощь и поддержка</string>
+    <string name="profile_licenses">Лицензии и благодарности</string>
+    <string name="profile_reading_journey">ВАШ ПУТЬ ЧТЕНИЯ</string>
+    <string name="profile_stat_books">Книги</string>
+    <string name="profile_stat_completed">завершено</string>
+    <string name="profile_stat_reading">Чтение</string>
+    <string name="profile_stat_in_progress">в процессе</string>
+    <string name="profile_stat_pages">Страниц</string>
+    <string name="profile_stat_read">прочитано</string>
+    <string name="profile_stat_hours">Часов</string>
+    <string name="profile_stat_of_reading">чтения</string>
+    <string name="profile_completion_rate">ПРОЦЕНТ ЗАВЕРШЕНИЯ</string>
+    <string name="profile_books_finished">завершено</string>
+    <string name="profile_reading_streak">СЕРИЯ ЧТЕНИЯ</string>
+    <string name="profile_streak_days">%d дней</string>
+    <string name="profile_streak_message">Так держать!</string>
+    <string name="profile_genre_breakdown">РАСПРЕДЕЛЕНИЕ ПО ЖАНРАМ</string>
+    <string name="profile_help_title">ПОМОЩЬ И ПОДДЕРЖКА</string>
+    <string name="profile_contact_support">Связаться с поддержкой</string>
+    <string name="profile_send_email">Напишите нам на email</string>
+    <string name="profile_privacy_policy">Политика конфиденциальности</string>
+    <string name="profile_privacy_desc">Прочитайте нашу политику конфиденциальности</string>
+    <string name="profile_about_title">О ПРИЛОЖЕНИИ</string>
+    <string name="profile_about_description">Free Ebook Bundle — приложение для чтения, созданное, чтобы предоставить вам лучшую бесплатную литературу.</string>
+    <string name="profile_open_source">БИБЛИОТЕКИ С ОТКРЫТЫМ КОДОМ</string>
+    <string name="profile_privacy_title">Конфиденциальность</string>
+    <string name="profile_privacy_statement">Это приложение хранит все данные локально на вашем устройстве.</string>
+    <string name="profile_attribution_title">АТРИБУЦИЯ</string>
+    <string name="profile_attribution_text">Обложки книг и метаданные предоставлены Open Library.</string>
+    <string name="profile_copyright">Все обложки книг и содержимое являются собственностью их владельцев.</string>
+    <string name="profile_version_title">ВЕРСИЯ</string>
+    <string name="profile_built_with">Создано с Jetpack Compose</string>
+    <string name="profile_appearance_title">ОТОБРАЖЕНИЕ</string>
+    <string name="profile_theme_label">Тема</string>
+    <string name="profile_nav_style">Стиль навигации</string>
+    <string name="profile_touch_pad">Сенсорная панель</string>
+    <string name="profile_classic">Классический</string>
+    <string name="profile_touch_pad_desc">Плавающая сенсорная навигация</string>
+    <string name="profile_classic_desc">Традиционная нижняя панель навигации</string>
+    <string name="profile_notifications_title">УВЕДОМЛЕНИЯ</string>
+    <string name="profile_push_notifications">Push-уведомления</string>
+    <string name="profile_enabled">Включено</string>
+    <string name="profile_wifi_only">Загрузка только по Wi-Fi</string>
+    <string name="profile_disabled">Отключено</string>
+    <string name="profile_privacy_dialog_title">Политика конфиденциальности</string>
+    <string name="profile_privacy_last_updated">Последнее обновление: 25 марта 2026 г.</string>
+    <string name="profile_close">Закрыть</string>
+
+    <!-- Audio Player Screen -->
+    <string name="audio_now_playing">СЕЙЧАС ИГРАЕТ</string>
+    <string name="audio_close">Закрыть</string>
+    <string name="audio_chapters">Главы</string>
+    <string name="audio_settings">Настройки</string>
+    <string name="audio_bookmarks">Закладки</string>
+    <string name="audio_jump_chapter">Перейти к главе</string>
+    <string name="audio_quick_settings">Быстрые настройки</string>
+    <string name="audio_reading_settings">Настройки чтения</string>
+    <string name="audio_settings_desc">Тема, размер шрифта, режим прокрутки</string>
+    <string name="audio_empty_state">Начните читать, чтобы увидеть текущий текст…</string>
+    <string name="audio_voice">Голос</string>
+    <string name="audio_skip_back">Назад</string>
+    <string name="audio_skip_forward">Вперёд</string>
+    <string name="audio_pause">Пауза</string>
+    <string name="audio_play">Воспроизвести</string>
+    <string name="audio_current">Текущий</string>
+
+    <!-- Reader Fragment -->
+    <string name="reader_next_chapter">Следующая глава →</string>
+    <string name="reader_finish">Завершить</string>
+    <string name="reader_select_text">Сначала выделите текст</string>
+    <string name="reader_no_text">На этой странице не найден текст для чтения.</string>
+    <string name="reader_unknown_author">Неизвестный автор</string>
+    <string name="reader_unknown_book">Неизвестная книга</string>
+    <string name="reader_search_title">Поиск в книге</string>
+    <string name="reader_search_placeholder">Поиск…</string>
+    <string name="reader_search_action">Искать</string>
+    <string name="reader_cancel">Отмена</string>
+    <string name="reader_close">Закрыть</string>
+    <string name="reader_highlight_title">Выделение</string>
+    <string name="reader_add_note">Добавить заметку</string>
+    <string name="reader_lookup">Поиск</string>
+    <string name="reader_note_placeholder">Заметка…</string>
+    <string name="reader_save">Сохранить</string>
+    <string name="reader_no_bookmarks">Пока нет закладок</string>
+    <string name="reader_bookmark_deleted">Закладка удалена</string>
+    <string name="reader_bookmark_error">Ошибка загрузки закладки</string>
+    <string name="reader_no_highlights">Пока нет выделений</string>
+    <string name="reader_highlight_deleted">Выделение удалено</string>
+    <string name="reader_highlight_error">Ошибка загрузки выделения</string>
+    <string name="reader_reading_settings_title">Настройки чтения</string>
+    <string name="reader_theme_label">Тема</string>
+    <string name="reader_font_size">Размер шрифта: %d%%</string>
+    <string name="reader_vertical_scroll">Вертикальная прокрутка</string>
+    <string name="reader_scroll_desc">Всегда включена для удобного чтения</string>
+    <string name="reader_enabled">Включено</string>
+    <string name="reader_chapters_count">%1$d глав</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_app_icon">Иконка приложения</string>
+    <string name="cd_profile">Профиль</string>
+    <string name="cd_see_all">Показать все</string>
+
+    <!-- Book Detail Panel -->
+    <string name="book_detail_reading">ЧИТАЕТСЯ</string>
+    <string name="book_detail_finished">ЗАВЕРШЕНО</string>
+    <string name="book_detail_wishlist">ЖЕЛАЕМОЕ</string>
+    <string name="book_detail_add_to_list">ДОБАВИТЬ В СПИСОК</string>
+    <string name="book_detail_collections">Из этих коллекций</string>
+    <string name="book_detail_about">О книге</string>
+    <string name="book_detail_currently_reading">Сейчас читаю</string>
+    <string name="book_detail_completed">Завершено</string>
+    <string name="book_detail_want_to_read">Хочу прочитать</string>
+
+    <!-- Debug / Language Switcher -->
+    <string name="debug_language_switcher">Сменить язык</string>
+    <string name="debug_select_language">Выбрать язык</string>
+    <string name="debug_system_default">Системный по умолчанию</string>
+    <string name="debug_restart_required">Перезапустите приложение</string>
+    <string name="debug_restart_now">Перезапустить</string>
+    <string name="debug_later">Позже</string>
+</resources>

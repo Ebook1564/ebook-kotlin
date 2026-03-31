@@ -5,6 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
@@ -153,7 +155,7 @@ fun ContinueReadingSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Continue Reading",
+                    text = stringResource(R.string.home_continue_reading),
                     style = BookVerseTheme.typography.headline,
                     color = BookVerseTheme.colors.textPrimary,
                     fontSize = 18.sp,
@@ -277,7 +279,7 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
                     AppThemeMode.NIGHT -> Icons.Default.AutoAwesome
                     AppThemeMode.SPACE -> Icons.Default.LightMode
                 },
-                contentDescription = "Toggle Theme",
+                contentDescription = stringResource(R.string.home_toggle_theme),
                 tint = BookVerseTheme.colors.primary
             )
         }
@@ -288,19 +290,21 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
 fun DynamicGreeting(userName: String) {
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
-        in 0..11 -> "Good Morning"
-        in 12..16 -> "Good Afternoon"
-        else -> "Good Evening"
+        in 0..5 -> stringResource(R.string.greeting_night)
+        in 6..11 -> stringResource(R.string.greeting_morning)
+        in 12..16 -> stringResource(R.string.greeting_afternoon)
+        in 17..20 -> stringResource(R.string.greeting_evening)
+        else -> stringResource(R.string.greeting_night)
     }
     
     val punchlines = when (hour) {
-        in 0..5 -> listOf("The world is quiet now", "Time for some midnight reading", "Explore worlds while others sleep")
-        in 6..8 -> listOf("Start your day with a story", "Morning reads await", "Rise and read!")
-        in 9..11 -> listOf("Ready for a new adventure?", "What will you discover today?", "Time to dive into a new book")
-        in 12..14 -> listOf("Lunch break reading?", "Afternoon escape awaits", "Take a reading break")
-        in 15..17 -> listOf("Keep the momentum going", "Story time is anytime", "What chapter will you reach?")
-        in 18..20 -> listOf("Unwind with a good book", "Evening reading session", "Perfect time for some stories")
-        else -> listOf("Cozy up with a book", "Nighttime reading awaits", "Let stories transport you")
+        in 0..5 -> listOf(stringResource(R.string.punchline_quiet_world), stringResource(R.string.punchline_midnight_reading), stringResource(R.string.punchline_explore_worlds))
+        in 6..8 -> listOf(stringResource(R.string.punchline_morning_story), stringResource(R.string.punchline_morning_reads), stringResource(R.string.punchline_rise_read))
+        in 9..11 -> listOf(stringResource(R.string.punchline_new_adventure), stringResource(R.string.punchline_discover), stringResource(R.string.punchline_dive_book))
+        in 12..14 -> listOf(stringResource(R.string.punchline_lunch_reading), stringResource(R.string.punchline_afternoon_escape), stringResource(R.string.punchline_reading_break))
+        in 15..17 -> listOf(stringResource(R.string.punchline_momentum), stringResource(R.string.punchline_story_time), stringResource(R.string.punchline_chapter))
+        in 18..20 -> listOf(stringResource(R.string.punchline_unwind), stringResource(R.string.punchline_evening), stringResource(R.string.punchline_perfect_stories))
+        else -> listOf(stringResource(R.string.punchline_cozy), stringResource(R.string.punchline_nighttime), stringResource(R.string.punchline_transport))
     }
     
     val punchline = punchlines.random()
@@ -389,11 +393,41 @@ fun BillboardItem(book: Book, onReadClick: () -> Unit, onInfoClick: () -> Unit, 
             Text(text = displayBook.title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onReadClick, colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary), shape = RoundedCornerShape(30.dp), modifier = Modifier.weight(1f).height(48.dp).shadow(12.dp, RoundedCornerShape(30.dp))) {
-                    Icon(Icons.Default.PlayArrow, null, tint = Color.White); Spacer(Modifier.width(8.dp)); Text("READ NOW", color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                Button(
+                    onClick = onReadClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = BookVerseTheme.colors.primary),
+                    shape = RoundedCornerShape(30.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).shadow(12.dp, RoundedCornerShape(30.dp)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.home_read_now),
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                OutlinedButton(onClick = onInfoClick, shape = RoundedCornerShape(30.dp), border = BorderStroke(1.dp, BookVerseTheme.colors.primary.copy(0.5f)), modifier = Modifier.weight(1f).height(48.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = BookVerseTheme.colors.textPrimary)) {
-                    Icon(Icons.Default.Info, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("MORE INFO", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = onInfoClick,
+                    shape = RoundedCornerShape(30.dp),
+                    border = BorderStroke(1.dp, BookVerseTheme.colors.primary.copy(0.5f)),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BookVerseTheme.colors.textPrimary),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Info, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.home_more_info),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -417,7 +451,7 @@ fun CuratedCollectionsRow(
 ) {
     Column(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
-            text = "Curated For You",
+            text = stringResource(R.string.home_curated_for_you),
             style = BookVerseTheme.typography.headline,
             color = BookVerseTheme.colors.textPrimary,
             fontSize = 20.sp,

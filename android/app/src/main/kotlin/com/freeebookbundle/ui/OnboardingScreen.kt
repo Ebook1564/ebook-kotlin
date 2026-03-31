@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.freeebookbundle.R
 import com.freeebookbundle.utils.ServerConfig
+import androidx.compose.ui.res.stringResource
 import com.freeebookbundle.viewmodel.AppThemeMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -169,10 +170,10 @@ fun OnboardingScreen(
                 }
                 
                 val buttonText = when (pagerState.currentPage) {
-                    0, 1 -> "CONTINUE"
-                    2 -> if (syncComplete) "CONTINUE" else if (isSyncing) "SYNCING..." else "RETRY"
-                    3 -> "GET STARTED"
-                    else -> "CONTINUE"
+                    0, 1 -> stringResource(R.string.onboarding_btn_continue)
+                    2 -> if (syncComplete) stringResource(R.string.onboarding_btn_continue) else if (isSyncing) stringResource(R.string.onboarding_btn_syncing) else stringResource(R.string.onboarding_btn_retry)
+                    3 -> stringResource(R.string.onboarding_btn_get_started)
+                    else -> stringResource(R.string.onboarding_btn_continue)
                 }
 
                 Button(
@@ -319,27 +320,27 @@ private fun WelcomeStep(scale: Float, textColor: Color, themeMode: AppThemeMode)
             ) {
                 AsyncImage(
                     model = R.mipmap.ic_launcher,
-                    contentDescription = "App Icon",
+                    contentDescription = stringResource(R.string.cd_app_icon),
                     modifier = Modifier.size(64.dp).clip(CircleShape),
                     contentScale = ContentScale.Fit
                 )
             }
         }
         Spacer(Modifier.height(32.dp))
-        Text("E-BOOK BUNDLE", color = textColor, fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
-        Text("Your Universe of Stories", color = textColor.copy(0.6f), fontSize = 14.sp)
+        Text(stringResource(R.string.onboarding_title), color = textColor, fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
+        Text(stringResource(R.string.onboarding_tagline), color = textColor.copy(0.6f), fontSize = 14.sp)
     }
 }
 
 @Composable
 private fun FeaturesStep(textColor: Color, accentColor: Color, themeMode: AppThemeMode) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("FEATURES", color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.onboarding_features), color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(24.dp))
-        FeatureRow("📚", "Curated Book Collections", textColor, themeMode)
-        FeatureRow("✨", "Personalized Recommendations", textColor, themeMode)
-        FeatureRow("🚀", "Reading Statistics", textColor, themeMode)
-        FeatureRow("🌙", "Day, Night & Space Themes", textColor, themeMode)
+        FeatureRow("📚", stringResource(R.string.onboarding_feature_collections), textColor, themeMode)
+        FeatureRow("✨", stringResource(R.string.onboarding_feature_recommendations), textColor, themeMode)
+        FeatureRow("🚀", stringResource(R.string.onboarding_feature_statistics), textColor, themeMode)
+        FeatureRow("🌙", stringResource(R.string.onboarding_feature_themes), textColor, themeMode)
     }
 }
 
@@ -366,7 +367,7 @@ private fun SyncStep(
     )
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("SYNC", color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.onboarding_sync_title), color = textColor.copy(0.6f), fontSize = 12.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(48.dp))
         
         Box(
@@ -383,7 +384,7 @@ private fun SyncStep(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.Check,
-                            contentDescription = "Sync Complete",
+                            contentDescription = stringResource(R.string.onboarding_sync_complete_desc),
                             tint = accentColor,
                             modifier = Modifier.size(48.dp)
                         )
@@ -403,7 +404,7 @@ private fun SyncStep(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.CloudSync,
-                            contentDescription = "Syncing",
+                            contentDescription = stringResource(R.string.onboarding_sync_desc),
                             tint = accentColor,
                             modifier = Modifier.size(40.dp).graphicsLayer { rotationZ = rotation }
                         )
@@ -419,7 +420,7 @@ private fun SyncStep(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.CloudSync,
-                            contentDescription = "Sync Error",
+                            contentDescription = stringResource(R.string.onboarding_sync_error_desc),
                             tint = Color.Red,
                             modifier = Modifier.size(40.dp)
                         )
@@ -434,7 +435,7 @@ private fun SyncStep(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.CloudSync,
-                            contentDescription = "Start Sync",
+                            contentDescription = stringResource(R.string.onboarding_sync_start_desc),
                             tint = textColor.copy(0.5f),
                             modifier = Modifier.size(40.dp)
                         )
@@ -447,26 +448,26 @@ private fun SyncStep(
         
         when {
             syncComplete -> {
-                Text("Library Synced!", color = accentColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.onboarding_sync_complete), color = accentColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("Your library is up to date with the server", color = textColor.copy(0.6f), fontSize = 14.sp)
+                Text(stringResource(R.string.onboarding_sync_up_to_date), color = textColor.copy(0.6f), fontSize = 14.sp)
             }
             isSyncing -> {
-                Text("Syncing Library...", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.onboarding_sync_loading), color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("Sync is running in the background", color = textColor.copy(0.6f), fontSize = 14.sp)
+                Text(stringResource(R.string.onboarding_sync_background), color = textColor.copy(0.6f), fontSize = 14.sp)
                 Spacer(Modifier.height(4.dp))
-                Text("You can continue exploring the app!", color = accentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.onboarding_sync_continue), color = accentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
             syncError != null -> {
-                Text("Sync Failed", color = Color.Red, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.onboarding_sync_failed), color = Color.Red, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(syncError, color = textColor.copy(0.6f), fontSize = 14.sp, textAlign = TextAlign.Center)
             }
             else -> {
-                Text("Ready to Sync", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.onboarding_sync_ready), color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("Tap to sync your library with the server", color = textColor.copy(0.6f), fontSize = 14.sp)
+                Text(stringResource(R.string.onboarding_sync_tap), color = textColor.copy(0.6f), fontSize = 14.sp)
             }
         }
     }
@@ -489,7 +490,7 @@ private fun FeatureRow(icon: String, text: String, textColor: Color, themeMode: 
 
 @Composable
 private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTheme: AppThemeMode, onThemeChange: (AppThemeMode) -> Unit, textColor: Color, accentColor: Color, bgColor: Color) {
-    Text("CUSTOMIZE YOUR EXPERIENCE", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, letterSpacing = 2.sp)
+    Text(stringResource(R.string.onboarding_customize_title), color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, letterSpacing = 2.sp)
     Spacer(Modifier.height(40.dp))
     
     val inputBgColor = when (selectedTheme) {
@@ -497,10 +498,10 @@ private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTh
         AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.05f)
         AppThemeMode.DAY -> Color.White.copy(alpha = 0.5f)
     }
-    
+
     TextField(
         value = name, onValueChange = onNameChange,
-        placeholder = { Text("What should we call you?", color = textColor.copy(0.3f)) },
+        placeholder = { Text(stringResource(R.string.onboarding_name_placeholder), color = textColor.copy(0.3f)) },
         modifier = Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, textColor.copy(0.1f), RoundedCornerShape(12.dp)),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = inputBgColor, unfocusedContainerColor = inputBgColor,
@@ -511,12 +512,12 @@ private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTh
     )
     Spacer(Modifier.height(32.dp))
     
-    Text("Choose Your Theme", color = textColor.copy(0.7f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    Text(stringResource(R.string.onboarding_theme_label), color = textColor.copy(0.7f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(16.dp))
     
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OnboardingThemeCard(
-            label = "Day",
+            label = stringResource(R.string.onboarding_theme_day),
             icon = Icons.Default.LightMode,
             isSelected = selectedTheme == AppThemeMode.DAY,
             onClick = { onThemeChange(AppThemeMode.DAY) },
@@ -525,7 +526,7 @@ private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTh
             accentColor = accentColor
         )
         OnboardingThemeCard(
-            label = "Night",
+            label = stringResource(R.string.onboarding_theme_night),
             icon = Icons.Default.Nightlight,
             isSelected = selectedTheme == AppThemeMode.NIGHT,
             onClick = { onThemeChange(AppThemeMode.NIGHT) },
@@ -534,7 +535,7 @@ private fun ProfileStep(name: String, onNameChange: (String) -> Unit, selectedTh
             accentColor = accentColor
         )
         OnboardingThemeCard(
-            label = "Space",
+            label = stringResource(R.string.onboarding_theme_space),
             icon = Icons.Filled.Star,
             isSelected = selectedTheme == AppThemeMode.SPACE,
             onClick = { onThemeChange(AppThemeMode.SPACE) },

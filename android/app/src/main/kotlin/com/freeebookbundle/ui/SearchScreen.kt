@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -62,6 +63,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.freeebookbundle.PremiumEasing
+import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.utils.ServerConfig
 import com.freeebookbundle.viewmodel.AppThemeMode
@@ -120,7 +122,7 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (currentTheme == AppThemeMode.SPACE) "EXPLORE" else "E-Book Bundle",
+                    text = if (currentTheme == AppThemeMode.SPACE) stringResource(R.string.search_explore) else "E-Book Bundle",
                     style = BookVerseTheme.typography.headline,
                     color = colors.textPrimary,
                     fontSize = if (currentTheme == AppThemeMode.SPACE) 28.sp else 24.sp,
@@ -139,7 +141,7 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 placeholder = { 
                     Text(
-                        "Search 60,000+ books...", 
+                        stringResource(R.string.search_placeholder), 
                         color = colors.textSecondary.copy(alpha = 0.5f)
                     ) 
                 },
@@ -147,7 +149,7 @@ fun SearchScreen(
                 trailingIcon = {
                     if (uiState.searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Text("Clear", color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.search_clear), color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -167,7 +169,7 @@ fun SearchScreen(
             // SPACE THEME: Celestial Navigation
             if (currentTheme == AppThemeMode.SPACE) {
                 Text(
-                    "CURATED GENRE",
+                    stringResource(R.string.search_curated_genre),
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                     style = BookVerseTheme.typography.label,
                     color = Color.White.copy(alpha = 0.6f),
@@ -252,7 +254,7 @@ private fun DayNightSearchContent(
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "CURATED GENRE",
+                stringResource(R.string.search_curated_genre),
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                 style = BookVerseTheme.typography.label,
                 color = colors.textSecondary,
@@ -281,7 +283,7 @@ private fun DayNightSearchContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
-                        "EXPLORE ALL BOOKS",
+                        stringResource(R.string.search_explore_all),
                         modifier = Modifier
                             .padding(horizontal = 24.dp, vertical = 12.dp)
                             .alpha(overlayAlpha),
@@ -403,7 +405,7 @@ private fun DrawerNavigation(
                     )
                 }
                 Text(
-                    text = category.uppercase(),
+                    text = getCategoryDisplayName(category).uppercase(),
                     style = BookVerseTheme.typography.label,
                     color = if (isSelected) drawerColor else colors.textSecondary,
                     fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
@@ -460,7 +462,7 @@ private fun CategoryOverlay(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = category.uppercase(),
+                    text = getCategoryDisplayName(category).uppercase(),
                     style = BookVerseTheme.typography.label,
                     color = Color.White,
                     letterSpacing = 2.sp,
@@ -483,7 +485,7 @@ private fun CategoryOverlay(
                     modifier = Modifier.height(44.dp)
                 ) {
                     Text(
-                        "SEE ALL",
+                        stringResource(R.string.search_see_all),
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp,
@@ -500,7 +502,7 @@ private fun CategoryOverlay(
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.search_close),
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
@@ -708,7 +710,7 @@ private fun SpaceSearchContent(
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
-                        "EXPLORE ALL BOOKS",
+                        stringResource(R.string.search_explore_all),
                         modifier = Modifier
                             .padding(horizontal = 24.dp, vertical = 12.dp)
                             .alpha(overlayAlpha),
@@ -838,7 +840,7 @@ private fun SpaceCategoryOverlay(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = category.uppercase(),
+                    text = getCategoryDisplayName(category).uppercase(),
                     style = BookVerseTheme.typography.label,
                     color = Color.White,
                     letterSpacing = 2.sp,
@@ -861,7 +863,7 @@ private fun SpaceCategoryOverlay(
                     modifier = Modifier.height(44.dp)
                 ) {
                     Text(
-                        "SEE ALL",
+                        stringResource(R.string.search_see_all),
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp,
@@ -878,7 +880,7 @@ private fun SpaceCategoryOverlay(
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.search_close),
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
@@ -1080,14 +1082,14 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
         Box(modifier = Modifier.fillMaxSize().graphicsLayer { clip = true; shape = SearchCircularRevealShape(radius, Offset(size.width - 40.dp.toPx(), 60.dp.toPx())) }.background(if (isSpaceTheme) Color.Black else BookVerseTheme.colors.background)) {
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("AUTHORS", style = BookVerseTheme.typography.headline, fontSize = 24.sp, fontWeight = FontWeight.Black, color = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary)
+                    Text(stringResource(R.string.search_authors), style = BookVerseTheme.typography.headline, fontSize = 24.sp, fontWeight = FontWeight.Black, color = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary)
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, null, tint = if (isSpaceTheme) Color.White else BookVerseTheme.colors.textPrimary) }
                 }
                 TextField(
                     value = authorUiState.authorSearchQuery,
                     onValueChange = { viewModel.onAuthorSearchQueryChanged(it) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    placeholder = { Text("Search authors...", color = if (isSpaceTheme) Color.White.copy(alpha = 0.5f) else BookVerseTheme.colors.textSecondary) },
+                    placeholder = { Text(stringResource(R.string.search_authors_placeholder), color = if (isSpaceTheme) Color.White.copy(alpha = 0.5f) else BookVerseTheme.colors.textSecondary) },
                     leadingIcon = { Icon(Icons.Default.Search, null, tint = if (isSpaceTheme) Color.White else BookVerseTheme.colors.primary) },
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors(
@@ -1140,6 +1142,21 @@ fun getDrawerColor(cat: String): Color = when(cat) {
     "Biography" -> Color(0xFF00695C)
     "Adventure" -> Color(0xFFEF6C00)
     else -> Color(0xFFE50914)
+}
+
+@Composable
+fun getCategoryDisplayName(category: String): String {
+    return when (category) {
+        "Fiction" -> stringResource(R.string.category_fiction)
+        "History of the Americas" -> stringResource(R.string.category_history)
+        "Science" -> stringResource(R.string.category_science)
+        "Romance" -> stringResource(R.string.category_romance)
+        "Fantasy" -> stringResource(R.string.category_fantasy)
+        "Mystery" -> stringResource(R.string.category_mystery)
+        "Biography" -> stringResource(R.string.category_biography)
+        "Adventure" -> stringResource(R.string.category_adventure)
+        else -> category
+    }
 }
 
 fun getAuthorColor(authorName: String): Color {

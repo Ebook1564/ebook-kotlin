@@ -32,6 +32,7 @@ import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.ReaderViewModel
 import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.utils.EpubPreviewUtils
+import com.freeebookbundle.utils.LocaleManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -64,6 +65,7 @@ import org.jsoup.Jsoup
 import org.jsoup.safety.Safelist
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -303,7 +305,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private fun setupTtsControls() {
         val currentBook = ReaderRepository.currentBook
         val publication = ReaderRepository.currentPublication
-        val bookTitle = currentBook?.title ?: publication?.metadata?.title ?: "Unknown Book"
+        val bookTitle = currentBook?.title ?: publication?.metadata?.title ?: getString(R.string.reader_unknown_book)
         val authorName = currentBook?.author ?: extractAuthorName(publication?.metadata?.authors)
         val coverUrl = currentBook?.getBestCoverUrl()
         val chapters = publication?.tableOfContents?.mapIndexed { index, link ->
@@ -382,8 +384,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     private fun extractAuthorName(authors: Any?): String {
-        if (authors == null) return "Unknown Author"
-        return authors.toString().ifEmpty { "Unknown Author" }
+        if (authors == null) return getString(R.string.reader_unknown_author)
+        return authors.toString().ifEmpty { getString(R.string.reader_unknown_author) }
     }
 
     private fun togglePlayPauseTts() {
@@ -483,9 +485,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 }
                 
                 speakCurrentSentence()
-            } else {
-                Toast.makeText(context, "No text found to read on this page.", Toast.LENGTH_SHORT).show()
-            }
+                } else {
+                    Toast.makeText(context, getString(R.string.reader_no_text), Toast.LENGTH_SHORT).show()
+                }
         }
     }
 
@@ -620,6 +622,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private fun createEpubPreferences(settings: ReaderSettings, forceScrollMode: Boolean = false): EpubPreferences {
         val isScrollMode = forceScrollMode || settings.scrollMode
+        val isRTL = activity?.let { LocaleManager.isCurrentLocaleRTL(it) } ?: false
         return EpubPreferences(
             fontSize = settings.fontSize / 100.0,
             theme = when(settings.theme) {
@@ -630,7 +633,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             scroll = isScrollMode,
             columnCount = if (isScrollMode) ColumnCount.ONE else null,
             spread = if (isScrollMode) Spread.NEVER else null,
-            readingProgression = ReadingProgression.LTR,
+            readingProgression = if (isRTL) ReadingProgression.RTL else ReadingProgression.LTR,
             verticalText = false
         )
     }
@@ -725,7 +728,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                         )
                     ) {
                         Text(
-                            text = if (currentSpineIndex < totalSpineItems - 1) "Next Chapter →" else "Finish",
+                            text = if (currentSpineIndex < totalSpineItems - 1) stringResource(R.string.reader_next_chapter) else stringResource(R.string.reader_finish),
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
@@ -775,7 +778,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 val selection = navigator?.currentSelection()
                 if (selection != null) showSelectionMenu(selection.locator)
-                else Toast.makeText(context, "Select text first", Toast.LENGTH_SHORT).show()
+                else Toast.makeText(context, getString(R.string.reader_select_text), Toast.LENGTH_SHORT).show()
             }
         }
         btnBookList.setOnClickListener { showBookListDialog() }
@@ -800,7 +803,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         tableOfContents = publication.tableOfContents
         val toc = tableOfContents
         val chapterCountText = view?.findViewById<TextView>(R.id.drawer_chapter_count)
-        chapterCountText?.text = "${toc.size} chapters"
+        chapterCountText?.text = getString(R.string.reader_chapters_count, toc.size)
         
         // Enable swipe gesture to open drawer
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
@@ -902,18 +905,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                     Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(), shape = RoundedCornerShape(12.dp), shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             if (!showTagInput) {
-                                Text("Highlight", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.reader_highlight_title), style = MaterialTheme.typography.titleMedium)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                                     colors.forEach { colorInt -> Box(modifier = Modifier.size(40.dp).background(Color(colorInt), CircleShape).selectable(selected = false, onClick = { highlightSelection(locator, colorInt); selectionComposeView.visibility = View.GONE; navigator?.clearSelection() })) }
                                 }
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    TextButton(onClick = { showTagInput = true }) { Text("Add Note") }
-                                    TextButton(onClick = { Toast.makeText(context, "Lookup: ${locator.text.highlight}", Toast.LENGTH_SHORT).show() }) { Text("Lookup") }
+                                    TextButton(onClick = { showTagInput = true }) { Text(stringResource(R.string.reader_add_note)) }
+                                    TextButton(onClick = { Toast.makeText(context, "Lookup: ${locator.text.highlight}", Toast.LENGTH_SHORT).show() }) { Text(stringResource(R.string.reader_lookup)) }
                                 }
                             } else {
-                                OutlinedTextField(value = tagText, onValueChange = { tagText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Note...") })
-                                Button(onClick = { highlightSelection(locator, 0x8800AAFF.toInt(), tagText); selectionComposeView.visibility = View.GONE; navigator?.clearSelection() }) { Text("Save") }
+                                OutlinedTextField(value = tagText, onValueChange = { tagText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.reader_note_placeholder)) })
+                                Button(onClick = { highlightSelection(locator, 0x8800AAFF.toInt(), tagText); selectionComposeView.visibility = View.GONE; navigator?.clearSelection() }) { Text(stringResource(R.string.reader_save)) }
                             }
                         }
                     }
@@ -940,8 +943,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private fun showSearchDialog() {
         val input = EditText(context)
-        input.setHint("Search...")
-        AlertDialog.Builder(context).setTitle("Search Book").setView(input).setPositiveButton("Search") { _, _ -> performSearch(input.text.toString()) }.setNegativeButton("Cancel", null).show()
+        input.setHint(getString(R.string.reader_search_placeholder))
+        AlertDialog.Builder(context).setTitle(getString(R.string.reader_search_title)).setView(input).setPositiveButton(getString(R.string.reader_search_action)) { _, _ -> performSearch(input.text.toString()) }.setNegativeButton(getString(R.string.reader_cancel), null).show()
     }
 
     private fun performSearch(query: String) {
@@ -1015,7 +1018,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 viewModel.getBookmarks(bookId).collectLatest { bookmarks ->
                     if (bookmarks.isEmpty()) {
-                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No bookmarks yet"))
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf(getString(R.string.reader_no_bookmarks)))
                         listView.setOnItemClickListener(null)
                     } else {
                         val publication = ReaderRepository.currentPublication
@@ -1025,7 +1028,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmark.locator))
                                 if (locator != null) {
                                     val locatorHref = locator.href.toString()
-                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
+                                    var chapterName = getString(R.string.reader_chapter_default, currentSpineIndex + 1)
                                     for (tocLink in tocLinks) {
                                         val tocHref = tocLink.href.toString()
                                         if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
@@ -1033,23 +1036,21 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                             break
                                         }
                                     }
-                                    
                                     val locationInfo = locator.locations?.fragments?.firstOrNull()?.let { fragment ->
                                         fragment.replace("cfi=", "").take(20)
                                     } ?: locator.locations?.progression?.let { 
                                         "${(it * 100).toInt()}%"
                                     } ?: ""
-                                    
                                     if (locationInfo.isNotEmpty()) {
                                         "$chapterName ($locationInfo)"
                                     } else {
                                         chapterName
                                     }
                                 } else {
-                                    "Bookmark ${index + 1}"
+                                    getString(R.string.reader_bookmark_default, index + 1)
                                 }
                             } catch (e: Exception) {
-                                "Bookmark ${index + 1}"
+                                getString(R.string.reader_bookmark_default, index + 1)
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, bookmarkTitles)
@@ -1058,13 +1059,13 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmarks[pos].locator))
                                 locator?.let { navigator?.go(it, animated = true) }
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Error loading bookmark", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, getString(R.string.reader_bookmark_error), Toast.LENGTH_SHORT).show()
                             }
                         }
                         listView.setOnItemLongClickListener { _: android.widget.AdapterView<*>, _: View, pos: Int, _: Long ->
                             lifecycleScope.launch {
                                 viewModel.deleteBookmark(bookmarks[pos])
-                                Toast.makeText(context, "Bookmark deleted", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, getString(R.string.reader_bookmark_deleted), Toast.LENGTH_SHORT).show()
                             }
                             true
                         }
@@ -1078,7 +1079,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 viewModel.getHighlights(bookId).collectLatest { highlights ->
                     if (highlights.isEmpty()) {
-                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No highlights yet"))
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf(getString(R.string.reader_no_highlights)))
                         listView.setOnItemClickListener(null)
                     } else {
                         val publication = ReaderRepository.currentPublication
@@ -1088,7 +1089,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlight.locator))
                                 if (locator != null) {
                                     val locatorHref = locator.href.toString()
-                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
+                                    var chapterName = getString(R.string.reader_chapter_default, currentSpineIndex + 1)
                                     for (tocLink in tocLinks) {
                                         val tocHref = tocLink.href.toString()
                                         if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
@@ -1113,10 +1114,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                         "$prefix$chapterName"
                                     }
                                 } else {
-                                    "Highlight ${index + 1}"
+                                    getString(R.string.reader_highlight_default, index + 1)
                                 }
                             } catch (e: Exception) {
-                                "Highlight ${index + 1}"
+                                getString(R.string.reader_highlight_default, index + 1)
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, highlightTitles)
@@ -1125,13 +1126,13 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlights[pos].locator))
                                 locator?.let { navigator?.go(it, animated = true) }
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Error loading highlight", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, getString(R.string.reader_highlight_error), Toast.LENGTH_SHORT).show()
                             }
                         }
                         listView.setOnItemLongClickListener { _: android.widget.AdapterView<*>, _: View, pos: Int, _: Long ->
                             lifecycleScope.launch {
                                 viewModel.deleteHighlight(highlights[pos])
-                                Toast.makeText(context, "Highlight deleted", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, getString(R.string.reader_highlight_deleted), Toast.LENGTH_SHORT).show()
                             }
                             true
                         }
@@ -1145,7 +1146,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         
         val dialog: android.app.AlertDialog = android.app.AlertDialog.Builder(requireContext())
             .setView(dialogView)
-            .setNegativeButton("Close", null)
+            .setNegativeButton(getString(R.string.reader_close), null)
             .create()
         
         // Start with Highlights tab
@@ -1177,7 +1178,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Reading Settings", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                                Text(stringResource(R.string.reader_reading_settings_title), style = MaterialTheme.typography.titleLarge, color = Color.White)
                                 IconButton(onClick = { settingsComposeView.visibility = View.GONE }) {
                                     Icon(Icons.Default.Close, contentDescription = null, tint = Color.Gray)
                                 }
@@ -1185,7 +1186,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             
                             Spacer(modifier = Modifier.height(24.dp))
                             
-                            Text("Theme", color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.reader_theme_label), color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1224,7 +1225,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            Text("Font Size: ${settings.fontSize.toInt()}%", color = Color.LightGray)
+                            Text(stringResource(R.string.reader_font_size, settings.fontSize.toInt()), color = Color.LightGray)
                             Slider(
                                 value = settings.fontSize.toFloat(),
                                 onValueChange = {
@@ -1248,12 +1249,12 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Vertical Scrolling", style = MaterialTheme.typography.bodyLarge, color = Color.White)
-                                        Text("Always enabled for seamless reading", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                        Text(stringResource(R.string.reader_vertical_scroll), style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                        Text(stringResource(R.string.reader_scroll_desc), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                     }
                                     Icon(
                                         Icons.Default.Check,
-                                        contentDescription = "Enabled",
+                                        contentDescription = stringResource(R.string.reader_enabled),
                                         tint = Color(0xFF4CAF50),
                                         modifier = Modifier.size(24.dp)
                                     )
