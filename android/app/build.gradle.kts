@@ -14,8 +14,8 @@ android {
         applicationId = "com.freeebookbundle"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 50
+        versionName = "50.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
