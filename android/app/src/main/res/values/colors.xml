@@ -11,6 +11,6 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     
-    <!-- App Icon -->
-    <color name="ic_launcher_background">#E50914</color>
+    <!-- App Icon - Transparent since 1080 logo has built-in background -->
+    <color name="ic_launcher_background">@android:color/transparent</color>
 </resources>

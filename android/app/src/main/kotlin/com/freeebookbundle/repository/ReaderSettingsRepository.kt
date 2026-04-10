@@ -12,9 +12,9 @@ class ReaderSettingsRepository(context: Context) {
         return ReaderSettings(
             fontSize = prefs.getFloat("font_size", 100f).toDouble(),
             theme = try {
-                ReaderTheme.valueOf(prefs.getString("theme", ReaderTheme.WHITE.name) ?: ReaderTheme.WHITE.name)
+                ReaderTheme.valueOf(prefs.getString("theme", ReaderTheme.SEPIA.name) ?: ReaderTheme.SEPIA.name)
             } catch (e: Exception) {
-                ReaderTheme.WHITE
+                ReaderTheme.SEPIA
             },
             scrollMode = prefs.getBoolean("scroll_mode", true),
             fontFamily = prefs.getString("font_family", "serif") ?: "serif"

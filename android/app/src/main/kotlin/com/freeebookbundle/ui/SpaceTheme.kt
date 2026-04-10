@@ -292,13 +292,14 @@ private fun DrawScope.drawOrbitingPlanet(planet: PlanetData, orbitX: Float, orbi
 fun planetForCategory(category: String): PlanetData {
     return when (category) {
         "Fiction" -> PlanetData("Fiction", Color(0xFFC70039), listOf(Color(0xFFE74C3C), Color(0xFF900C3F)), 20.dp, hasRings = true, ringColor = Color(0xFFFF6B6B).copy(alpha = 0.4f), particleCount = 4)
-        "History", "History of the Americas" -> PlanetData("History", Color(0xFF00A8CC), listOf(Color(0xFF3498DB), Color(0xFF007A99)), 18.dp, particleCount = 3)
+        "History", "History of the Americas", "Historical Novels" -> PlanetData("History", Color(0xFF00A8CC), listOf(Color(0xFF3498DB), Color(0xFF007A99)), 18.dp, particleCount = 3)
         "Science" -> PlanetData("Science", Color(0xFF9B59B6), listOf(Color(0xFF8E44AD), Color(0xFF6C3483)), 22.dp, hasRings = true, ringColor = Color(0xFFBB8FCE).copy(alpha = 0.5f), particleCount = 5)
-        "Romance" -> PlanetData("Romance", Color(0xFFE91E63), listOf(Color(0xFFFF6B9D), Color(0xFFC2185B)), 19.dp, particleCount = 4)
-        "Fantasy" -> PlanetData("Fantasy", Color(0xFF2ECC71), listOf(Color(0xFF58D68D), Color(0xFF27AE60)), 25.dp, hasRings = true, ringColor = Color(0xFFABEBC6).copy(alpha = 0.4f), particleCount = 6)
+        "Romance", "Poetry" -> PlanetData("Romance", Color(0xFFE91E63), listOf(Color(0xFFFF6B9D), Color(0xFFC2185B)), 19.dp, particleCount = 4)
+        "Fantasy", "Science Fiction & Fantasy" -> PlanetData("Fantasy", Color(0xFF2ECC71), listOf(Color(0xFF58D68D), Color(0xFF27AE60)), 25.dp, hasRings = true, ringColor = Color(0xFFABEBC6).copy(alpha = 0.4f), particleCount = 6)
         "Mystery" -> PlanetData("Mystery", Color(0xFF34495E), listOf(Color(0xFF5D6D7E), Color(0xFF2C3E50)), 21.dp, particleCount = 3)
         "Biography" -> PlanetData("Biography", Color(0xFFF1C40F), listOf(Color(0xFFF4D03F), Color(0xFFF39C12)), 18.dp, particleCount = 4)
-        "Adventure" -> PlanetData("Adventure", Color(0xFFE67E22), listOf(Color(0xFFF39C12), Color(0xFFD35400)), 24.dp, hasRings = true, ringColor = Color(0xFFFAD7A0).copy(alpha = 0.4f), particleCount = 5)
+        "Adventure", "Short Stories" -> PlanetData("Adventure", Color(0xFFE67E22), listOf(Color(0xFFF39C12), Color(0xFFD35400)), 24.dp, hasRings = true, ringColor = Color(0xFFFAD7A0).copy(alpha = 0.4f), particleCount = 5)
+        "Children & Young Adult" -> PlanetData("Children & Young Adult", Color(0xFF1ABC9C), listOf(Color(0xFF48C9B0), Color(0xFF16A085)), 23.dp, hasRings = true, ringColor = Color(0xFFA3E4D7).copy(alpha = 0.5f), particleCount = 6)
         else -> PlanetData("Default", Color(0xFF7F8C8D), listOf(Color(0xFF95A5A6), Color(0xFFBDC3C7)), 15.dp, particleCount = 3)
     }
 }

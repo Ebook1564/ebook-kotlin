@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -79,7 +80,8 @@ fun SearchScreen(
     viewModel: HomeViewModel = viewModel(),
     appViewModel: AppViewModel = viewModel(),
     onBookClick: (Book) -> Unit,
-    onAuthorClick: (String) -> Unit = {}
+    onAuthorClick: (String) -> Unit = {},
+    onExploreAllClick: () -> Unit = {}
 ) {
     val colors = BookVerseTheme.colors
     val currentTheme by appViewModel.themeMode
@@ -87,7 +89,22 @@ fun SearchScreen(
     val pagingItems = viewModel.filterResults.collectAsLazyPagingItems()
     var showAuthors by remember { mutableStateOf(false) }
 
-    val allCategories = listOf("Fiction", "History of the Americas", "Science", "Romance", "Fantasy", "Mystery", "Biography", "Adventure")
+    // Dynamic categories from DB (top 8 by book count)
+    var dynamicCategories by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    LaunchedEffect(Unit) {
+        try {
+            val genres = viewModel.getTopGenres(8)
+            dynamicCategories = genres.map { it.name }
+        } catch (e: Exception) {
+            // Fallback to default categories
+        }
+    }
+    
+    val allCategories = dynamicCategories.ifEmpty {
+        listOf("Fiction", "Romance", "Science Fiction & Fantasy", "Adventure", "Short Stories", "Children & Young Adult", "Historical Novels", "Poetry")
+    }
+    
     val hasFilter = uiState.activeFilter !is SearchFilter.None || uiState.searchQuery.isNotEmpty()
     
     if (hasFilter) {
@@ -215,7 +232,8 @@ fun SearchScreen(
                     currentTitleText = currentTitleText,
                     hasFilter = hasFilter,
                     allCategories = allCategories,
-                    onAuthorClick = onAuthorClick
+                    onAuthorClick = onAuthorClick,
+                    onExploreAllClick = onExploreAllClick
                 )
             }
         }
@@ -238,7 +256,8 @@ private fun DayNightSearchContent(
     currentTitleText: String,
     hasFilter: Boolean,
     allCategories: List<String>,
-    onAuthorClick: (String) -> Unit = {}
+    onAuthorClick: (String) -> Unit = {},
+    onExploreAllClick: () -> Unit = {}
 ) {
     val colors = BookVerseTheme.colors
     val selectedCategory = when (val f = uiState.activeFilter) {
@@ -253,14 +272,28 @@ private fun DayNightSearchContent(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                stringResource(R.string.search_curated_genre),
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                style = BookVerseTheme.typography.label,
-                color = colors.textSecondary,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.search_curated_genre),
+                    style = BookVerseTheme.typography.label,
+                    color = colors.textSecondary,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
+                Text(
+                    "Show All Books",
+                    style = BookVerseTheme.typography.label,
+                    color = colors.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { onExploreAllClick() }
+                )
+            }
 
             DrawerNavigation(
                 categories = allCategories,
@@ -354,8 +387,7 @@ private fun DayNightSearchContent(
                 }
             }
         }
-    }
-}
+    } }
 
 @Composable
 private fun DrawerNavigation(
@@ -367,7 +399,7 @@ private fun DrawerNavigation(
 
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 24.dp, end = 24.dp),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(60.dp)
     ) {
         items(categories) { category ->
@@ -413,6 +445,97 @@ private fun DrawerNavigation(
                     fontSize = 9.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScribbleDrawer(
+    category: String,
+    color: Color,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "scribble")
+    
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0.7f,
+        animationSpec = tween(400)
+    )
+    
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "scribble_rotation"
+    )
+    
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scribble_pulse"
+    )
+
+    Canvas(modifier = modifier) {
+        val centerX = size.width / 2
+        val centerY = size.height / 2
+        val radius = size.minDimension / 2 * animatedAlpha
+
+        drawCircle(
+            color = color.copy(alpha = 0.9f * pulse),
+            radius = radius
+        )
+
+        drawCircle(
+            color = color,
+            radius = radius,
+            style = Stroke(width = 3.dp.toPx())
+        )
+
+        val scribbles = when(category) {
+            "Fiction" -> 8
+            "Science" -> 6
+            "Romance" -> 4
+            "Fantasy" -> 5
+            "Mystery" -> 7
+            "Biography" -> 3
+            "Adventure" -> 6
+            "History of the Americas" -> 5
+            else -> 5
+        }
+
+        for (i in 0 until scribbles) {
+            val baseAngle = (360f / scribbles) * i
+            val animatedAngle = baseAngle + rotation
+            val startRadius = radius * 0.3f
+            val endRadius = radius * 0.8f
+
+            val startX = centerX + startRadius * kotlin.math.cos(Math.toRadians(animatedAngle.toDouble())).toFloat()
+            val startY = centerY + startRadius * kotlin.math.sin(Math.toRadians(animatedAngle.toDouble())).toFloat()
+            val endX = centerX + endRadius * kotlin.math.cos(Math.toRadians(animatedAngle.toDouble())).toFloat()
+            val endY = centerY + endRadius * kotlin.math.sin(Math.toRadians(animatedAngle.toDouble())).toFloat()
+
+            drawLine(
+                color = Color.White.copy(alpha = (0.4f + pulse * 0.2f) * animatedAlpha),
+                start = Offset(startX, startY),
+                end = Offset(endX, endY),
+                strokeWidth = 2.dp.toPx()
+            )
+        }
+
+        if (isSelected) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.2f),
+                radius = radius + 8.dp.toPx(),
+                style = Stroke(width = 4.dp.toPx())
+            )
         }
     }
 }
@@ -586,96 +709,6 @@ private fun OverlayBookCard(
             fontSize = 10.sp,
             textAlign = TextAlign.Center
         )
-    }
-}
-
-@Composable
-private fun ScribbleDrawer(
-    category: String,
-    color: Color,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "scribble")
-    
-    val animatedAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0.7f,
-        animationSpec = tween(400)
-    )
-    
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "scribble_rotation"
-    )
-    
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scribble_pulse"
-    )
-
-    Canvas(modifier = modifier) {
-        val centerX = size.width / 2
-        val centerY = size.height / 2
-        val radius = size.minDimension / 2 * animatedAlpha
-
-        drawCircle(
-            color = color.copy(alpha = 0.9f * pulse),
-            radius = radius
-        )
-
-        drawCircle(
-            color = color,
-            radius = radius,
-            style = Stroke(width = 3.dp.toPx())
-        )
-
-        val scribbles = when(category) {
-            "Fiction" -> 8
-            "Science" -> 6
-            "Romance" -> 4
-            "Fantasy" -> 5
-            "Mystery" -> 7
-            "Biography" -> 3
-            "Adventure" -> 6
-            else -> 5
-        }
-
-        for (i in 0 until scribbles) {
-            val baseAngle = (360f / scribbles) * i
-            val animatedAngle = baseAngle + rotation
-            val startRadius = radius * 0.3f
-            val endRadius = radius * 0.8f
-
-            val startX = centerX + startRadius * kotlin.math.cos(Math.toRadians(animatedAngle.toDouble())).toFloat()
-            val startY = centerY + startRadius * kotlin.math.sin(Math.toRadians(animatedAngle.toDouble())).toFloat()
-            val endX = centerX + endRadius * kotlin.math.cos(Math.toRadians(animatedAngle.toDouble())).toFloat()
-            val endY = centerY + endRadius * kotlin.math.sin(Math.toRadians(animatedAngle.toDouble())).toFloat()
-
-            drawLine(
-                color = Color.White.copy(alpha = (0.4f + pulse * 0.2f) * animatedAlpha),
-                start = Offset(startX, startY),
-                end = Offset(endX, endY),
-                strokeWidth = 2.dp.toPx()
-            )
-        }
-
-        if (isSelected) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.2f),
-                radius = radius + 8.dp.toPx(),
-                style = Stroke(width = 4.dp.toPx())
-            )
-        }
     }
 }
 
@@ -1132,29 +1165,55 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
     }
 }
 
-fun getDrawerColor(cat: String): Color = when(cat) {
-    "Fiction" -> Color(0xFF5D4037)
-    "History of the Americas" -> Color(0xFF455A64)
-    "Science" -> Color(0xFF2E7D32)
-    "Romance" -> Color(0xFFAD1457)
-    "Fantasy" -> Color(0xFF6A1B9A)
-    "Mystery" -> Color(0xFF37474F)
-    "Biography" -> Color(0xFF00695C)
-    "Adventure" -> Color(0xFFEF6C00)
-    else -> Color(0xFFE50914)
+fun getDrawerColor(cat: String): Color {
+    // Check language prefixes first
+    return when {
+        cat.startsWith("FR ") -> Color(0xFF0055A4)
+        cat.startsWith("DE ") -> Color(0xFFFFC800)
+        cat.startsWith("IT ") -> Color(0xFF009246)
+        cat.startsWith("PT ") -> Color(0xFF006600)
+        cat.startsWith("ES ") -> Color(0xFFAA0000)
+        else -> when(cat) {
+            "Fiction", "Novels" -> Color(0xFF6366F1)
+            "History of the Americas" -> Color(0xFF8B5CF6)
+            "Science-Fiction & Fantasy" -> Color(0xFF3B82F6)
+            "Romance" -> Color(0xFFEC4899)
+            "Fantasy" -> Color(0xFF6A1B9A)
+            "Mystery" -> Color(0xFF37474F)
+            "Biography", "Biographies" -> Color(0xFF14B8A6)
+            "Adventure" -> Color(0xFF10B981)
+            "Short Stories" -> Color(0xFF06B6D4)
+            "Children & Young Adult" -> Color(0xFFF59E0B)
+            "Poetry" -> Color(0xFFEF4444)
+            "Humour" -> Color(0xFF84CC16)
+            "Crime, Thrillers and Mystery" -> Color(0xFF37474F)
+            "Historical Novels" -> Color(0xFF8B5CF6)
+            "Science Fiction" -> Color(0xFF3B82F6)
+            "Classics of Literature" -> Color(0xFF6366F1)
+            "Children's Fiction" -> Color(0xFFF59E0B)
+            "Philosophy & Ethics" -> Color(0xFF14B8A6)
+            "American Literature" -> Color(0xFF6366F1)
+            "British Literature" -> Color(0xFF6366F1)
+            else -> Color(0xFFE50914)
+        }
+    }
 }
 
 @Composable
 fun getCategoryDisplayName(category: String): String {
     return when (category) {
-        "Fiction" -> stringResource(R.string.category_fiction)
-        "History of the Americas" -> stringResource(R.string.category_history)
-        "Science" -> stringResource(R.string.category_science)
-        "Romance" -> stringResource(R.string.category_romance)
+        "Fiction", "Novels", "category__novels" -> stringResource(R.string.category_fiction)
+        "History of the Americas", "Historical Novels", "category__historical_novels" -> stringResource(R.string.category_history)
+        "Science", "Science Fiction & Fantasy", "category__science_fiction___fantasy" -> stringResource(R.string.category_science)
+        "Romance", "category__romance" -> stringResource(R.string.category_romance)
         "Fantasy" -> stringResource(R.string.category_fantasy)
         "Mystery" -> stringResource(R.string.category_mystery)
-        "Biography" -> stringResource(R.string.category_biography)
-        "Adventure" -> stringResource(R.string.category_adventure)
+        "Biography", "Biographies", "category__biographies" -> stringResource(R.string.category_biography)
+        "Adventure", "category__adventure" -> stringResource(R.string.category_adventure)
+        "Short Stories", "category__short_stories" -> stringResource(R.string.category_short_stories)
+        "Children & Young Adult", "category__children___young_adult_reading" -> stringResource(R.string.category_children)
+        "Poetry", "category__poetry" -> stringResource(R.string.category_poetry)
+        "Humour", "category__humour" -> stringResource(R.string.category_humour)
         else -> category
     }
 }

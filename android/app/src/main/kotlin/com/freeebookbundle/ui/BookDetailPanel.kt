@@ -51,7 +51,7 @@ import com.freeebookbundle.viewmodel.InitialBounds
 fun BookDetailContent(
     book: Book,
     isLoading: Boolean,
-    onReadClick: (InitialBounds?) -> Unit,
+    onReadClick: (InitialBounds?, resumeFromLastPosition: Boolean) -> Unit,
     onCategoryClick: (String) -> Unit,
     onAddToReadingList: (ReadingStatus) -> Unit,
     onClose: () -> Unit,
@@ -217,25 +217,68 @@ fun BookDetailContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
-                                onClick = { onReadClick(coverBounds) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = stringResource(R.string.home_read_now),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 12.sp,
-                                    letterSpacing = 0.5.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            val hasProgress = displayBook.hasReadingProgress()
+                            
+                            if (hasProgress) {
+                                // Continue Reading + Start Over buttons
+                                Button(
+                                    onClick = { onReadClick(coverBounds, true) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.home_continue),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.5.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = { onReadClick(coverBounds, false) },
+                                    modifier = Modifier.weight(0.5f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.home_start_over),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 0.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            } else {
+                                // Single Read Now button
+                                Button(
+                                    onClick = { onReadClick(coverBounds, false) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.home_read_now),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.5.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                             
                             FilledTonalButton(

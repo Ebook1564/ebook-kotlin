@@ -34,9 +34,11 @@ import androidx.compose.ui.platform.LocalContext
 import com.freeebookbundle.R
 import com.freeebookbundle.db.AppDatabase
 import com.freeebookbundle.models.ReadingStatus
+import com.freeebookbundle.utils.ReviewManager
 import kotlinx.coroutines.flow.first
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
+import android.app.Activity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,8 +100,12 @@ fun ProfileScreen(
                         }
                     },
                     actions = {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         IconButton(
-                            onClick = { appViewModel.toggleTheme() },
+                            onClick = { 
+                                val activity = context as? Activity ?: return@IconButton
+                                ReviewManager.requestRatingWithStars(activity, themeMode)
+                            },
                             modifier = Modifier.clip(CircleShape).background(when (themeMode) {
                                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.1f)
                                 AppThemeMode.NIGHT -> Color.White.copy(alpha = 0.1f)
@@ -107,12 +113,8 @@ fun ProfileScreen(
                             })
                         ) {
                             Icon(
-                                imageVector = when (themeMode) {
-                                    AppThemeMode.DAY -> Icons.Default.Nightlight
-                                    AppThemeMode.NIGHT -> Icons.Filled.Star
-                                    AppThemeMode.SPACE -> Icons.Default.LightMode
-                                },
-                                contentDescription = stringResource(R.string.profile_toggle_theme),
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "Rate app",
                                 tint = accentColor
                             )
                         }
@@ -327,14 +329,29 @@ fun StatisticsContent(
                 val totalBooks = allBooks.size
                 val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
                 val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
+                val wishlistCount = allBooks.count { it.readingStatus == ReadingStatus.WISHLIST }
+                
+                // Get category breakdown
+                val categoryCounts = allBooks
+                    .groupBy { it.categoryCode }
+                    .mapNotNull { (code, books) -> 
+                        if (code.isNotEmpty()) CategoryStat(code, books.size) else null
+                    }
+                    .sortedByDescending { it.count }
+                    .take(5)
+                
+                // Get last activity
+                val lastOpened = allBooks
+                    .mapNotNull { it.lastOpened }
+                    .maxOrNull()
                 
                 stats = ReadingStats(
                     totalBooks = totalBooks,
                     completedBooks = completedBooks,
                     currentlyReading = currentlyReading,
-                    pagesRead = (totalBooks * 250),
-                    hoursRead = (totalBooks * 8),
-                    streak = if (currentlyReading > 0 || completedBooks > 0) 1 else 0
+                    wishlistCount = wishlistCount,
+                    lastActivityTime = lastOpened,
+                    categoryBreakdown = categoryCounts
                 )
             } catch (e: Exception) {
                 stats = ReadingStats()
@@ -398,9 +415,9 @@ fun StatisticsContent(
                 ) {
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.profile_stat_pages),
-                        value = "${stats.pagesRead}",
-                        subtitle = stringResource(R.string.profile_stat_read),
+                        title = stringResource(R.string.profile_stat_wishlist),
+                        value = "${stats.wishlistCount}",
+                        subtitle = stringResource(R.string.profile_stat_on_wishlist),
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -408,9 +425,9 @@ fun StatisticsContent(
                     )
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.profile_stat_hours),
-                        value = "${stats.hoursRead}",
-                        subtitle = stringResource(R.string.profile_stat_of_reading),
+                        title = stringResource(R.string.profile_stat_last_read),
+                        value = formatLastRead(stats.lastActivityTime),
+                        subtitle = stringResource(R.string.profile_stat_ago),
                         color = labelColor,
                         bgColor = cardBg,
                         textColor = textColor,
@@ -448,7 +465,8 @@ fun StatisticsContent(
                     labelColor = labelColor,
                     bgColor = cardBg,
                     textColor = textColor,
-                    subTextColor = subTextColor
+                    subTextColor = subTextColor,
+                    stats = stats
                 )
             }
         }
@@ -459,10 +477,29 @@ data class ReadingStats(
     val totalBooks: Int = 0,
     val completedBooks: Int = 0,
     val currentlyReading: Int = 0,
-    val pagesRead: Int = 0,
-    val hoursRead: Int = 0,
-    val streak: Int = 1
+    val wishlistCount: Int = 0,
+    val lastActivityTime: Long? = null,
+    val categoryBreakdown: List<CategoryStat> = emptyList(),
+    val streak: Int = 0
 )
+
+data class CategoryStat(val name: String, val count: Int)
+
+@Composable
+private fun formatLastRead(timestamp: Long?): String {
+    if (timestamp == null) return "-"
+    
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3600_000 -> "${diff / 60_000}m"
+        diff < 86400_000 -> "${diff / 3600_000}h"
+        diff < 604800_000 -> "${diff / 86400_000}d"
+        else -> "${diff / 604800_000}w"
+    }
+}
 
 @Composable
 private fun StatCard(
@@ -593,15 +630,34 @@ private fun GenreBreakdownCard(
     labelColor: Color,
     bgColor: Color,
     textColor: Color,
-    subTextColor: Color
+    subTextColor: Color,
+    stats: ReadingStats = ReadingStats()
 ) {
-    val genres = listOf(
+    // Default categories for when no real data is available
+    val defaultGenres = listOf(
         GenreStat("Fiction", 0.35f, Color(0xFF5D4037)),
         GenreStat("Science", 0.25f, Color(0xFF2E7D32)),
         GenreStat("Romance", 0.20f, Color(0xFFAD1457)),
         GenreStat("History", 0.12f, Color(0xFF455A64)),
         GenreStat("Fantasy", 0.08f, Color(0xFF6A1B9A))
     )
+    
+    // Use real category data if available, otherwise fall back to defaults
+    val genres = if (stats.categoryBreakdown.isNotEmpty() && stats.totalBooks > 0) {
+        stats.categoryBreakdown.take(5).mapIndexed { index, cat ->
+            val colors = listOf(
+                Color(0xFF5D4037), Color(0xFF2E7D32), Color(0xFFAD1457),
+                Color(0xFF455A64), Color(0xFF6A1B9A)
+            )
+            GenreStat(
+                cat.name.replaceFirstChar { it.uppercase() }.take(20),
+                cat.count.toFloat() / stats.totalBooks,
+                colors.getOrElse(index) { colors.last() }
+            )
+        }
+    } else {
+        defaultGenres
+    }
     
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1015,7 +1071,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "1. Information You Provide\n   • User profile name (stored locally on your device)\n   • Reading preferences and theme settings (stored locally on your device)\n\n2. Information Collected Automatically\n   • Book reading progress (stored locally on your device)\n   • Reading history and recently opened books (stored locally on your device)",
+                        text = "1. Information You Provide\n   • User profile name (stored locally on your device)\n   • Reading preferences and theme settings (stored locally on your device)\n\n2. Information Collected Automatically\n   • Book reading progress (stored locally on your device)\n   • Reading history and recently opened books (stored locally on your device)\n   • Anonymous usage analytics via Firebase (app interactions, crash reports) - no personally identifiable information",
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1029,7 +1085,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "We use the following third-party services:\n   • Google Books API\n   • OpenLibrary API\n   • Our server at 54.254.205.11",
+                        text = "We use the following third-party services:\n   • Google Books API\n   • OpenLibrary API\n   • Firebase (for anonymous analytics only)",
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1043,7 +1099,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "All personal data is stored locally on your device using the Room database. This data is NOT stored on our servers and remains under your device's control.",
+                        text = "All personal data is stored locally on your device using the Room database. This data is NOT stored on our servers and remains under your device's control. We use Firebase Analytics for anonymous usage data collection to improve the app experience.",
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1113,7 +1169,7 @@ private fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "• Company: Tara Applications\n• Email: myebookbundle@gmail.com\n• Website: https://tarapplication.com",
+                        text = "• Company: Tara Applications\n• Email: myebookbundle@gmail.com\n• Website: https://tarapplications.com",
                         fontSize = 12.sp
                     )
                 }

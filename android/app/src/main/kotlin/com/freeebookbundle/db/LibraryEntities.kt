@@ -84,7 +84,12 @@ data class BookEntity(
     @ColumnInfo(name = "last_opened") val lastOpened: Long? = null,
     @ColumnInfo(name = "date_finished") val dateFinished: Long? = null,
     @ColumnInfo(name = "subjects", defaultValue = "[]") val subjects: List<String> = emptyList(),
-    @ColumnInfo(name = "external_cover_url") val externalCoverUrl: String? = null
+    @ColumnInfo(name = "external_cover_url") val externalCoverUrl: String? = null,
+    @ColumnInfo(name = "last_spine_index", defaultValue = "0") val lastSpineIndex: Int = 0,
+    @ColumnInfo(name = "chapter_progression", defaultValue = "0.0") val chapterProgression: Float = 0f,
+    @ColumnInfo(name = "tts_spine_index", defaultValue = "0") val ttsSpineIndex: Int = 0,
+    @ColumnInfo(name = "tts_sentence_index", defaultValue = "0") val ttsSentenceIndex: Int = 0,
+    @ColumnInfo(name = "tts_paragraph_index", defaultValue = "0") val ttsParagraphIndex: Int = 0
 )
 
 fun BookEntity.toBook(): com.freeebookbundle.models.Book {
@@ -107,6 +112,11 @@ fun BookEntity.toBook(): com.freeebookbundle.models.Book {
         dateStarted = dateStarted,
         lastOpened = lastOpened,
         dateFinished = dateFinished,
-        subjects = subjects
+        subjects = subjects,
+        lastSpineIndex = lastSpineIndex,
+        chapterProgression = chapterProgression,
+        ttsSpineIndex = ttsSpineIndex,
+        ttsSentenceIndex = ttsSentenceIndex,
+        ttsParagraphIndex = ttsParagraphIndex
     )
 }

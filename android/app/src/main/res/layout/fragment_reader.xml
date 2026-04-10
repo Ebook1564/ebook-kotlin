@@ -22,7 +22,7 @@
             android:id="@+id/reveal_overlay_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:elevation="1dp" />
+            android:elevation="50dp" />
 
         <!-- Top Bar -->
         <LinearLayout
@@ -100,12 +100,12 @@
             </LinearLayout>
 
             <ImageButton
-                android:id="@+id/btn_settings"
+                android:id="@+id/btn_help"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_settings"
-                android:contentDescription="Settings" />
+                android:src="@drawable/ic_help"
+                android:contentDescription="Help" />
 
         </LinearLayout>
 
@@ -178,6 +178,15 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_book"
                 android:contentDescription="Saved Bookmarks and Highlights" />
+
+            <ImageButton
+                android:id="@+id/btn_settings"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_settings"
+                android:contentDescription="Settings" />
 
         </LinearLayout>
 

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-04-02T08:08:11.454490",
+  "dry_run": true,
+  "config": {
+    "epub_dir": "/var/www/ebooks/epubs",
+    "db_path": "/var/www/ebooks/library.db",
+    "limit": 100
+  },
+  "total_books": 0,
+  "renamed": [],
+  "errors": []
+}

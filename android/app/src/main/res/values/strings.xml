@@ -39,11 +39,17 @@
     <string name="onboarding_sync_desc">Syncing</string>
     <string name="onboarding_sync_error_desc">Sync Error</string>
     <string name="onboarding_sync_start_desc">Start Sync</string>
+    
+    <!-- Onboarding Genre Selection -->
+    <string name="onboarding_genre_title">Choose Your Genres</string>
+    <string name="onboarding_genre_subtitle">Select at least 2 genres to personalize your home screen</string>
 
     <!-- Home Screen -->
     <string name="home_continue_reading">Continue Reading</string>
     <string name="home_curated_for_you">Curated For You</string>
     <string name="home_read_now">READ NOW</string>
+    <string name="home_continue">CONTINUE</string>
+    <string name="home_start_over">START OVER</string>
     <string name="home_more_info">MORE INFO</string>
     <string name="home_toggle_theme">Toggle Theme</string>
     <string name="greeting_morning">Good Morning</string>
@@ -112,6 +118,10 @@
     <string name="category_mystery">Mystery</string>
     <string name="category_biography">Biography</string>
     <string name="category_adventure">Adventure</string>
+    <string name="category_short_stories">Short Stories</string>
+    <string name="category_children">Children and Young Adult</string>
+    <string name="category_poetry">Poetry</string>
+    <string name="category_humour">Humour</string>
 
     <!-- Library Screen -->
     <string name="library_title">My Collection</string>
@@ -141,10 +151,10 @@
     <string name="profile_stat_completed">completed</string>
     <string name="profile_stat_reading">Reading</string>
     <string name="profile_stat_in_progress">in progress</string>
-    <string name="profile_stat_pages">Pages</string>
-    <string name="profile_stat_read">read</string>
-    <string name="profile_stat_hours">Hours</string>
-    <string name="profile_stat_of_reading">of reading</string>
+    <string name="profile_stat_wishlist">Wishlist</string>
+    <string name="profile_stat_on_wishlist">on wishlist</string>
+    <string name="profile_stat_last_read">Last Read</string>
+    <string name="profile_stat_ago">ago</string>
     <string name="profile_completion_rate">COMPLETION RATE</string>
     <string name="profile_books_finished">finished</string>
     <string name="profile_reading_streak">READING STREAK</string>
@@ -160,7 +170,7 @@
     <string name="profile_about_description">Free Ebook Bundle is a reader app designed to bring you the best in free literature.</string>
     <string name="profile_open_source">OPEN SOURCE LIBRARIES</string>
     <string name="profile_privacy_title">Privacy</string>
-    <string name="profile_privacy_statement">This app stores all data locally on your device.</string>
+    <string name="profile_privacy_statement">This app stores all data locally on your device. We use Firebase Analytics to collect anonymous usage data to improve the app experience. No personal information is collected without your consent.</string>
     <string name="profile_attribution_title">ATTRIBUTION</string>
     <string name="profile_attribution_text">Book covers and metadata are provided by Open Library.</string>
     <string name="profile_copyright">All book covers and content are property of their respective owners.</string>
@@ -179,7 +189,7 @@
     <string name="profile_wifi_only">Download over Wi-Fi only</string>
     <string name="profile_disabled">Disabled</string>
     <string name="profile_privacy_dialog_title">Privacy Policy</string>
-    <string name="profile_privacy_last_updated">Last updated: March 25, 2026</string>
+    <string name="profile_privacy_last_updated">Last updated: April 9, 2026</string>
     <string name="profile_close">Close</string>
 
     <!-- Audio Player Screen -->
@@ -249,4 +259,16 @@
     <string name="book_detail_currently_reading">Currently Reading</string>
     <string name="book_detail_completed">Completed</string>
     <string name="book_detail_want_to_read">Want to Read</string>
+    
+    <!-- Missing strings to fix warnings -->
+    <string name="debug_language_switcher">Language Switcher</string>
+    <string name="debug_later">Later</string>
+    <string name="debug_restart_now">Restart Now</string>
+    <string name="debug_restart_required">Restart Required</string>
+    <string name="debug_select_language">Select Language</string>
+    <string name="debug_system_default">System Default</string>
+    <string name="profile_stat_hours">hours</string>
+    <string name="profile_stat_of_reading">of reading</string>
+    <string name="profile_stat_pages">pages</string>
+    <string name="profile_stat_read">read</string>
 </resources>

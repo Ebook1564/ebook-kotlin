@@ -13,6 +13,7 @@ import com.freeebookbundle.EbookApp
 import com.freeebookbundle.R
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.repository.ReaderSettingsRepository
+import com.freeebookbundle.utils.Analytics
 import kotlinx.coroutines.launch
 import org.readium.r2.shared.util.toUrl
 import java.io.File
@@ -52,8 +53,28 @@ class ReaderActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val asset = app.assetRetriever.retrieve(url).getOrNull() ?: return@launch
-                val publication = app.publicationOpener.open(asset, allowUserInteraction = true).getOrNull() ?: return@launch
+                val asset = app.assetRetriever.retrieve(url).getOrNull() 
+                if (asset == null) {
+                    Analytics.trackBookLoadFailed(
+                        bookId = book.id,
+                        errorType = "asset_retrieval_failed",
+                        errorMessage = "assetRetriever.retrieve returned null for: ${file.absolutePath}",
+                        fileName = file.name
+                    )
+                    return@launch
+                }
+                
+                val publication = app.publicationOpener.open(asset, allowUserInteraction = true).getOrNull()
+                if (publication == null) {
+                    Analytics.trackBookLoadFailed(
+                        bookId = book.id,
+                        errorType = "publication_parsing_failed",
+                        errorMessage = "publicationOpener.open returned null",
+                        fileName = file.name
+                    )
+                    return@launch
+                }
+                
                 ReaderRepository.currentPublication = publication
                 ReaderRepository.currentBook = book
                 
@@ -70,6 +91,12 @@ class ReaderActivity : AppCompatActivity() {
                 
             } catch (e: Exception) {
                 e.printStackTrace()
+                Analytics.trackBookLoadFailed(
+                    bookId = book.id,
+                    errorType = "exception",
+                    errorMessage = "${e.javaClass.simpleName}: ${e.message}",
+                    fileName = file.name
+                )
                 finish()
             }
         }

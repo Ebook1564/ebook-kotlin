@@ -35,7 +35,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private fun loadSettings(): ReaderSettings {
         return ReaderSettings(
             fontSize = prefs.getFloat("font_size", 100f).toDouble(),
-            theme = ReaderTheme.valueOf(prefs.getString("theme", ReaderTheme.WHITE.name) ?: ReaderTheme.WHITE.name),
+            theme = ReaderTheme.valueOf(prefs.getString("theme", ReaderTheme.SEPIA.name) ?: ReaderTheme.SEPIA.name),
             scrollMode = prefs.getBoolean("scroll_mode", false),
             fontFamily = prefs.getString("font_family", "serif") ?: "serif"
         )

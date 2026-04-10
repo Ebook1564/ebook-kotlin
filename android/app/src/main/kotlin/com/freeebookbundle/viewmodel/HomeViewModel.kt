@@ -9,6 +9,8 @@ import com.freeebookbundle.EbookApp
 import com.freeebookbundle.db.toBook
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.repository.ExternalMetadataRepository
+import com.freeebookbundle.utils.GenrePreferences
+import com.freeebookbundle.utils.LocaleManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
@@ -20,6 +22,7 @@ data class InitialBounds(
 
 data class HomeSection(
     val title: String,
+    val categoryCode: String,
     val books: List<Book>
 )
 
@@ -162,7 +165,8 @@ data class HomeUiState(
     val isMetadataLoading: Boolean = false,
     val dynamicCategories: List<CategoryWithCount> = emptyList(),
     val popularSubjects: List<SubjectWithCount> = emptyList(),
-    val openAudioPlayer: Boolean = false
+    val openAudioPlayer: Boolean = false,
+    val resumeFromLastPosition: Boolean = true
 )
 
 data class CategoryWithCount(
@@ -320,15 +324,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 .take(12)
                 .map { SubjectWithCount(it.key, it.value) }
             
-            // Create sections with organic ordering (most popular first, not alphabetical)
-            val sections = categories.map { cat ->
+            // Get selected genres from preferences
+            val selectedGenres = GenrePreferences.getSelectedGenres()
+            
+            // Create sections with category codes
+            val allSections = categories.map { cat ->
                 val books = bookDao.getBooksByCategoryLimit(cat.code, 15).map { it.toBook() }
-                HomeSection(cat.name, books)
+                HomeSection(cat.name, cat.code, books)
             }.sortedByDescending { it.books.size }
             
-            // Load recently opened books
-            val recentlyOpened = bookDao.getRecentlyOpenedBooks(10).map { it.toBook() }
-            _continueReadingBooks.value = recentlyOpened
+            // Filter sections based on selected genres (if any selected)
+            // Also show sections that partially match selected genres
+            val sections = if (selectedGenres.isEmpty()) {
+                allSections  // Show all if nothing selected
+            } else {
+                allSections.filter { section -> 
+                    // Check if any selected genre is part of the category code or title
+                    selectedGenres.any { genre ->
+                        section.categoryCode.contains(genre) ||
+                        section.categoryCode.lowercase().contains(genre.lowercase()) ||
+                        section.title.lowercase().contains(genre.removePrefix("category__").replace("_", " ").lowercase())
+                    }
+                }
+            }
+            
+            // Load continue reading books
+            viewModelScope.launch {
+                val continueReadingBooks = bookDao.getContinueReadingBooks(10).first().map { it.toBook() }
+                _continueReadingBooks.value = continueReadingBooks
+            }
             
             _homeSections.value = sections
             _billboardBooks.value = sections.flatMap { it.books }.shuffled().take(6)
@@ -408,7 +432,85 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _searchRequest.value = SearchRequest()
         _uiState.value = _uiState.value.copy(searchQuery = "", activeFilter = SearchFilter.None, selectedCategoryForSearch = null)
     }
+    
+    fun reloadHomeData() {
+        // Reload home data - will pick up new genre selections
+        loadStableHomeData()
+    }
+    
+    suspend fun getTopGenres(count: Int = 10): List<CategoryWithCount> {
+        val allCategories = bookDao.getAllCategories().first()
+        
+        // Deduplicate and filter
+        val categories = allCategories
+            .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
+            .groupBy { it.name }
+            .map { (_, group) -> group.first() }
+        
+        // Get count for each category
+        val categoryList = categories.map { cat ->
+            val books = bookDao.getBooksByCategoryLimit(cat.code, 1000)
+            CategoryWithCount(
+                code = cat.code,
+                name = cat.name,
+                color = cat.color,
+                bookCount = books.size
+            )
+        }
+        
+        // Sort: language-matching categories first, then by book count
+        val langPrefix = LocaleManager.getSystemLanguagePrefix()
+        val sorted = if (langPrefix.isNotEmpty()) {
+            categoryList.sortedWith(
+                compareByDescending<CategoryWithCount> { it.name.startsWith(langPrefix) }
+                    .thenByDescending { it.bookCount }
+            )
+        } else {
+            categoryList.sortedByDescending { it.bookCount }
+        }
+        
+        return sorted.take(count)
+    }
+    
+    suspend fun getAllGenres(): List<CategoryWithCount> {
+        val allCategories = bookDao.getAllCategories().first()
+        
+        // Deduplicate and filter
+        val categories = allCategories
+            .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
+            .groupBy { it.name }
+            .map { (_, group) -> group.first() }
+        
+        // Get count for each category
+        val categoryList = categories.map { cat ->
+            val books = bookDao.getBooksByCategoryLimit(cat.code, 1000)
+            CategoryWithCount(
+                code = cat.code,
+                name = cat.name,
+                color = cat.color,
+                bookCount = books.size
+            )
+        }
+        
+        // Sort: language-matching categories first, then alphabetically
+        val langPrefix = LocaleManager.getSystemLanguagePrefix()
+        return if (langPrefix.isNotEmpty()) {
+            categoryList.sortedWith(
+                compareByDescending<CategoryWithCount> { it.name.startsWith(langPrefix) }
+                    .thenBy { it.name }
+            )
+        } else {
+            categoryList.sortedBy { it.name }
+        }
+    }
 
-    fun startReadTransition(b: Book, bounds: InitialBounds? = null, openAudioPlayer: Boolean = false) { _uiState.value = _uiState.value.copy(transitionBook = b, initialBounds = bounds, openAudioPlayer = openAudioPlayer) }
+    fun startReadTransition(b: Book, bounds: InitialBounds? = null, resumeFromLastPosition: Boolean = true, openAudioPlayer: Boolean = false) { 
+        _uiState.value = _uiState.value.copy(
+            transitionBook = b, 
+            initialBounds = bounds, 
+            resumeFromLastPosition = resumeFromLastPosition,
+            openAudioPlayer = openAudioPlayer
+        ) 
+    }
     fun endReadTransition() { _uiState.value = _uiState.value.copy(transitionBook = null, initialBounds = null, openAudioPlayer = false) }
 }

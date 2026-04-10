@@ -20,9 +20,13 @@ import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import com.freeebookbundle.R
+import com.freeebookbundle.EbookApp
 import com.freeebookbundle.db.Bookmark
 import com.freeebookbundle.db.Highlight
+import com.freeebookbundle.db.BookDao
+import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.voice.TtsVoiceManager
 import com.freeebookbundle.voice.TtsSettingsPanel
 import com.freeebookbundle.ui.AudioPlayerScreen
@@ -30,8 +34,10 @@ import com.freeebookbundle.ui.ChapterInfo
 import com.freeebookbundle.ui.TtsPlayerState
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.ReaderViewModel
+import com.freeebookbundle.utils.ReviewManager
 import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.utils.EpubPreviewUtils
+import com.freeebookbundle.utils.GenrePreferences
 import com.freeebookbundle.utils.LocaleManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -69,6 +75,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.Canvas
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -80,12 +87,17 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.freeebookbundle.viewmodel.ReaderTheme
 import com.freeebookbundle.viewmodel.ReaderSettings
@@ -94,10 +106,14 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.*
 
 import android.view.ActionMode
@@ -132,6 +148,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var btnTts: ImageButton
     private lateinit var btnMenu: ImageButton
     private lateinit var btnSettings: ImageButton
+    private lateinit var btnHelp: ImageButton
     private lateinit var readerTitle: TextView
     private lateinit var readerChapter: TextView
     private lateinit var titleContainer: View
@@ -159,8 +176,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private var highlightsJob: kotlinx.coroutines.Job? = null
     
     // Reading progress tracking
-    private var totalSpineItems = 0
-    private var currentSpineIndex = 0
+    private var totalSpineItems by mutableStateOf(0)
+    private var currentSpineIndex by mutableStateOf(0)
 
     // TTS Compose State - using mutableStateOf for Compose recomposition
     private var isTtsActive by mutableStateOf(false)
@@ -172,6 +189,11 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private var currentFullText by mutableStateOf("")
     private var paragraphSentences = mutableListOf<String>()
     private var currentParagraphIndex = 0
+    
+    // Tutorial state
+    private var showTutorial by mutableStateOf(false)
+    private var tutorialStep by mutableStateOf(0)
+    private var currentBookIdString by mutableStateOf("")
     
     private lateinit var ttsVoiceManager: com.freeebookbundle.voice.TtsVoiceManager
 
@@ -204,6 +226,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         btnSearch = view.findViewById(R.id.btn_search)
         btnTts = view.findViewById(R.id.btn_tts)
         btnSettings = view.findViewById(R.id.btn_settings)
+        btnHelp = view.findViewById(R.id.btn_help)
         settingsComposeView = view.findViewById(R.id.settings_compose_view)
         selectionComposeView = view.findViewById(R.id.selection_compose_view)
         revealOverlayView = view.findViewById(R.id.reveal_overlay_view)
@@ -233,6 +256,12 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             }
 
             Box(modifier = Modifier.fillMaxSize().background(themeColor.copy(alpha = alpha.value)))
+        }
+
+        // Check and show tutorial after reveal overlay fades
+        lifecycleScope.launch {
+            delay(2000) // Wait for reveal overlay to finish
+            checkAndShowTutorial()
         }
 
         setupTtsControls()
@@ -267,9 +296,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         applyInsets(view)
 
         val settings = viewModel.settings.value
-        val startIndex = if (publication.readingOrder.size > 1) 1 else 0
-        val initialLink = publication.readingOrder[startIndex]
-        val initialLocator = publication.locatorFromLink(initialLink) ?: return view
+        val initialLocator = findRealContentStartLocator(publication) ?: return view
 
         setupNavigator(initialLocator, settings)
         
@@ -296,6 +323,17 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         ttsVoiceManager.initialize { success ->
             if (success) {
                 Log.d("TTS", "TtsVoiceManager initialized with neural voice support")
+                // Restore TTS state if available
+                lifecycleScope.launch {
+                    val database = (requireActivity().application as EbookApp).database
+                    val bookDao = database.bookDao()
+                    val savedTts = bookDao.getTtsPosition(bookId)
+                    if (savedTts != null) {
+                        currentSpineIndex = savedTts.spineIndex
+                        currentSentenceIndex = savedTts.sentenceIndex
+                        currentParagraphIndex = savedTts.paragraphIndex
+                    }
+                }
             }
         }
         
@@ -610,6 +648,37 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         )
         val navigatorFragment = fragmentFactory.instantiate(requireContext().classLoader, EpubNavigatorFragment::class.java.name) as EpubNavigatorFragment
         this.navigator = navigatorFragment
+        
+        // Restore reading position if available - delay until fragment is ready
+        viewLifecycleOwner.lifecycleScope.launch {
+            val database = (requireActivity().application as EbookApp).database
+            val bookDao = database.bookDao()
+            val savedPosition = bookDao.getLastPosition(bookId)
+            // Only restore if there's actual meaningful progress (not at start)
+            val hasProgress = savedPosition != null && (savedPosition.spineIndex > 0 || savedPosition.progression > 0.01f)
+            if (hasProgress) {
+                // Wait for fragment to be ready before navigating
+                view?.post {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val publication = ReaderRepository.currentPublication
+                        if (publication != null && savedPosition.spineIndex < publication.readingOrder.size) {
+                            val link = publication.readingOrder.get(savedPosition.spineIndex)
+                            if (
+                                link != null) {
+                                val locator = publication.locatorFromLink(link)
+                                if (locator != null && locator.locations != null) {
+                                    val originalLocations = locator.locations!!
+                                    val newLocations = originalLocations.copy(progression = savedPosition.progression.toDouble())
+                                    val restoredLocator = locator.copy(locations = newLocations)
+                                    navigatorFragment.go(restoredLocator, animated = false)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         childFragmentManager.beginTransaction().replace(R.id.fragment_reader_container, navigatorFragment).commit()
         
         // Collect locator changes for responsive progress updates
@@ -618,6 +687,53 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 updateReadingProgress(locator)
             }
         }
+    }
+
+    private fun findRealContentStartLocator(publication: org.readium.r2.shared.publication.Publication): Locator? {
+        val toc = publication.tableOfContents
+        val readingOrder = publication.readingOrder
+        
+        Log.d(TAG, "[SmartStart] Finding real content start")
+        Log.d(TAG, "[SmartStart] TOC size: ${toc.size}, ReadingOrder size: ${readingOrder.size}")
+        
+        val skipPatterns = listOf("cover", "wrapper", "pg-header", "pg-footer", "license", "copyright", "gutenberg", "title-page", " verso", "imprint")
+        
+        fun String.matchesSkipPattern(): Boolean {
+            val lower = this.lowercase()
+            return skipPatterns.any { lower.contains(it) }
+        }
+        
+        // Strategy 1: Use TOC (most reliable for structured EPUBs)
+        if (toc.isNotEmpty()) {
+            // Find first TOC entry that isn't cover/gutenberg
+            val firstContentToc = toc.firstOrNull { link ->
+                val href = link.href.toString()
+                Log.d(TAG, "[SmartStart] Checking TOC: ${link.title ?: "no title"} -> $href")
+                !href.matchesSkipPattern()
+            }
+            
+            if (firstContentToc != null) {
+                Log.d(TAG, "[SmartStart] Using TOC entry: ${firstContentToc.title ?: "no title"}")
+                return publication.locatorFromLink(firstContentToc)
+            }
+        }
+        
+        // Strategy 2: Fallback to reading order, skipping cover/gutenberg items
+        val firstContentSpineIndex = readingOrder.indexOfFirst { link ->
+            val href = link.href.toString()
+            Log.d(TAG, "[SmartStart] Checking spine: $href")
+            !href.matchesSkipPattern()
+        }
+        
+        if (firstContentSpineIndex >= 0) {
+            Log.d(TAG, "[SmartStart] Using spine index: $firstContentSpineIndex")
+            return publication.locatorFromLink(readingOrder[firstContentSpineIndex])
+        }
+        
+        // Strategy 3: Last resort - use first item
+        Log.d(TAG, "[SmartStart] No content found, using first item")
+        readingOrder.firstOrNull()?.let { return publication.locatorFromLink(it) }
+        return null
     }
 
     private fun createEpubPreferences(settings: ReaderSettings, forceScrollMode: Boolean = false): EpubPreferences {
@@ -651,7 +767,11 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
         
         // Get intra-chapter progress from locator (0.0 to 1.0)
-        chapterProgression = locator.locations?.progression?.toFloat() ?: 0f
+        val rawProgression = locator.locations?.progression?.toFloat()
+        if (rawProgression != null) {
+            chapterProgression = rawProgression
+        }
+        // If null, keep current value (user likely at end of content)
         
         Log.d(TAG, "[Progress] locator=$locator, progression=$chapterProgression, spineIndex=$currentSpineIndex, total=$totalSpineItems")
         
@@ -664,7 +784,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         progressProgress = chapterProgression.coerceIn(0f, 1f)
         
         val isLastChapter = currentSpineIndex >= totalSpineItems - 1
-        val isNearEndOfChapter = chapterProgression >= 0.85f
+        val isNearEndOfChapter = chapterProgression >= 0.95f
         showNextChapter = isNearEndOfChapter || isLastChapter
         
         val chapterTitle = if (tableOfContents.isNotEmpty() && currentSpineIndex < tableOfContents.size) {
@@ -685,6 +805,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             
             val systemNavPadding = androidx.compose.foundation.layout.WindowInsets.systemBars.asPaddingValues()
             
+            val isFirstChapter = currentSpineIndex == 0
+            val isLastChapter = currentSpineIndex >= totalSpineItems - 1
+            
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -694,48 +817,123 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                         top = 8.dp,
                         bottom = systemNavPadding.calculateBottomPadding()
                     )
-                    .background(Color.Transparent)
             ) {
                 if (showNextChapter) {
-                    Button(
-                        onClick = {
-                            lifecycleScope.launch {
-                                try {
-                                    val publication = ReaderRepository.currentPublication
-                                    if (publication != null && currentSpineIndex < totalSpineItems - 1) {
-                                        val nextLink = publication.readingOrder.getOrNull(currentSpineIndex + 1)
-                                        if (nextLink != null) {
-                                            publication.locatorFromLink(nextLink)?.let { locator ->
-                                                navigator?.go(locator, animated = true)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Previous Chapter button - only show if not on first chapter
+                        if (!isFirstChapter) {
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clickable {
+                                        lifecycleScope.launch {
+                                            try {
+                                                val publication = ReaderRepository.currentPublication
+                                                if (publication != null && currentSpineIndex > 0) {
+                                                    val prevLink = publication.readingOrder.getOrNull(currentSpineIndex - 1)
+                                                    if (prevLink != null) {
+                                                        publication.locatorFromLink(prevLink)?.let { locator ->
+                                                            navigator?.go(locator, animated = true)
+                                                        }
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "Error going to previous chapter: ${e.message}")
+                                            }
+                                        }
+                                    },
+                                shape = RoundedCornerShape(24.dp),
+                                color = Color(0xFF333333),
+                                shadowElevation = 4.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp),
+                                    horizontalArrangement = Arrangement.Start,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowLeft,
+                                        contentDescription = "Previous",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Previous",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Next/Finish Chapter button
+                        Surface(
+                            modifier = Modifier
+                                .weight(if (!isFirstChapter) 1f else 1f)
+                                .height(48.dp)
+                                .clickable {
+                                    if (isLastChapter) {
+                                        markBookAsCompleted()
+                                    } else {
+                                        lifecycleScope.launch {
+                                            try {
+                                                val publication = ReaderRepository.currentPublication
+                                                if (publication != null) {
+                                                    val nextLink = publication.readingOrder.getOrNull(currentSpineIndex + 1)
+                                                    if (nextLink != null) {
+                                                        publication.locatorFromLink(nextLink)?.let { locator ->
+                                                            navigator?.go(locator, animated = true)
+                                                        }
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "Error going to next chapter: ${e.message}")
                                             }
                                         }
                                     }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Error going to next chapter: ${e.message}")
+                                },
+                            shape = RoundedCornerShape(24.dp),
+                            color = Color(0xFFE50914),
+                            shadowElevation = 6.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp),
+                                horizontalArrangement = if (!isFirstChapter) Arrangement.End else Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val buttonText = when {
+                                    isLastChapter -> "Finish"
+                                    else -> "Next"
+                                }
+                                Text(
+                                    text = buttonText,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.White
+                                )
+                                if (!isLastChapter) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = "Next",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE50914)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 8.dp,
-                            pressedElevation = 4.dp
-                        )
-                    ) {
-                        Text(
-                            text = if (currentSpineIndex < totalSpineItems - 1) stringResource(R.string.reader_next_chapter) else stringResource(R.string.reader_finish),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
-                        )
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 
+                // Progress bar - always visible
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -753,11 +951,66 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             }
         }
     }
+    
+    private fun markBookAsCompleted() {
+        val currentBook = ReaderRepository.currentBook ?: return
+        
+        lifecycleScope.launch {
+            try {
+                val app = requireActivity().application as EbookApp
+                app.database.bookDao().markAsCompleted(
+                    bookId = currentBook.id,
+                    status = ReadingStatus.COMPLETED,
+                    dateFinished = System.currentTimeMillis()
+                )
+                
+                Log.d(TAG, "Book marked as completed: ${currentBook.title}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error marking book as completed: ${e.message}")
+            }
+        }
+        
+        activity?.finish()
+    }
 
     override fun onDestroy() {
+        // Save reading progress before destroying fragment
+        saveReadingProgress()
+        
+        // Save TTS state before destroying fragment
+        saveTtsState()
+        
+        // Track book close and check if we should show review prompt
+        if (context != null) {
+            ReviewManager.onBookClosed(requireContext())
+            if (ReviewManager.shouldShowRatingPrompt(requireContext())) {
+                ReviewManager.requestRatingWithStars(requireActivity(), AppThemeMode.DAY) { rating ->
+                    // Rating handled by onRatingShown in handleRatingWithCallback
+                    // Just log for debugging
+                    Log.d(TAG, "User rated: $rating stars")
+                }
+            }
+        }
+        
         try { tts?.stop(); tts?.shutdown() } catch (e: Exception) {}
         if (::ttsVoiceManager.isInitialized) ttsVoiceManager.shutdown()
         super.onDestroy()
+    }
+    
+    private fun saveReadingProgress() {
+        lifecycleScope.launch {
+            val database = (requireActivity().application as EbookApp).database
+            val bookDao = database.bookDao()
+            bookDao.updateReadingProgress(bookId, currentSpineIndex, chapterProgression)
+        }
+    }
+    
+    private fun saveTtsState() {
+        lifecycleScope.launch {
+            val database = (requireActivity().application as EbookApp).database
+            val bookDao = database.bookDao()
+            bookDao.updateTtsPosition(bookId, currentSpineIndex, currentSentenceIndex, currentParagraphIndex)
+        }
     }
 
     private fun applyInsets(view: View) {
@@ -791,6 +1044,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             speakCurrentPage() 
         }
         btnSettings.setOnClickListener { showSettingsDialog() }
+        btnHelp.setOnClickListener { checkAndShowTutorial() }
     }
 
     private fun openChapterDrawer() {
@@ -803,15 +1057,21 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         tableOfContents = publication.tableOfContents
         val toc = tableOfContents
         val chapterCountText = view?.findViewById<TextView>(R.id.drawer_chapter_count)
-        chapterCountText?.text = getString(R.string.reader_chapters_count, toc.size)
+        
+        // Use toc size, fallback to readingOrder size if empty
+        val actualCount = if (toc.isNotEmpty()) toc.size else publication.readingOrder.size
+        chapterCountText?.text = getString(R.string.reader_chapters_count, actualCount)
         
         // Enable swipe gesture to open drawer
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
         
         chapterList.layoutManager = LinearLayoutManager(context)
-        val adapter = ChapterAdapter(toc, currentSpineIndex) { index ->
+        
+        // Use toc if available, otherwise use readingOrder as chapters
+        val chapters = if (toc.isNotEmpty()) toc else publication.readingOrder
+        val adapter = ChapterAdapter(chapters, currentSpineIndex) { index ->
             lifecycleScope.launch {
-                toc.getOrNull(index)?.let { link ->
+                chapters.getOrNull(index)?.let { link ->
                     drawerLayout.closeDrawers()
                     publication.locatorFromLink(link)?.let { locator ->
                         navigator?.go(locator, animated = true)
@@ -868,7 +1128,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
     
     fun toggleBottomBar() {
-        if (isTtsActive) return
+        if (isTtsActive || showTutorial) return
         if (bottomBar.visibility == View.VISIBLE) {
             bottomBar.visibility = View.GONE
             bottomBarVisible = false
@@ -880,6 +1140,9 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     
     fun onTap(x: Float, y: Float) {
         if (!::topBar.isInitialized || !::bottomBar.isInitialized) return
+        
+        // Don't toggle UI during tutorial
+        if (showTutorial) return
         
         if (topBar.visibility == View.VISIBLE) {
             topBar.visibility = View.GONE
@@ -1238,28 +1501,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             )
                             
                             Spacer(modifier = Modifier.height(24.dp))
-                            
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color.White.copy(alpha = 0.1f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(stringResource(R.string.reader_vertical_scroll), style = MaterialTheme.typography.bodyLarge, color = Color.White)
-                                        Text(stringResource(R.string.reader_scroll_desc), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                    }
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = stringResource(R.string.reader_enabled),
-                                        tint = Color(0xFF4CAF50),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -1273,4 +1514,314 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private fun recreateNavigator(settings: ReaderSettings) { navigator?.currentLocator?.value?.let { setupNavigator(it, settings, forceScrollMode = true) } }
     fun isScrollMode(): Boolean = viewModel.settings.value.scrollMode
+
+    private fun checkAndShowTutorial() {
+        val currentBook = ReaderRepository.currentBook
+        if (currentBook == null) return
+        
+        // Only show tutorial on first ever time opening ANY ebook
+        if (GenrePreferences.hasReaderTutorialBeenShownForAnyBook()) {
+            return
+        }
+        
+        val bookIdString = currentBook.id
+        
+        // Show tutorial (help button will force show it again if needed)
+        currentBookIdString = bookIdString
+        showTutorial = true
+        tutorialStep = 0
+        
+        // Lock UI - show both bars and prevent them from toggling
+        topBar?.visibility = View.VISIBLE
+        bottomBar?.visibility = View.VISIBLE
+        
+        // Small delay to ensure bottom bar is laid out
+        view?.postDelayed({
+            if (isAdded && view != null) {
+                val positions = getAllButtonPositions()
+                showTutorialWithPositions(positions)
+            }
+        }, 100)
+    }
+    
+    private fun showTutorialWithPositions(positions: Map<String, Pair<Float, Float>>) {
+        revealOverlayView.visibility = View.VISIBLE
+        revealOverlayView.setContent {
+            InteractiveTutorialOverlay(
+                positions = positions,
+                currentStep = tutorialStep,
+                onStepComplete = { advanceTutorial() },
+                onSkip = { finishTutorial() }
+            )
+        }
+    }
+    
+    private fun advanceTutorial() {
+        if (tutorialStep < 6) {
+            tutorialStep++
+            val newPositions = getAllButtonPositions()
+            revealOverlayView.setContent {
+                InteractiveTutorialOverlay(
+                    positions = newPositions,
+                    currentStep = tutorialStep,
+                    onStepComplete = { 
+                        if (tutorialStep < 6) {
+                            advanceTutorial()
+                        } else {
+                            finishTutorial()
+                        }
+                    },
+                    onSkip = { finishTutorial() }
+                )
+            }
+        } else {
+            finishTutorial()
+        }
+    }
+    
+    private fun finishTutorial() {
+        showTutorial = false
+        GenrePreferences.markReaderTutorialDone(currentBookIdString)
+        revealOverlayView.visibility = View.GONE
+        // Hide bars again after tutorial
+        topBar?.visibility = View.GONE
+    }
+    
+    private fun getAllButtonPositions(): Map<String, Pair<Float, Float>> {
+        val positions = mutableMapOf<String, Pair<Float, Float>>()
+        
+        fun addPosition(key: String, viewId: Int) {
+            val view = view?.findViewById<View>(viewId) ?: return
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            val w = view.width
+            val h = view.height
+            positions[key] = Pair(location[0] + w / 2f, location[1] + h / 2f)
+        }
+        
+        addPosition("menu", R.id.btn_menu)
+        addPosition("search", R.id.btn_search)
+        addPosition("highlight", R.id.btn_highlight)
+        addPosition("tts", R.id.btn_tts)
+        addPosition("bookmark", R.id.btn_star_bookmark)
+        addPosition("books", R.id.btn_book_list)
+        addPosition("settings", R.id.btn_settings)
+        addPosition("help", R.id.btn_help)
+        
+        return positions
+    }
 }
+
+@Composable
+private fun InteractiveTutorialOverlay(
+    positions: Map<String, Pair<Float, Float>>,
+    currentStep: Int,
+    onStepComplete: () -> Unit,
+    onSkip: () -> Unit
+) {
+    val stepOrder = listOf("menu", "search", "highlight", "tts", "bookmark", "books", "settings")
+    val currentKey = stepOrder.getOrNull(currentStep) ?: "menu"
+    val (centerXPx, centerYPx) = positions[currentKey] ?: Pair(0f, 0f)
+    
+    val accentColor = Color(0xFFE50914)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    val tutorialInfo = listOf(
+        TutorialStepData(
+            title = "Chapter Menu",
+            description = "Tap here to open the chapter list and jump to any section of the book",
+            icon = "📖"
+        ),
+        TutorialStepData(
+            title = "Search",
+            description = "Search for words or phrases anywhere in the book",
+            icon = "🔍"
+        ),
+        TutorialStepData(
+            title = "Highlight",
+            description = "Select any text to highlight, add notes, or copy",
+            icon = "✏️"
+        ),
+        TutorialStepData(
+            title = "Listen",
+            description = "Have the book read aloud with text-to-speech. Tap again to pause",
+            icon = "🔊"
+        ),
+        TutorialStepData(
+            title = "Bookmark",
+            description = "Save your current position and access your saved bookmarks",
+            icon = "⭐"
+        ),
+        TutorialStepData(
+            title = "Library",
+            description = "View all your books, highlights, and reading history",
+            icon = "📚"
+        ),
+        TutorialStepData(
+            title = "Settings",
+            description = "Adjust font size, theme, margins, and other reading preferences",
+            icon = "⚙️"
+        )
+    )
+    
+    val currentInfo = tutorialInfo.getOrNull(currentStep)
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f))) {
+        // Ring indicator around button position (outline only, not filled)
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val x = centerXPx
+            val y = centerYPx
+            if (x > 0 && y > 0) {
+                // Outer transparent ring
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.3f),
+                    radius = 55.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(x, y)
+                )
+                // Ring outline
+                drawCircle(
+                    color = accentColor,
+                    radius = 40.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(x, y),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                )
+                // Pulsing dot indicator
+                drawCircle(
+                    color = accentColor,
+                    radius = 6.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(x, y)
+                )
+            }
+        }
+        
+        // Header - avoid top bar
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 100.dp)
+                .statusBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Welcome to the Reader",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Step ${currentStep + 1} of ${tutorialInfo.size}",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 14.sp
+            )
+        }
+        
+        // Skip button
+        TextButton(
+            onClick = onSkip,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .statusBarsPadding()
+        ) {
+            Text(
+                "Skip",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        
+        // Progress indicators
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 100.dp)
+        ) {
+            repeat(tutorialInfo.size) { index ->
+                Box(
+                    modifier = Modifier
+                        .size(if (index == currentStep) 10.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (index == currentStep) accentColor 
+                            else if (index < currentStep) accentColor.copy(alpha = 0.7f)
+                            else Color.White.copy(alpha = 0.3f)
+                        )
+                )
+            }
+        }
+        
+        // Info card at bottom - avoid bottom bar
+        currentInfo?.let { info ->
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 100.dp)
+                    .navigationBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF1E1E1E),
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Text(text = info.icon, fontSize = 36.sp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = info.title,
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = info.description,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Next button
+                Button(
+                    onClick = onStepComplete,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    shape = RoundedCornerShape(26.dp)
+                ) {
+                    Text(
+                        text = if (currentStep < tutorialInfo.size - 1) "Next" else "Get Started",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (currentStep < tutorialInfo.size - 1) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("→", color = Color.White, fontSize = 18.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class TutorialStepData(
+    val title: String,
+    val description: String,
+    val icon: String
+)

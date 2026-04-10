@@ -29,7 +29,12 @@ data class Book(
     val dateAdded: Long? = null,
     val dateStarted: Long? = null,
     val lastOpened: Long? = null,
-    val dateFinished: Long? = null
+    val dateFinished: Long? = null,
+    val lastSpineIndex: Int = 0,
+    val chapterProgression: Float = 0f,
+    val ttsSpineIndex: Int = 0,
+    val ttsSentenceIndex: Int = 0,
+    val ttsParagraphIndex: Int = 0
 ) : Parcelable {
     fun getServerCoverUrl(): String {
         return "${ServerConfig.getCoversUrl()}/${id}_cover_image.jpg"
@@ -98,10 +103,28 @@ data class Book(
     }
     
     fun getBestCoverUrl(): String {
-        if (!isExternalCoverPlaceholder()) {
-            return externalCoverUrl ?: getServerCoverUrl()
+        // Priority: Use cached external cover if it exists and is valid
+        // This preserves API-fetched covers for existing users
+        // New users get fast server covers immediately
+        if (!externalCoverUrl.isNullOrBlank() && !isExternalCoverPlaceholder()) {
+            return externalCoverUrl
         }
         return getServerCoverUrl()
+    }
+    
+    fun hasReadingProgress(): Boolean {
+        return lastOpened != null && (lastSpineIndex > 0 || chapterProgression > 0f)
+    }
+    
+    fun hasTtsProgress(): Boolean {
+        return lastOpened != null && (ttsSpineIndex > 0 || ttsSentenceIndex > 0)
+    }
+    
+    fun getReadingProgressPercent(): Int {
+        if (!hasReadingProgress()) return 0
+        val totalChapters = 1 // We don't know total, so approximate
+        val progress = ((lastSpineIndex + chapterProgression) * 100 / totalChapters).toInt()
+        return progress.coerceIn(0, 99)
     }
 }
 

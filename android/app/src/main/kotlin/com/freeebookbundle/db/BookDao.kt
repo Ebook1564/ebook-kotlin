@@ -13,6 +13,19 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%'")
     fun searchBooksPaging(query: String): PagingSource<Int, BookEntity>
 
+    // Unified search - search books, authors, and genres
+    @Query("SELECT * FROM books WHERE title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%' LIMIT :limit")
+    suspend fun searchBooks(query: String, limit: Int = 50): List<BookEntity>
+
+    @Query("SELECT DISTINCT author FROM books WHERE author LIKE '%' || :query || '%' LIMIT :limit")
+    suspend fun searchAuthors(query: String, limit: Int = 20): List<String>
+
+    @Query("SELECT COUNT(*) FROM books WHERE author = :authorName")
+    suspend fun getBookCountByAuthor(authorName: String): Int
+
+    @Query("SELECT * FROM categories WHERE name LIKE '%' || :query || '%' LIMIT :limit")
+    suspend fun searchCategories(query: String, limit: Int = 20): List<CategoryEntity>
+
     // IMPROVED CATEGORY SEARCH: Joins with categories table to match UI names (e.g. "Science")
     @Query("""
         SELECT b.* FROM books b
@@ -75,6 +88,32 @@ interface BookDao {
 
     @Query("UPDATE books SET date_finished = :dateFinished, reading_status = :status WHERE id = :bookId")
     suspend fun markAsCompleted(bookId: String, status: ReadingStatus = ReadingStatus.COMPLETED, dateFinished: Long)
+
+    @Query("UPDATE books SET last_spine_index = :spineIndex, chapter_progression = :progression WHERE id = :bookId")
+    suspend fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float)
+
+    @Query("UPDATE books SET tts_spine_index = :spineIndex, tts_sentence_index = :sentenceIndex, tts_paragraph_index = :paragraphIndex WHERE id = :bookId")
+    suspend fun updateTtsPosition(bookId: String, spineIndex: Int, sentenceIndex: Int, paragraphIndex: Int)
+
+    @Query("SELECT * FROM books WHERE reading_status = 'CURRENTLY_READING' AND last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
+    fun getContinueReadingBooks(limit: Int): Flow<List<BookEntity>>
+
+    @Query("SELECT last_spine_index AS spineIndex, chapter_progression AS progression FROM books WHERE id = :bookId")
+    suspend fun getLastPosition(bookId: String): LastPosition?
+
+    @Query("SELECT tts_spine_index AS spineIndex, tts_sentence_index AS sentenceIndex, tts_paragraph_index AS paragraphIndex FROM books WHERE id = :bookId")
+    suspend fun getTtsPosition(bookId: String): TtsPosition?
+
+    data class LastPosition(
+        val spineIndex: Int,
+        val progression: Float
+    )
+
+    data class TtsPosition(
+        val spineIndex: Int,
+        val sentenceIndex: Int,
+        val paragraphIndex: Int
+    )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)

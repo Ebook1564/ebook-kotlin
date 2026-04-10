@@ -69,4 +69,20 @@ object LocaleManager {
         val savedLocale = getSavedLocale(context)
         return savedLocale != null && isRTLLocale(savedLocale)
     }
+    
+    fun getSystemLanguagePrefix(): String {
+        val systemLang = Locale.getDefault().language
+        return when(systemLang) {
+            "fr" -> "FR "
+            "de" -> "DE "
+            "it" -> "IT "
+            "pt" -> "PT "
+            "es" -> "ES "
+            else -> ""
+        }
+    }
+    
+    fun isEnglishSystem(): Boolean {
+        return Locale.getDefault().language == "en"
+    }
 }

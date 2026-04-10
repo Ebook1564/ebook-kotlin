@@ -12,6 +12,8 @@ import com.freeebookbundle.EbookApp
 import com.freeebookbundle.db.toBook
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.models.ReadingStatus
+import com.freeebookbundle.utils.Analytics
+import com.freeebookbundle.utils.ReviewManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,6 +95,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun markAsFinished(book: Book) {
         viewModelScope.launch {
             bookDao.markAsCompleted(book.id, ReadingStatus.COMPLETED, System.currentTimeMillis())
+            Analytics.trackBookCompleted(book.id)
+            ReviewManager.onBookCompleted(getApplication())
         }
     }
 

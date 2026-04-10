@@ -131,12 +131,16 @@ object FileDownloader {
             if (result3 != null) return@withContext result3
         }
         
-        // Try 3: Just the book ID as filename
-        Log.d(TAG, "Trying with book ID only: ${book.id}.epub")
-        val result4 = downloadFile("$serverUrl/epubs/${book.id}.epub", destinationFile, "bookId")
-        if (result4 != null) return@withContext result4
-        
         Log.e(TAG, "All download attempts failed for book ${book.id}")
+        
+        // Track failure for analytics
+        val attemptedFileName = book.epubFileName ?: "${cleanId}.epub"
+        Analytics.trackEpubDownloadFailed(
+            bookId = book.id,
+            attemptedFileName = attemptedFileName,
+            errorMessage = "All download methods failed - asset, URI encoded, URL encoded, and raw"
+        )
+        
         null
     }
 }

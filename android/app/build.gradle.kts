@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp") version "2.0.21-1.0.25"
     id("kotlin-parcelize")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -14,8 +15,8 @@ android {
         applicationId = "com.freeebookbundle"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 52
+        versionName = "50.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -112,5 +113,12 @@ dependencies {
 
     // AppCompat for locale support
     implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // Firebase Analytics
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
+
+    // Play Core for In-App Reviews
+    implementation("com.google.android.play:review-ktx:2.0.0")
 
 }

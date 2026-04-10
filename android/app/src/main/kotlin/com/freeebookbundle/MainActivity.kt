@@ -1,8 +1,11 @@
 package com.freeebookbundle
 
+import android.app.Activity
 import android.app.ActivityOptions
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -69,6 +72,9 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.freeebookbundle.reader.ReaderActivity
 import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.ui.*
+import com.freeebookbundle.utils.Analytics
+import com.freeebookbundle.utils.GenrePreferences
+import com.freeebookbundle.utils.ReviewManager
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import androidx.compose.ui.res.stringResource
@@ -77,6 +83,8 @@ import com.freeebookbundle.viewmodel.HomeViewModel
 import com.freeebookbundle.viewmodel.LibraryViewModel
 import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.viewmodel.InitialBounds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
@@ -104,6 +112,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Record app start time for rating timer
+        ReviewManager.recordAppStartTime(this)
+        
         setContent {
             val themeMode by appViewModel.themeMode
             val previousTheme by appViewModel.previousThemeMode
@@ -112,6 +124,7 @@ class MainActivity : ComponentActivity() {
             val userProfile by appViewModel.userProfile.collectAsState()
             
             var showProfile by remember { mutableStateOf(false) }
+            var showExploreAll by remember { mutableStateOf(false) }
             
             val view = this.window.decorView
             SideEffect {
@@ -122,9 +135,20 @@ class MainActivity : ComponentActivity() {
             if (!userProfile.isOnboarded) {
                 BookVerseTheme(themeMode) {
                     OnboardingScreen(
+                        homeViewModel = homeViewModel,
                         onFinish = { name, selectedTheme ->
                             appViewModel.setTheme(selectedTheme)
                             appViewModel.completeOnboarding(name)
+                            homeViewModel.reloadHomeData()
+                            
+                            // Show rating prompt immediately after onboarding completes (with small delay)
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                if (ReviewManager.shouldShowRatingPrompt(this)) {
+                                    ReviewManager.requestRatingWithStars(this, com.freeebookbundle.viewmodel.AppThemeMode.DAY) { rating ->
+                                        ReviewManager.markFirstTimePromptShown(this)
+                                    }
+                                }
+                            }, 500)
                         },
                         onSyncRequired = { 
                             val syncRepo = com.freeebookbundle.repository.LibrarySyncRepository(this@MainActivity)
@@ -152,7 +176,7 @@ class MainActivity : ComponentActivity() {
                             initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
                         )
                         BookVerseTheme(previousTheme!!) {
-                            StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, userProfile.name, onProfileClick = { showProfile = true })
+                            StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, userProfile.name, onProfileClick = { showProfile = true }, onExploreAllClick = { showExploreAll = true })
                         }
                     }
 
@@ -188,12 +212,18 @@ class MainActivity : ComponentActivity() {
                                 homeScrollState, 
                                 userProfile.name,
                                 isInteractive = !isTransitioning,
-                                onProfileClick = { showProfile = true }
+                                onProfileClick = { showProfile = true },
+                                onExploreAllClick = { showExploreAll = true }
                             )
                         }
                     }
 
                     if (isTransitioning) {
+                        // Handle back press during transition - cancel and return to parent screen
+                        BackHandler {
+                            homeViewModel.endReadTransition()
+                            appViewModel.endTransition()
+                        }
                         Box(modifier = Modifier.fillMaxSize().clickable(enabled = true, onClick = {}, interactionSource = remember { MutableInteractionSource() }, indication = null))
                     }
                     
@@ -212,6 +242,26 @@ class MainActivity : ComponentActivity() {
                         val database = (androidx.compose.ui.platform.LocalContext.current.applicationContext as? EbookApp)?.database
                         ProfileScreen(userName = userProfile.name, appViewModel = appViewModel, database = database, onBackClick = { showProfile = false })
                     }
+
+                    AnimatedVisibility(
+                        visible = showExploreAll,
+                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                    ) {
+                        BackHandler { showExploreAll = false }
+                        ExploreAllScreen(
+                            onBack = { showExploreAll = false },
+                            onBookClick = { book -> 
+                                showExploreAll = false
+                                homeViewModel.startReadTransition(book)
+                            },
+                            onGenreClick = { genreName ->
+                                showExploreAll = false
+                                homeViewModel.navigateToCategory(genreName)
+                            },
+                            appViewModel = appViewModel
+                        )
+                    }
                 }
             }
         }
@@ -220,11 +270,36 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeViewModel.endReadTransition()
+        
+        // Check for rating prompt - only if onboarding is completed
+        if (GenrePreferences.isOnboardingCompleted() && ReviewManager.shouldShowRatingPrompt(this)) {
+            ReviewManager.requestRatingWithStars(this, com.freeebookbundle.viewmodel.AppThemeMode.DAY) { rating ->
+                // Mark first time prompt as shown after first rating
+                ReviewManager.markFirstTimePromptShown(this)
+            }
+        }
+        
+        // Start periodic rating check every 15 seconds (only after onboarding)
+        startPeriodicRatingCheck()
+    }
+    
+    private fun startPeriodicRatingCheck() {
+        CoroutineScope(Dispatchers.Main).launch {
+            while (true) {
+                delay(15000) // 15 seconds
+                // Only show if onboarding is completed
+                if (GenrePreferences.isOnboardingCompleted() && ReviewManager.shouldShowRatingPrompt(this@MainActivity)) {
+                    ReviewManager.requestRatingWithStars(this@MainActivity, com.freeebookbundle.viewmodel.AppThemeMode.DAY) { rating ->
+                        // Rating tracked in handleRatingWithCallback
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit) {
+fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, currentPage: Int, homeScrollState: LazyListState, userName: String, onProfileClick: () -> Unit, onExploreAllClick: () -> Unit) {
     val themeMode = appViewModel.themeMode.value
     val isTransitioning = appViewModel.isTransitioning.value
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
@@ -238,7 +313,11 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     onBookClick = { homeViewModel.startReadTransition(it) },
                     onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
+                1 -> SearchScreen(
+                    viewModel = homeViewModel, 
+                    onBookClick = { homeViewModel.startReadTransition(it) },
+                    onExploreAllClick = onExploreAllClick
+                )
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             AnimatedVisibility(
@@ -270,7 +349,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, userName: String, isInteractive: Boolean, onProfileClick: () -> Unit) {
+fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, userName: String, isInteractive: Boolean, onProfileClick: () -> Unit, onExploreAllClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val homeUiState by homeViewModel.uiState.collectAsState()
@@ -288,9 +367,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     
     var isInspectingByShelf by remember { mutableStateOf(false) }
 
-    fun onReadClick(book: com.freeebookbundle.models.Book, bounds: com.freeebookbundle.viewmodel.InitialBounds?, openAudioPlayer: Boolean = false) {
+    fun onReadClick(book: com.freeebookbundle.models.Book, bounds: com.freeebookbundle.viewmodel.InitialBounds?, resumeFromLastPosition: Boolean = true, openAudioPlayer: Boolean = false) {
         showSheet = false
-        homeViewModel.startReadTransition(book, bounds, openAudioPlayer = openAudioPlayer)
+        homeViewModel.startReadTransition(book, bounds, resumeFromLastPosition, openAudioPlayer)
     }
 
     fun onBookClick(book: com.freeebookbundle.models.Book) {
@@ -327,7 +406,8 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     )
                     1 -> SearchScreen(
                         viewModel = homeViewModel, 
-                        onBookClick = { onBookClick(it) }
+                        onBookClick = { onBookClick(it) },
+                        onExploreAllClick = onExploreAllClick
                     )
                     2 -> LibraryScreen(
                         viewModel = libraryViewModel, 
@@ -387,7 +467,9 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                 BookDetailContent(
                     book = selectedBookForSheet!!,
                     isLoading = homeUiState.isMetadataLoading,
-                    onReadClick = { bounds -> onReadClick(selectedBookForSheet!!, bounds) },
+                    onReadClick = { bounds, resume ->
+                        onReadClick(selectedBookForSheet!!, bounds, resumeFromLastPosition = resume)
+                    },
                     onCategoryClick = { tag ->
                         showSheet = false
                         homeViewModel.openCollection(tag)
@@ -405,8 +487,7 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                     },
                     onAudioClick = { book ->
                         // Open TTS audio player for this book
-                        // The reader will be opened with TTS mode
-                        onReadClick(book, null, openAudioPlayer = true)
+                        onReadClick(book, null, resumeFromLastPosition = true, openAudioPlayer = true)
                     }
                 )
             }
@@ -462,6 +543,14 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                         scope.launch {
                             dao.updateFirstOpened(homeUiState.transitionBook!!.id, System.currentTimeMillis())
                         }
+                    }
+                    
+                    // Track book opened for analytics
+                    val book = homeUiState.transitionBook
+                    if (book != null) {
+                        Analytics.trackBookOpened(book.id, book.categories.firstOrNull() ?: "")
+                        ReviewManager.onBookOpened(context)
+                        // Review prompt now shown when reader closes, not here
                     }
 
                     val intent = Intent(context, ReaderActivity::class.java).apply {

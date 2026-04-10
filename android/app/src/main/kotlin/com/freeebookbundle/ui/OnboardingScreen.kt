@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudSync
@@ -32,9 +33,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.freeebookbundle.R
+import com.freeebookbundle.PremiumEasing
 import com.freeebookbundle.utils.ServerConfig
 import androidx.compose.ui.res.stringResource
 import com.freeebookbundle.viewmodel.AppThemeMode
@@ -54,6 +58,7 @@ import kotlin.random.Random
 
 @Composable
 fun OnboardingScreen(
+    homeViewModel: com.freeebookbundle.viewmodel.HomeViewModel? = null,
     onFinish: (String, AppThemeMode) -> Unit,
     onSyncRequired: suspend () -> Boolean = { true }
 ) {
@@ -62,9 +67,12 @@ fun OnboardingScreen(
     var isSyncing by remember { mutableStateOf(false) }
     var syncComplete by remember { mutableStateOf(false) }
     var syncError by remember { mutableStateOf<String?>(null) }
+    var selectedGenres by remember { mutableStateOf(setOf<String>()) }
     
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    // Page state: 0=Welcome, 1=Features, 2=Genre, 3=Profile
+    var currentPage by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+    val minGenres = com.freeebookbundle.utils.GenrePreferences.getMinGenresRequired()
     
     val bgColor = when (selectedTheme) {
         AppThemeMode.DAY -> Color(0xFFF5F1E0)
@@ -106,8 +114,9 @@ fun OnboardingScreen(
         label = "cosmicRotation"
     )
 
-    LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage == 2 && !isSyncing && !syncComplete) {
+    LaunchedEffect(currentPage, selectedGenres) {
+        // Sync logic
+        if (currentPage == 2 && !isSyncing && !syncComplete) {
             isSyncing = true
             try {
                 val success = onSyncRequired()
@@ -141,79 +150,78 @@ fun OnboardingScreen(
             )
         )
 
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+        // Back button (top left) - visible when not on first page
+        if (currentPage > 0) {
+            IconButton(
+                onClick = { if (currentPage > 0) currentPage-- },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .statusBarsPadding()
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = textColor
+                )
+            }
+        }
+
+        // Page content
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = if (currentPage > 0) 56.dp else 0.dp)
+        ) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(32.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                when(page) {
+                when(currentPage) {
                     0 -> WelcomeStep(logoScale, textColor, selectedTheme)
                     1 -> FeaturesStep(textColor, accentColor, selectedTheme)
-                    2 -> SyncStep(
-                        isSyncing = isSyncing,
-                        syncComplete = syncComplete,
-                        syncError = syncError,
+                    2 -> GenreOnboardingStep(
+                        selectedGenres = selectedGenres,
+                        onGenresChanged = { selectedGenres = it },
                         textColor = textColor,
                         accentColor = accentColor,
-                        themeMode = selectedTheme
+                        selectedTheme = selectedTheme,
+                        onContinue = { currentPage++ },
+                        minGenres = minGenres
                     )
                     3 -> ProfileStep(name, { name = it }, selectedTheme, { selectedTheme = it }, textColor, accentColor, bgColor)
                 }
                 
                 Spacer(modifier = Modifier.height(64.dp))
 
-                val canProceed = when (pagerState.currentPage) {
-                    2 -> syncComplete && !isSyncing
-                    3 -> name.isNotEmpty()
-                    else -> true
-                }
-                
-                val buttonText = when (pagerState.currentPage) {
+                val buttonText = when (currentPage) {
                     0, 1 -> stringResource(R.string.onboarding_btn_continue)
-                    2 -> if (syncComplete) stringResource(R.string.onboarding_btn_continue) else if (isSyncing) stringResource(R.string.onboarding_btn_syncing) else stringResource(R.string.onboarding_btn_retry)
+                    2 -> "" // No button on genre page - handled internally
                     3 -> stringResource(R.string.onboarding_btn_get_started)
                     else -> stringResource(R.string.onboarding_btn_continue)
                 }
 
-                Button(
-                    onClick = {
-                        when (pagerState.currentPage) {
-                            0, 1 -> scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                            2 -> {
-                                if (!syncComplete && !isSyncing) {
-                                    isSyncing = true
-                                    syncError = null
-                                    scope.launch {
-                                        try {
-                                            val success = onSyncRequired()
-                                            if (success) {
-                                                syncComplete = true
-                                            } else {
-                                                syncError = "Failed to sync"
-                                            }
-                                        } catch (e: Exception) {
-                                            syncError = e.message
-                                        } finally {
-                                            isSyncing = false
-                                        }
-                                    }
-                                } else if (syncComplete) {
-                                    scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                                }
+                if (currentPage != 2) {
+                    Button(
+                        onClick = {
+                            when (currentPage) {
+                                0, 1 -> currentPage++
+                                3 -> if (name.isNotEmpty()) onFinish(name, selectedTheme)
                             }
-                            3 -> if (name.isNotEmpty()) onFinish(name, selectedTheme)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(60.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = accentColor),
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                        shape = RoundedCornerShape(30.dp),
+                        enabled = true
+                    ) {
+                        Text(buttonText, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        if (currentPage < 3 && currentPage != 2) {
+                            Icon(Icons.Default.ChevronRight, null, tint = Color.White)
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(60.dp).shadow(24.dp, RoundedCornerShape(30.dp), spotColor = accentColor),
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                    shape = RoundedCornerShape(30.dp),
-                    enabled = canProceed || pagerState.currentPage < 2
-                ) {
-                    Text(buttonText, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                    if (pagerState.currentPage < 3) {
-                        Icon(Icons.Default.ChevronRight, null, tint = Color.White)
                     }
                 }
             }
@@ -221,7 +229,7 @@ fun OnboardingScreen(
         
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             repeat(4) { i ->
-                val color = if (pagerState.currentPage == i) accentColor else textColor.copy(0.3f)
+                val color = if (currentPage == i) accentColor else textColor.copy(0.3f)
                 Box(Modifier.size(8.dp).clip(CircleShape).background(color))
             }
         }
@@ -565,6 +573,323 @@ private fun OnboardingThemeCard(label: String, icon: androidx.compose.ui.graphic
             Icon(icon, null, tint = if (isSelected) accentColor else textColor.copy(0.4f), modifier = Modifier.size(28.dp))
             Spacer(Modifier.height(6.dp))
             Text(label, color = if (isSelected) accentColor else textColor.copy(0.4f), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun GenreOnboardingStep(
+    selectedGenres: Set<String>,
+    onGenresChanged: (Set<String>) -> Unit,
+    textColor: Color,
+    accentColor: Color,
+    selectedTheme: AppThemeMode,
+    onContinue: () -> Unit,
+    minGenres: Int
+) {
+    var availableGenres by remember { mutableStateOf(listOf<Pair<String, String>>()) } // code, name
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    
+    val genreColors = mapOf(
+        "novels" to Color(0xFF6366F1),
+        "adventure" to Color(0xFF10B981),
+        "romance" to Color(0xFFEC4899),
+        "children___young_adult_reading" to Color(0xFFF59E0B),
+        "historical_novels" to Color(0xFF8B5CF6),
+        "short_stories" to Color(0xFF06B6D4),
+        "poetry" to Color(0xFFEF4444),
+        "science_fiction___fantasy" to Color(0xFF3B82F6),
+        "humour" to Color(0xFF84CC16),
+        "biographies" to Color(0xFF14B8A6)
+    )
+    
+    LaunchedEffect(Unit) {
+        availableGenres = listOf(
+            "novels" to "Fiction",
+            "adventure" to "Adventure", 
+            "romance" to "Romance",
+            "children___young_adult_reading" to "Children & Young Adult",
+            "historical_novels" to "Historical Novels",
+            "short_stories" to "Short Stories",
+            "poetry" to "Poetry",
+            "science_fiction___fantasy" to "Sci-Fi & Fantasy",
+            "humour" to "Humour",
+            "biographies" to "Biographies"
+        )
+        isLoading = false
+    }
+    
+    val canProceed = selectedGenres.size >= minGenres
+    
+    val infiniteTransition = rememberInfiniteTransition(label = "genre_orb")
+    val orbRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(12000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "orb_rotation"
+    )
+    val orbPulse by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "orb_pulse"
+    )
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = stringResource(R.string.onboarding_genre_title),
+            color = textColor,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 1.sp
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = stringResource(R.string.onboarding_genre_subtitle),
+            color = textColor.copy(alpha = 0.5f),
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(28.dp))
+        
+        if (isLoading) {
+            CircularProgressIndicator(color = accentColor)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+            ) {
+                items(availableGenres.size) { index ->
+                    val (code, name) = availableGenres[index]
+                    val isSelected = selectedGenres.contains(code)
+                    val genreColor = genreColors[code] ?: accentColor
+                    
+                    GenreOrbChip(
+                        name = name,
+                        isSelected = isSelected,
+                        genreColor = genreColor,
+                        orbRotation = orbRotation,
+                        orbPulse = orbPulse,
+                        onClick = {
+                            onGenresChanged(
+                                if (isSelected) selectedGenres - code else selectedGenres + code
+                            )
+                        }
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Premium selection indicator
+            SelectionCounter(
+                selected = selectedGenres.size,
+                required = minGenres,
+                canProceed = canProceed,
+                accentColor = accentColor,
+                textColor = textColor
+            )
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            // Single continue button at bottom
+            Button(
+                onClick = {
+                    com.freeebookbundle.utils.GenrePreferences.setSelectedGenres(selectedGenres)
+                    onContinue()
+                },
+                enabled = canProceed,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .shadow(
+                        elevation = if (canProceed) 16.dp else 0.dp,
+                        shape = RoundedCornerShape(28.dp),
+                        spotColor = accentColor.copy(alpha = 0.5f)
+                    ),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accentColor,
+                    disabledContainerColor = accentColor.copy(alpha = 0.25f)
+                ),
+                shape = RoundedCornerShape(28.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_btn_continue),
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = if (canProceed) Color.White else Color.White.copy(alpha = 0.6f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = if (canProceed) Color.White else Color.White.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreOrbChip(
+    name: String,
+    isSelected: Boolean,
+    genreColor: Color,
+    orbRotation: Float,
+    orbPulse: Float,
+    onClick: () -> Unit
+) {
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 1f,
+        animationSpec = tween(200, easing = PremiumEasing)
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .graphicsLayer {
+                scaleX = animatedScale
+                scaleY = animatedScale
+            }
+            .clip(RoundedCornerShape(28.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val radius = size.minDimension / 2
+            
+            // Full-width bar background when selected
+            if (isSelected) {
+                drawRoundRect(
+                    color = genreColor.copy(alpha = 0.15f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx())
+                )
+            }
+            
+            // Full-width subtle background
+            drawRoundRect(
+                color = if (isSelected) genreColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx())
+            )
+            
+            // Subtle border on right side
+            drawRoundRect(
+                color = if (isSelected) genreColor.copy(alpha = 0.5f) else Color.Transparent,
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx()),
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
+            
+        Text(
+            text = name,
+            color = if (isSelected) genreColor else Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            letterSpacing = 0.5.sp
+        )
+        
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(genreColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionCounter(
+    selected: Int,
+    required: Int,
+    canProceed: Boolean,
+    accentColor: Color,
+    textColor: Color
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "counter_pulse")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
+    
+    Row(
+        modifier = Modifier
+            .graphicsLayer {
+                alpha = if (canProceed) 1f else 0.6f
+            }
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (canProceed) accentColor.copy(alpha = 0.15f) 
+                else Color.White.copy(alpha = 0.05f)
+            )
+            .border(
+                width = 1.dp,
+                color = if (canProceed) accentColor.copy(alpha = glowAlpha) 
+                else Color.White.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (canProceed) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        
+        Text(
+            text = if (canProceed) "You're all set!" else "$selected / $required genres selected",
+            color = if (canProceed) accentColor else textColor.copy(alpha = 0.6f),
+            fontSize = 14.sp,
+            fontWeight = if (canProceed) FontWeight.Bold else FontWeight.Medium
+        )
+        
+        if (!canProceed) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "minimum",
+                color = textColor.copy(alpha = 0.4f),
+                fontSize = 12.sp
+            )
         }
     }
 }
