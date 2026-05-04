@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>E-Book Reader</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            background: #f4ecd8;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #666;
+            z-index: 1000;
+        }
+        #loading.hidden { display: none; }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #c00;
+            display: none;
+            padding: 20px;
+            max-width: 80%;
+            word-wrap: break-word;
+            z-index: 1001;
+        }
+        foliate-view {
+            height: 100%;
+            width: 100%;
+            display: block;
+        }
+        * { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <p>Loading reader...</p>
+    </div>
+    <div id="error"></div>
+    <foliate-view id="reader" flow="scrolled" continuous></foliate-view>
+    
+    <script>
+        // Global error handler
+        window.onerror = function(msg, url, line, col, error) {
+            var errorDetail = msg + ' (at ' + line + ':' + col + ')';
+            console.error('GLOBAL ERROR:', errorDetail);
+            if (window.FoliateBridge && window.FoliateBridge.onError) {
+                window.FoliateBridge.onError('JS Error: ' + errorDetail);
+            }
+        };
+        
+        window.onunhandledrejection = function(event) {
+            console.error('Unhandled rejection:', event.reason);
+            if (window.FoliateBridge && window.FoliateBridge.onError) {
+                window.FoliateBridge.onError('Unhandled Promise: ' + event.reason);
+            }
+        };
+    </script>
+
+    <script src="bundle.js" onerror="document.getElementById('error').textContent='bundle.js failed to load'; document.getElementById('error').style.display='block'; document.getElementById('loading').classList.add('hidden');"></script>
+    
+    <script>
+        console.log('Reader script starting...');
+        
+        // Global interface for Android bridge
+        window.openBook = async function(url) {
+            console.log('openBook called with:', url);
+            var readerEl = document.getElementById('reader');
+            if (window.foliateView && readerEl) {
+                try {
+                    document.getElementById('loading').classList.remove('hidden');
+                    document.getElementById('loading').innerHTML = '<p>Opening book...</p>';
+                    console.log('Calling foliateView.makeBook...');
+                    var book = await window.foliateView.makeBook(url);
+                    console.log('Book object created:', book ? 'yes' : 'null');
+                    console.log('Calling readerEl.open...');
+                    await readerEl.open(book);
+                    console.log('readerEl.open completed');
+                    
+                    // Set flow and continuous on renderer BEFORE init/navigation
+                    if (readerEl.renderer) {
+                        readerEl.renderer.setAttribute('flow', 'scrolled');
+                        readerEl.renderer.setAttribute('continuous', '');
+                        console.log('Set flow=scrolled and continuous on renderer');
+                    }
+                    
+                    // Call init() to properly initialize the paginator
+                    console.log('Calling readerEl.init...');
+                    await readerEl.init({ showTextStart: false });
+                    console.log('readerEl.init completed');
+                    
+                    document.getElementById('loading').classList.add('hidden');
+                } catch (err) {
+                    console.error('Error in openBook:', err);
+                    document.getElementById('error').textContent = 'Error opening book: ' + err.message;
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('loading').classList.add('hidden');
+                }
+            } else {
+                console.warn('Reader not ready for openBook. foliateView:', !!window.foliateView, 'readerEl:', !!readerEl);
+            }
+        };
+
+        window.goTo = function(index, anchor) {
+            console.log('goTo called:', index, anchor);
+            if (window.view) {
+                window.view.goTo(anchor ? { index: index, anchor: anchor } : index);
+            }
+        };
+
+        window.goToCfi = function(cfi) {
+            console.log('goToCfi called:', cfi);
+            if (window.view) {
+                window.view.goTo(cfi);
+            }
+        };
+
+        window.setFlow = function(flow) {
+            console.log('setFlow called:', flow);
+            var readerEl = document.getElementById('reader');
+            if (readerEl) {
+                readerEl.setAttribute('flow', flow);
+                if (readerEl.renderer) {
+                    readerEl.renderer.setAttribute('flow', flow);
+                }
+            }
+        };
+
+        window.setTheme = function(theme) {
+            console.log('setTheme called:', theme);
+            try {
+                let bg;
+                switch(theme) {
+                    case 'sepia': bg = '#f4ecd8'; break;
+                    case 'dark': bg = '#1a1a1a'; break;
+                    case 'light': bg = '#ffffff'; break;
+                    case 'black': bg = '#000000'; break;
+                    default: return;
+                }
+                // Set background on the container (foliate-paginator)
+                var readerEl = document.getElementById('reader');
+                if (readerEl && readerEl.renderer) {
+                    readerEl.renderer.style.backgroundColor = bg;
+                    console.log('Theme applied:', theme, bg);
+                } else {
+                    console.warn('Renderer not ready for theme change');
+                }
+            } catch(err) {
+                console.error('Error in setTheme:', err);
+            }
+        };
+
+        window.injectCss = function(css) {
+            console.log('injectCss called:', css);
+            // Don't inject arbitrary CSS - may cause issues
+        };
+
+        async function setupReader(readerEl, foliateModule) {
+            var epubUrl = getQueryParam('epub');
+            if (!epubUrl) {
+                console.log('No EPUB URL in query params, waiting for openBook call');
+                return;
+            }
+            
+            console.log('Initial EPUB load from query param:', epubUrl);
+            
+            try {
+                console.log('Calling makeBook for initial load...');
+                var book = await foliateModule.makeBook(epubUrl);
+                console.log('Initial book object created');
+                
+                // Set up event listeners BEFORE opening
+                readerEl.addEventListener('load', function(e) {
+                    console.log('Foliate LOAD event!', e.detail);
+                    document.getElementById('loading').classList.add('hidden');
+                    if (window.FoliateBridge && window.FoliateBridge.onBookLoaded) {
+                        var metadata = book.metadata || {};
+                        window.FoliateBridge.onBookLoaded(JSON.stringify({
+                            title: metadata.title || "",
+                            author: metadata.author || "",
+                            direction: metadata.direction || "ltr"
+                        }));
+                    }
+                });
+                
+                readerEl.addEventListener('relocate', function(e) {
+                    console.log('Location changed:', e.detail);
+                    if (window.FoliateBridge && window.FoliateBridge.onRelocate) {
+                        var detail = e.detail;
+                        window.FoliateBridge.onRelocate(JSON.stringify({
+                            index: detail.index,
+                            fraction: detail.fraction || 0,
+                            cfi: detail.cfi || ""
+                        }));
+                    }
+                });
+                
+                console.log('Calling readerEl.open for initial load...');
+                await readerEl.open(book);
+                console.log('Initial readerEl.open completed');
+                
+                // Set flow and continuous on renderer BEFORE init/navigation
+                if (readerEl.renderer) {
+                    readerEl.renderer.setAttribute('flow', 'scrolled');
+                    readerEl.renderer.setAttribute('continuous', '');
+                    console.log('Set flow=scrolled and continuous on renderer');
+                }
+                
+                // Call init() to properly initialize the paginator
+                console.log('Calling readerEl.init for initial load...');
+                await readerEl.init({ showTextStart: false });
+                console.log('readerEl.init completed');
+                
+                document.getElementById('loading').classList.add('hidden');
+                
+            } catch (err) {
+                console.error('Error in setupReader:', err);
+                document.getElementById('error').textContent = 'Error loading book: ' + err.message;
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('loading').classList.add('hidden');
+                if (window.FoliateBridge && window.FoliateBridge.onError) {
+                    window.FoliateBridge.onError('Setup Error: ' + err.message);
+                }
+            }
+        }
+        
+        function getQueryParam(name) {
+            var params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+        
+        var checkCount = 0;
+        var checkInterval = setInterval(function() {
+            checkCount++;
+            if (typeof foliateView !== 'undefined') {
+                clearInterval(checkInterval);
+                console.log('foliateView found after ' + (checkCount * 100) + 'ms');
+                var readerEl = document.getElementById('reader');
+                if (readerEl && typeof readerEl.addEventListener === 'function') {
+                    window.view = readerEl;
+                    setupReader(readerEl, foliateView);
+                } else {
+                    document.getElementById('error').textContent = 'Reader element not found or invalid';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('loading').classList.add('hidden');
+                }
+            } else if (checkCount > 100) {
+                clearInterval(checkInterval);
+                document.getElementById('error').textContent = 'Timeout: foliateView not found';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }, 100);
+    </script>
+</body>
+</html>

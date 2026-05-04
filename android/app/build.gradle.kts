@@ -15,8 +15,8 @@ android {
         applicationId = "com.freeebookbundle"
         minSdk = 24
         targetSdk = 36
-        versionCode = 52
-        versionName = "50.0.2"
+        versionCode = 54
+        versionName = "50.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -114,11 +114,16 @@ dependencies {
     // AppCompat for locale support
     implementation("androidx.appcompat:appcompat:1.7.0")
 
-    // Firebase Analytics
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-config-ktx")
 
     // Play Core for In-App Reviews
     implementation("com.google.android.play:review-ktx:2.0.0")
+
+    // Local Server (used by some reader components)
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 
 }

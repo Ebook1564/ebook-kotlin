@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +52,7 @@ import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import com.freeebookbundle.viewmodel.CuratedCollection
 import com.freeebookbundle.viewmodel.HomeViewModel
+import com.freeebookbundle.utils.GenrePreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
 
@@ -91,7 +93,6 @@ fun HomeScreen(
     val homeSections by viewModel.homeSections.collectAsState()
     val billboardBooks by viewModel.billboardBooks.collectAsState()
     val continueReadingBooks by viewModel.continueReadingBooks.collectAsState()
-    val curatedCollections = uiState.curatedCollections
     val backgroundColor = BookVerseTheme.colors.background
     val themeMode by appViewModel.themeMode
     
@@ -100,7 +101,7 @@ fun HomeScreen(
             SpaceBackground()
         }
         
-        if (uiState.isLoading && homeSections.isEmpty()) {
+        if (uiState.isLoading && homeSections.isEmpty() && continueReadingBooks.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BookVerseTheme.colors.primary)
             }
@@ -110,19 +111,96 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
+                // 1. HEADER
                 item { HeaderSection(appViewModel, userName) }
+                
+                // 2. BILLBOARD (HERO) - NOW AT TOP
+                item {
+                    if (billboardBooks.isNotEmpty()) {
+                        BillboardCarousel(books = billboardBooks, continueReadingBooks = continueReadingBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick)
+                    } else if (uiState.isCatalogLoading) {
+                        BillboardSkeleton()
+                    }
+                }
+
+                // 3. CONTINUE READING (HIGH PRIORITY) - NOW BELOW BILLBOARD
                 if (continueReadingBooks.isNotEmpty()) {
                     item { ContinueReadingSection(books = continueReadingBooks, onBookClick = onBookClick, onReadClick = onReadNowClick) }
                 }
-                if (billboardBooks.isNotEmpty()) {
-                    item { BillboardCarousel(books = billboardBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick) }
-                }
-                if (curatedCollections.isNotEmpty()) {
-                    item { CuratedCollectionsRow(collections = curatedCollections, onCollectionClick = { viewModel.openCuratedCollection(it) }) }
-                }
+                
+                // 4. SELECTED CATEGORIES (DYNAMICALY FILTERED BY VIEWMODEL)
                 homeSections.forEach { section ->
-                    item { CategoryRow(title = section.title, books = section.books, onBookClick = onBookClick) }
+                    item { 
+                        if (section.books.isNotEmpty()) {
+                            CategoryRow(title = section.title, books = section.books, onBookClick = onBookClick)
+                        } else {
+                            CategorySkeleton(title = section.title)
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush {
+    return if (showShimmer) {
+        val shimmerColors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f),
+        )
+
+        val transition = rememberInfiniteTransition(label = "shimmer")
+        val translateAnimation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = targetValue,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmer"
+        )
+
+        Brush.linearGradient(
+            colors = shimmerColors,
+            start = Offset.Zero,
+            end = Offset(x = translateAnimation.value, y = translateAnimation.value)
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color.Transparent, Color.Transparent),
+            start = Offset.Zero,
+            end = Offset.Zero
+        )
+    }
+}
+
+@Composable
+fun BillboardSkeleton() {
+    val brush = shimmerBrush()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(480.dp)
+            .background(brush)
+    )
+}
+
+@Composable
+fun CategorySkeleton(title: String) {
+    val brush = shimmerBrush()
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+        Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(5) {
+                Box(modifier = Modifier
+                    .width(120.dp)
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(brush)
+                )
             }
         }
     }
@@ -225,7 +303,7 @@ private fun ContinueReadingBookCard(
                     color = BookVerseTheme.colors.primary
                 ) {
                     Text(
-                        text = "${((book.lastOpened?.let { (System.currentTimeMillis() - it) / 86400000 } ?: 0).toInt().coerceAtMost(99))}%",
+                        text = "${book.getReadingProgressPercent()}%",
                         color = Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -316,7 +394,7 @@ fun DynamicGreeting(userName: String) {
 }
 
 @Composable
-fun BillboardCarousel(books: List<Book>, onReadClick: (Book) -> Unit, onInfoClick: (Book) -> Unit) {
+fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onReadClick: (Book) -> Unit, onInfoClick: (Book) -> Unit) {
     val pagerState = rememberPagerState(pageCount = { books.size })
     LaunchedEffect(Unit) {
         while (true) {
@@ -330,7 +408,9 @@ fun BillboardCarousel(books: List<Book>, onReadClick: (Book) -> Unit, onInfoClic
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().height(480.dp), contentPadding = PaddingValues(horizontal = 0.dp)) { page ->
-            BillboardItem(book = books[page], onReadClick = { onReadClick(books[page]) }, onInfoClick = { onInfoClick(books[page]) }, pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction)
+            val book = books[page]
+            val isContinueReading = continueReadingBooks.any { it.id == book.id }
+            BillboardItem(book = book, isContinueReading = isContinueReading, onReadClick = { onReadClick(book) }, onInfoClick = { onReadClick(book) }, pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction)
         }
         Row(Modifier.height(20.dp).fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.Center) {
             repeat(books.size) { iteration ->
@@ -343,7 +423,7 @@ fun BillboardCarousel(books: List<Book>, onReadClick: (Book) -> Unit, onInfoClic
 }
 
 @Composable
-fun BillboardItem(book: Book, onReadClick: () -> Unit, onInfoClick: () -> Unit, pagerOffset: Float) {
+fun BillboardItem(book: Book, isContinueReading: Boolean, onReadClick: () -> Unit, onInfoClick: () -> Unit, pagerOffset: Float) {
     var displayBook by remember { mutableStateOf(book) }
     LaunchedEffect(book) { 
         if (displayBook.externalCoverUrl != book.externalCoverUrl || displayBook.description != book.description) {
@@ -400,10 +480,10 @@ fun BillboardItem(book: Book, onReadClick: () -> Unit, onInfoClick: () -> Unit, 
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp).shadow(12.dp, RoundedCornerShape(30.dp)),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, null, tint = Color.White)
+                    Icon(if (isContinueReading) Icons.Default.PlayArrow else Icons.Default.PlayArrow, null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.home_read_now),
+                        text = if (isContinueReading) stringResource(R.string.home_continue) else stringResource(R.string.home_read_now),
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.5.sp,
@@ -440,90 +520,6 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
         Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(books) { book -> BookPoster(book, onClick = { onBookClick(book) }) }
-        }
-    }
-}
-
-@Composable
-fun CuratedCollectionsRow(
-    collections: List<CuratedCollection>,
-    onCollectionClick: (CuratedCollection) -> Unit
-) {
-    Column(modifier = Modifier.padding(vertical = 16.dp)) {
-        Text(
-            text = stringResource(R.string.home_curated_for_you),
-            style = BookVerseTheme.typography.headline,
-            color = BookVerseTheme.colors.textPrimary,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-        )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(collections) { collection ->
-                CuratedCollectionCard(
-                    collection = collection,
-                    onClick = { onCollectionClick(collection) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CuratedCollectionCard(
-    collection: CuratedCollection,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .width(160.dp)
-            .height(100.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = collection.accentColor,
-        shadowElevation = 8.dp
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            collection.accentColor,
-                            collection.accentColor.copy(alpha = 0.8f)
-                        )
-                    )
-                )
-                .padding(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = collection.iconEmoji,
-                    fontSize = 24.sp
-                )
-                Column {
-                    Text(
-                        text = collection.title,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = collection.subtitle,
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
         }
     }
 }

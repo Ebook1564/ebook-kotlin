@@ -19,11 +19,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -391,8 +393,25 @@ fun BookDetailContent(
                                 )
                             }
                         }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
+                        }
+
+                        // Audiobook available button
+                        if (displayBook.audioUrl != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { onAudioClick(displayBook) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90D9))
+                        ) {
+                            Icon(Icons.Default.VolumeUp, null, tint = Color.White)
+                            Spacer(Modifier.width(8.dp))
+                            Text("PLAY AUDIOBOOK (M4B)", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
                 }
 
                 // DIVERSIFIED TAGS (OpenLibrary Subjects)
@@ -430,8 +449,62 @@ fun BookDetailContent(
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // 5. SIMILAR BOOKS (Discovery UX)
+                val similarBooks = remember { mutableStateOf<List<Book>>(emptyList()) }
+                val context = LocalContext.current
+                val catalogRepo = remember(context) {
+                    com.freeebookbundle.repository.CatalogRepository(
+                        context = context,
+                        bookDao = (context.applicationContext as com.freeebookbundle.EbookApp).database.bookDao()
+                    )
+                }
+
+                LaunchedEffect(displayBook.id) {
+                    val topic = displayBook.subjects.firstOrNull() ?: displayBook.categories.firstOrNull()
+                    if (topic != null) {
+                        similarBooks.value = catalogRepo.getStaticBooksByTopic(topic, 10).filter { it.id != displayBook.id }
+                    }
+                }
+
+                if (similarBooks.value.isNotEmpty()) {
+                    Text(
+                        text = "SIMILAR BOOKS",
+                        style = typography.label,
+                        color = colors.textSecondary,
+                        letterSpacing = 2.sp,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
+                        items(similarBooks.value) { sBook ->
+                            Column(
+                                modifier = Modifier.width(100.dp).clickable { 
+                                    // Navigation to another book detail would be better, but for now we close and let user pick
+                                    onClose()
+                                }
+                            ) {
+                                LibraryBookPoster(sBook)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = sBook.title,
+                                    style = typography.body,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(120.dp))
             }
         }
     }

@@ -104,7 +104,7 @@ fun ProfileScreen(
                         IconButton(
                             onClick = { 
                                 val activity = context as? Activity ?: return@IconButton
-                                ReviewManager.requestRatingWithStars(activity, themeMode)
+                                ReviewManager.requestRatingWithStarsForce(activity, themeMode)
                             },
                             modifier = Modifier.clip(CircleShape).background(when (themeMode) {
                                 AppThemeMode.DAY -> Color(0xFF5B4636).copy(alpha = 0.1f)
@@ -1026,6 +1026,25 @@ fun SettingsContent(appViewModel: AppViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.profile_disabled), color = subTextColor, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Switch(checked = false, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedTrackColor = labelColor))
+        }
+        
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = subTextColor.copy(alpha = 0.1f))
+        Spacer(Modifier.height(24.dp))
+        
+        Text(stringResource(R.string.profile_developer_title), style = MaterialTheme.typography.labelMedium, color = labelColor, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.profile_use_new_reader), color = textColor, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.profile_use_new_reader_desc), color = subTextColor, fontSize = 11.sp)
+            }
+            val useNewReader by appViewModel.useNewReader
+            Switch(
+                checked = useNewReader,
+                onCheckedChange = { appViewModel.setUseNewReader(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = labelColor)
+            )
         }
     }
 }

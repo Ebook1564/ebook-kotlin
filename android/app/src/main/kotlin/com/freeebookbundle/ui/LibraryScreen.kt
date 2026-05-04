@@ -66,6 +66,7 @@ import com.freeebookbundle.utils.ServerConfig
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import com.freeebookbundle.viewmodel.HomeViewModel
+import com.freeebookbundle.viewmodel.LibrarySortOrder
 import com.freeebookbundle.viewmodel.LibraryViewModel
 import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
@@ -118,13 +119,37 @@ fun LibraryScreen(
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black
                 )
-                IconButton(
-                    onClick = onProfileClick,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(BookVerseTheme.colors.surface)
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = stringResource(R.string.library_profile), tint = BookVerseTheme.colors.primary)
+                Row {
+                    var showSortMenu by remember { mutableStateOf(false) }
+                    IconButton(
+                        onClick = { showSortMenu = true },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(BookVerseTheme.colors.surface)
+                    ) {
+                        Icon(Icons.Default.Sort, contentDescription = "Sort", tint = BookVerseTheme.colors.primary)
+                    }
+                    
+                    if (showSortMenu) {
+                        SortBottomSheet(
+                            currentSort = uiState.sortOrder,
+                            onSortSelected = { 
+                                viewModel.setSortOrder(it)
+                                showSortMenu = false
+                            },
+                            onDismiss = { showSortMenu = false }
+                        )
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = onProfileClick,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(BookVerseTheme.colors.surface)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = stringResource(R.string.library_profile), tint = BookVerseTheme.colors.primary)
+                    }
                 }
             }
 
@@ -562,7 +587,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Realistic3DBook(coverUrl = book.getBestCoverUrl(), currentRotationY = autoRotation, modifier = Modifier.width(220.dp).height(330.dp))
+            LibraryBookPoster(book = book)
             Spacer(modifier = Modifier.height(48.dp))
             Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
             Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)
@@ -614,28 +639,60 @@ fun StatItem(label: String, value: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Realistic3DBook(coverUrl: String, currentRotationY: Float, modifier: Modifier = Modifier) {
-    val thickness = 40.dp 
-    Box(modifier = modifier.graphicsLayer { rotationY = currentRotationY; rotationX = 12f; cameraDistance = 20f * density; transformOrigin = TransformOrigin(0.5f, 0.5f) }, contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.fillMaxHeight(0.98f).width(thickness).align(Alignment.CenterEnd).graphicsLayer { this.rotationY = 90f; transformOrigin = TransformOrigin(1f, 0.5f) }.background(Brush.horizontalGradient(listOf(Color(0xFFE0E0E0), Color(0xFFF5F5F5), Color(0xFFBDBDBD))))) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 2.dp.toPx()
-                for (i in 0..(size.height / step).toInt()) {
-                    drawLine(color = Color.Black.copy(alpha = 0.08f), start = Offset(0f, i * step), end = Offset(size.width, i * step), strokeWidth = 1f)
+fun SortBottomSheet(
+    currentSort: LibrarySortOrder,
+    onSortSelected: (LibrarySortOrder) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = BookVerseTheme.colors.surface
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp).padding(bottom = 32.dp)) {
+            Text(
+                text = stringResource(R.string.library_sort_title),
+                style = BookVerseTheme.typography.headline,
+                color = BookVerseTheme.colors.textPrimary,
+                fontSize = 20.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            
+            val options = listOf(
+                LibrarySortOrder.RECENTLY_OPENED to R.string.library_sort_recent,
+                LibrarySortOrder.DATE_ADDED to R.string.library_sort_added,
+                LibrarySortOrder.TITLE to R.string.library_sort_title_alpha,
+                LibrarySortOrder.AUTHOR to R.string.library_sort_author,
+                LibrarySortOrder.PROGRESS to R.string.library_sort_progress
+            )
+            
+            options.forEach { (order, labelRes) ->
+                val isSelected = currentSort == order
+                Surface(
+                    onClick = { onSortSelected(order) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (isSelected) BookVerseTheme.colors.primary.copy(alpha = 0.1f) else Color.Transparent,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = null,
+                            colors = RadioButtonDefaults.colors(selectedColor = BookVerseTheme.colors.primary)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = stringResource(labelRes),
+                            color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.textPrimary,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
             }
-        }
-        Box(modifier = Modifier.fillMaxHeight().width(thickness).align(Alignment.CenterStart).graphicsLayer { this.rotationY = -90f; transformOrigin = TransformOrigin(0f, 0.5f) }.background(Brush.horizontalGradient(listOf(Color(0xFF0D0D0D), Color(0xFF3E2723), Color(0xFF0D0D0D))))) {
-            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-                repeat(3) { Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(0.1f))) }
-            }
-        }
-        Box(modifier = Modifier.fillMaxWidth(0.98f).height(thickness).align(Alignment.TopCenter).graphicsLayer { rotationX = 90f; transformOrigin = TransformOrigin(0.5f, 0f) }.background(Color(0xFFF5F5F5)))
-        Box(modifier = Modifier.fillMaxWidth(0.98f).height(thickness).align(Alignment.BottomCenter).graphicsLayer { rotationX = -90f; transformOrigin = TransformOrigin(0.5f, 1f) }.background(Color(0xFFD6D6D6)))
-        Box(modifier = Modifier.fillMaxSize().shadow(30.dp, RoundedCornerShape(3.dp))) {
-            AsyncImage(model = coverUrl, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)).border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(3.dp)))
-            Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(Color.White.copy(0.12f), Color.Transparent, Color.Black.copy(0.15f)), start = Offset(0f, 0f), end = Offset.Infinite)))
         }
     }
 }

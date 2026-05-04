@@ -34,7 +34,8 @@ data class Book(
     val chapterProgression: Float = 0f,
     val ttsSpineIndex: Int = 0,
     val ttsSentenceIndex: Int = 0,
-    val ttsParagraphIndex: Int = 0
+    val ttsParagraphIndex: Int = 0,
+    val audioUrl: String? = null
 ) : Parcelable {
     fun getServerCoverUrl(): String {
         return "${ServerConfig.getCoversUrl()}/${id}_cover_image.jpg"
@@ -103,17 +104,20 @@ data class Book(
     }
     
     fun getBestCoverUrl(): String {
-        // Priority: Use cached external cover if it exists and is valid
-        // This preserves API-fetched covers for existing users
-        // New users get fast server covers immediately
+        // Priority 1: Gutendex provided cover (self-hosted or external)
+        if (coverImageUrl.isNotBlank()) return coverImageUrl
+        
+        // Priority 2: Previously cached external cover (Google Books/Open Library)
         if (!externalCoverUrl.isNullOrBlank() && !isExternalCoverPlaceholder()) {
             return externalCoverUrl
         }
+        
+        // Priority 3: Legacy server cover format
         return getServerCoverUrl()
     }
     
     fun hasReadingProgress(): Boolean {
-        return lastOpened != null && (lastSpineIndex > 0 || chapterProgression > 0f)
+        return readingStatus == ReadingStatus.CURRENTLY_READING || (lastOpened != null && (lastSpineIndex > 0 || chapterProgression > 0f))
     }
     
     fun hasTtsProgress(): Boolean {

@@ -40,16 +40,47 @@ class ReaderActivity : AppCompatActivity() {
         val file = File(filePath)
         if (!file.exists()) return
 
-        val app = application as EbookApp
-        val url = file.toUrl()
-        
+        val useNativeReader = intent.getBooleanExtra("USE_NATIVE_READER", false) || settingsRepo.isNativeReaderEnabled()
+
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                val fragment = supportFragmentManager.findFragmentById(R.id.reader_container) as? ReaderFragment
+                val fragment = supportFragmentManager.findFragmentById(R.id.reader_container)?.let {
+                    if (it is ReaderFragment) it else null
+                }
                 fragment?.onTap(e.x, e.y)
                 return true
             }
         })
+
+        if (useNativeReader && "epub".equals(file.extension, ignoreCase = true)) {
+            loadWithNativeReader(filePath, book, openAudioPlayer)
+        } else {
+            loadWithReadium(filePath, book, openAudioPlayer)
+        }
+    }
+
+    private fun loadWithNativeReader(filePath: String, book: Book, openAudioPlayer: Boolean) {
+        val settingsRepo = ReaderSettingsRepository(this)
+        val backgroundColor = settingsRepo.getThemeColor()
+        val textColor = settingsRepo.getTextColor()
+
+        val readerFragment = NativeReaderFragment().apply {
+            arguments = Bundle().apply {
+                putString("BOOK_ID", book.id)
+                putString("FILE_PATH", filePath)
+                putBoolean("OPEN_AUDIO_PLAYER", openAudioPlayer)
+            }
+        }
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.reader_container, readerFragment)
+            .commit()
+    }
+
+    private fun loadWithReadium(filePath: String, book: Book, openAudioPlayer: Boolean) {
+        val app = application as EbookApp
+        val file = File(filePath)
+        val url = file.toUrl()
 
         lifecycleScope.launch {
             try {
@@ -58,8 +89,8 @@ class ReaderActivity : AppCompatActivity() {
                     Analytics.trackBookLoadFailed(
                         bookId = book.id,
                         errorType = "asset_retrieval_failed",
-                        errorMessage = "assetRetriever.retrieve returned null for: ${file.absolutePath}",
-                        fileName = file.name
+                        errorMessage = "assetRetriever.retrieve returned null for: ${File(filePath).absolutePath}",
+                        fileName = File(filePath).name
                     )
                     return@launch
                 }
@@ -70,7 +101,7 @@ class ReaderActivity : AppCompatActivity() {
                         bookId = book.id,
                         errorType = "publication_parsing_failed",
                         errorMessage = "publicationOpener.open returned null",
-                        fileName = file.name
+                        fileName = File(filePath).name
                     )
                     return@launch
                 }
@@ -81,6 +112,7 @@ class ReaderActivity : AppCompatActivity() {
                 val readerFragment = ReaderFragment().apply {
                     arguments = Bundle().apply {
                         putString("BOOK_ID", book.id)
+                        putString("FILE_PATH", filePath)
                         putBoolean("OPEN_AUDIO_PLAYER", openAudioPlayer)
                     }
                 }
@@ -95,7 +127,7 @@ class ReaderActivity : AppCompatActivity() {
                     bookId = book.id,
                     errorType = "exception",
                     errorMessage = "${e.javaClass.simpleName}: ${e.message}",
-                    fileName = file.name
+                    fileName = File(filePath).name
                 )
                 finish()
             }

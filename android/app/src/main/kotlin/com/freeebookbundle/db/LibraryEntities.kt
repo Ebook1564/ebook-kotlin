@@ -54,15 +54,6 @@ data class CategoryEntity(
 
 @Entity(
     tableName = "books",
-    foreignKeys = [
-        ForeignKey(
-            entity = CategoryEntity::class,
-            parentColumns = ["code"],
-            childColumns = ["category_code"],
-            onDelete = ForeignKey.NO_ACTION,
-            onUpdate = ForeignKey.NO_ACTION
-        )
-    ],
     indices = [
         Index(value = ["title"], name = "idx_book_title"),
         Index(value = ["category_code"], name = "idx_book_category")
@@ -89,7 +80,8 @@ data class BookEntity(
     @ColumnInfo(name = "chapter_progression", defaultValue = "0.0") val chapterProgression: Float = 0f,
     @ColumnInfo(name = "tts_spine_index", defaultValue = "0") val ttsSpineIndex: Int = 0,
     @ColumnInfo(name = "tts_sentence_index", defaultValue = "0") val ttsSentenceIndex: Int = 0,
-    @ColumnInfo(name = "tts_paragraph_index", defaultValue = "0") val ttsParagraphIndex: Int = 0
+    @ColumnInfo(name = "tts_paragraph_index", defaultValue = "0") val ttsParagraphIndex: Int = 0,
+    @ColumnInfo(name = "audio_url") val audioUrl: String? = null
 )
 
 fun BookEntity.toBook(): com.freeebookbundle.models.Book {
@@ -117,6 +109,7 @@ fun BookEntity.toBook(): com.freeebookbundle.models.Book {
         chapterProgression = chapterProgression,
         ttsSpineIndex = ttsSpineIndex,
         ttsSentenceIndex = ttsSentenceIndex,
-        ttsParagraphIndex = ttsParagraphIndex
+        ttsParagraphIndex = ttsParagraphIndex,
+        audioUrl = audioUrl
     )
 }

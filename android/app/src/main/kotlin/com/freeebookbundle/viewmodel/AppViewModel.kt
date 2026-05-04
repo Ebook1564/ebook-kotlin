@@ -53,8 +53,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTransitioning = mutableStateOf(false)
     val isTransitioning: State<Boolean> = _isTransitioning
 
+    private val _useNewReader = mutableStateOf(true)
+    val useNewReader: State<Boolean> = _useNewReader
+
     init {
         _useSpaceTouchNav.value = prefs.getBoolean("use_space_touch_nav", false)
+        _useNewReader.value = prefs.getBoolean("use_new_reader", true)
     }
 
     fun toggleTheme() {
@@ -86,6 +90,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setUseSpaceTouchNav(use: Boolean) {
         _useSpaceTouchNav.value = use
         prefs.edit().putBoolean("use_space_touch_nav", use).apply()
+    }
+
+    fun setUseNewReader(use: Boolean) {
+        _useNewReader.value = use
+        prefs.edit().putBoolean("use_new_reader", use).apply()
     }
 
     fun completeOnboarding(name: String) {

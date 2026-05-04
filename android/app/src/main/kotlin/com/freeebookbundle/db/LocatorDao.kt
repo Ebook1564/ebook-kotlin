@@ -27,4 +27,16 @@ interface LocatorDao {
 
     @Query("SELECT * FROM highlights WHERE bookId = :bookId")
     suspend fun getHighlightsForBookSync(bookId: String): List<Highlight>
+
+    @Query("SELECT * FROM highlights WHERE bookId = :bookId AND chapterIndex = :chapterIndex ORDER BY startOffset ASC")
+    fun getHighlightsForChapter(bookId: String, chapterIndex: Int): Flow<List<Highlight>>
+
+    @Query("SELECT * FROM highlights WHERE bookId = :bookId AND chapterIndex = :chapterIndex ORDER BY startOffset ASC")
+    suspend fun getHighlightsForChapterSync(bookId: String, chapterIndex: Int): List<Highlight>
+
+    @Query("DELETE FROM bookmarks WHERE bookId = :bookId")
+    suspend fun deleteAllBookmarksForBook(bookId: String)
+
+    @Query("DELETE FROM highlights WHERE bookId = :bookId")
+    suspend fun deleteAllHighlightsForBook(bookId: String)
 }

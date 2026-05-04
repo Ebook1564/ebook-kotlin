@@ -22,6 +22,14 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map as flowMap
 import kotlinx.coroutines.launch
 
+enum class LibrarySortOrder {
+    RECENTLY_OPENED,
+    DATE_ADDED,
+    TITLE,
+    AUTHOR,
+    PROGRESS
+}
+
 data class LibraryUiState(
     val currentlyReading: List<Book> = emptyList(),
     val completed: List<Book> = emptyList(),
@@ -31,7 +39,8 @@ data class LibraryUiState(
     val selectedTag: String = "All",
     val selectedAuthor: String? = null,
     val isLoading: Boolean = false,
-    val seeAllStatus: ReadingStatus? = null
+    val seeAllStatus: ReadingStatus? = null,
+    val sortOrder: LibrarySortOrder = LibrarySortOrder.RECENTLY_OPENED
 )
 
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,14 +65,36 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 val tags = libraryBooks.flatMap { it.subjects }.distinct().take(10)
                 val authors = libraryBooks.map { it.author }.distinct().sorted()
 
-                _uiState.value = _uiState.value.copy(
-                    currentlyReading = libraryBooks.filter { it.readingStatus == ReadingStatus.CURRENTLY_READING },
-                    completed = libraryBooks.filter { it.readingStatus == ReadingStatus.COMPLETED },
-                    wishlist = libraryBooks.filter { it.readingStatus == ReadingStatus.WISHLIST },
-                    dynamicTags = listOf("All") + tags,
-                    dynamicAuthors = authors,
-                    isLoading = false
-                )
+                updateSortedBooks(libraryBooks, tags, authors)
+            }
+        }
+    }
+
+    private fun updateSortedBooks(libraryBooks: List<Book>, tags: List<String> = emptyList(), authors: List<String> = emptyList()) {
+        val sorted = when (_uiState.value.sortOrder) {
+            LibrarySortOrder.RECENTLY_OPENED -> libraryBooks.sortedByDescending { it.lastOpened ?: 0L }
+            LibrarySortOrder.DATE_ADDED -> libraryBooks.sortedByDescending { it.dateAdded ?: 0L }
+            LibrarySortOrder.TITLE -> libraryBooks.sortedBy { it.title }
+            LibrarySortOrder.AUTHOR -> libraryBooks.sortedBy { it.author }
+            LibrarySortOrder.PROGRESS -> libraryBooks.sortedByDescending { it.getReadingProgressPercent() }
+        }
+
+        _uiState.value = _uiState.value.copy(
+            currentlyReading = sorted.filter { it.readingStatus == ReadingStatus.CURRENTLY_READING },
+            completed = sorted.filter { it.readingStatus == ReadingStatus.COMPLETED },
+            wishlist = sorted.filter { it.readingStatus == ReadingStatus.WISHLIST },
+            dynamicTags = if (tags.isNotEmpty()) listOf("All") + tags else _uiState.value.dynamicTags,
+            dynamicAuthors = if (authors.isNotEmpty()) authors else _uiState.value.dynamicAuthors,
+            isLoading = false
+        )
+    }
+
+    fun setSortOrder(order: LibrarySortOrder) {
+        _uiState.value = _uiState.value.copy(sortOrder = order)
+        // Re-trigger observation or manually re-sort
+        viewModelScope.launch {
+            bookDao.getLibraryBooksFlow().collectLatest { entities ->
+                updateSortedBooks(entities.map { it.toBook() })
             }
         }
     }
@@ -87,8 +118,37 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateReadingStatus(book: Book, status: ReadingStatus) {
         viewModelScope.launch {
-            val dateAdded = if (status != ReadingStatus.NONE) System.currentTimeMillis() else null
-            bookDao.updateReadingStatus(book.id, status, dateAdded)
+            val existing = bookDao.getBook(book.id)
+            val timestamp = System.currentTimeMillis()
+            
+            if (existing == null) {
+                // Insert new entity
+                val entity = com.freeebookbundle.db.BookEntity(
+                    id = book.id,
+                    title = book.title,
+                    author = book.author,
+                    description = book.description,
+                    categoryCode = book.categories.firstOrNull() ?: "",
+                    sourceFolder = book.sourceFolder ?: "remote",
+                    coverImageName = null,
+                    epubFileName = book.epubFileName,
+                    isDownloaded = false,
+                    readingStatus = status,
+                    dateAdded = if (status != ReadingStatus.NONE) timestamp else null,
+                    subjects = book.subjects,
+                    externalCoverUrl = book.externalCoverUrl,
+                    audioUrl = book.audioUrl
+                )
+                bookDao.insertBook(entity)
+            } else {
+                // Update existing entity status and dateAdded
+                val dateAdded = if (status != ReadingStatus.NONE) timestamp else existing.dateAdded
+                bookDao.updateReadingStatus(book.id, status, dateAdded)
+            }
+            
+            if (status == ReadingStatus.CURRENTLY_READING) {
+                bookDao.updateLastOpened(book.id, timestamp)
+            }
         }
     }
 

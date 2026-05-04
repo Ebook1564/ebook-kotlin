@@ -17,6 +17,13 @@
             android:layout_height="match_parent"
             android:alpha="0.0" />
 
+        <!-- New Foliate Reader Container (shown when useNewReader is enabled) -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/foliate_reader_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
         <!-- Reveal Overlay (Matches transition background) -->
         <androidx.compose.ui.platform.ComposeView
             android:id="@+id/reveal_overlay_view"

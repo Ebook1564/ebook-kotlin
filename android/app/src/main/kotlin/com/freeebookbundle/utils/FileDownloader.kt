@@ -93,9 +93,30 @@ object FileDownloader {
             return@withContext destinationFile
         }
 
-        Log.d(TAG, "Book ${book.id}: '${book.title}' - epubFileName: '${book.epubFileName}'")
+        Log.d(TAG, "Book ${book.id}: '${book.title}' - fileUrl: '${book.fileUrl}', epubFileName: '${book.epubFileName}'")
 
-        // --- 1. ASSET RECOVERY ---
+        // --- 1. LOCAL SERVER RECOVERY (using [Title].[ID].epub pattern) ---
+        val titleIdPattern = "${book.title}.${book.id}.epub"
+        val encodedPattern = encodeFilenameForUrl(titleIdPattern)
+        
+        val localAttempts = listOf(
+            encodedPattern,
+            "pg${book.id}.epub",
+            "${book.id}.epub"
+        )
+        
+        for (fileName in localAttempts) {
+            val result = downloadFile("$serverUrl/epubs/$fileName", destinationFile, "Local Server ($fileName)")
+            if (result != null) return@withContext result
+        }
+
+        // --- 2. DIRECT FILE URL (from Gutendex API / External) ---
+        if (!book.fileUrl.isNullOrEmpty()) {
+            val result = downloadFile(book.fileUrl, destinationFile, "Gutendex fileUrl")
+            if (result != null) return@withContext result
+        }
+
+        // --- 2. ASSET RECOVERY ---
         val assetNamesToTry = listOfNotNull(book.epubFileName, "$cleanId.epub")
         for (assetName in assetNamesToTry.distinct()) {
             try {

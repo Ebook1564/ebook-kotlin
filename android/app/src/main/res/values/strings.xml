@@ -188,6 +188,9 @@
     <string name="profile_enabled">Enabled</string>
     <string name="profile_wifi_only">Download over Wi-Fi only</string>
     <string name="profile_disabled">Disabled</string>
+    <string name="profile_developer_title">DEVELOPER</string>
+    <string name="profile_use_new_reader">Use New EPUB Reader</string>
+    <string name="profile_use_new_reader_desc">Enable foliate-js based reader with endless scroll and real-time progress</string>
     <string name="profile_privacy_dialog_title">Privacy Policy</string>
     <string name="profile_privacy_last_updated">Last updated: April 9, 2026</string>
     <string name="profile_close">Close</string>
@@ -271,4 +274,11 @@
     <string name="profile_stat_of_reading">of reading</string>
     <string name="profile_stat_pages">pages</string>
     <string name="profile_stat_read">read</string>
+    <!-- Library Sort -->
+    <string name="library_sort_title">Sort By</string>
+    <string name="library_sort_recent">Recently Opened</string>
+    <string name="library_sort_added">Date Added</string>
+    <string name="library_sort_title_alpha">Title (A-Z)</string>
+    <string name="library_sort_author">Author (A-Z)</string>
+    <string name="library_sort_progress">Reading Progress</string>
 </resources>

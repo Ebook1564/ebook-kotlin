@@ -8,13 +8,17 @@ import androidx.paging.*
 import com.freeebookbundle.EbookApp
 import com.freeebookbundle.db.toBook
 import com.freeebookbundle.models.Book
+import com.freeebookbundle.models.ReadingStatus
+import com.freeebookbundle.repository.CatalogRepository
 import com.freeebookbundle.repository.ExternalMetadataRepository
 import com.freeebookbundle.utils.GenrePreferences
-import com.freeebookbundle.utils.LocaleManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Dispatchers
 
 data class InitialBounds(
     val left: Float, val top: Float, val width: Float, val height: Float
@@ -150,25 +154,6 @@ sealed class SearchFilter {
     data class Category(val code: String) : SearchFilter()
 }
 
-data class HomeUiState(
-    val userName: String = "Aayush",
-    val isLoading: Boolean = false,
-    val searchQuery: String = "",
-    val authorSearchQuery: String = "",
-    val activeFilter: SearchFilter = SearchFilter.None,
-    val selectedCategoryForSearch: String? = null,
-    val currentCollection: BookCollection? = null,
-    val currentCuratedCollection: CuratedCollection? = null,
-    val curatedCollections: List<CuratedCollection> = CuratedCollections.collections,
-    val transitionBook: Book? = null,
-    val initialBounds: InitialBounds? = null,
-    val isMetadataLoading: Boolean = false,
-    val dynamicCategories: List<CategoryWithCount> = emptyList(),
-    val popularSubjects: List<SubjectWithCount> = emptyList(),
-    val openAudioPlayer: Boolean = false,
-    val resumeFromLastPosition: Boolean = true
-)
-
 data class CategoryWithCount(
     val code: String,
     val name: String,
@@ -181,11 +166,30 @@ data class SubjectWithCount(
     val bookCount: Int
 )
 
+data class HomeUiState(
+    val userName: String = "User",
+    val isLoading: Boolean = false,
+    val isCatalogLoading: Boolean = true, // Track catalog parsing specifically
+    val searchQuery: String = "",
+    val authorSearchQuery: String = "",
+    val activeFilter: SearchFilter = SearchFilter.None,
+    val selectedCategoryForSearch: String? = null,
+    val currentCollection: BookCollection? = null,
+    val currentCuratedCollection: CuratedCollection? = null,
+    val curatedCollections: List<CuratedCollection> = CuratedCollections.collections,
+    val transitionBook: Book? = null,
+    val initialBounds: InitialBounds? = null,
+    val isMetadataLoading: Boolean = false,
+    val openAudioPlayer: Boolean = false,
+    val resumeFromLastPosition: Boolean = false
+)
+
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()
     private val metadataRepo = ExternalMetadataRepository(bookDao)
+    private val catalogRepo = CatalogRepository(application, bookDao)
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -206,46 +210,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _continueReadingBooks = MutableStateFlow<List<Book>>(emptyList())
     val continueReadingBooks: StateFlow<List<Book>> = _continueReadingBooks.asStateFlow()
 
-    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val filterResults: Flow<PagingData<Book>> = _searchRequest
         .debounce { request ->
             if (request.filter is SearchFilter.None) 300L else 0L
         }
         .flatMapLatest { request ->
-            Pager(config = PagingConfig(pageSize = 30, enablePlaceholders = false)) {
-                when (val filter = request.filter) {
-                    is SearchFilter.Author -> bookDao.getBooksByAuthorPaging(filter.name)
-                    is SearchFilter.Category -> bookDao.getBooksByCategoryNamePaging(filter.code)
-                    else -> bookDao.searchBooksPaging(request.query)
+            when (val filter = request.filter) {
+                is SearchFilter.Author -> catalogRepo.getBooksByAuthor(filter.name)
+                is SearchFilter.Category -> catalogRepo.getBooksByTopic(filter.code)
+                else -> {
+                    if (request.query.isEmpty()) flowOf(PagingData.empty())
+                    else catalogRepo.searchBooks(request.query)
                 }
-            }.flow.map { data -> data.map { it.toBook() } }
+            }
         }.cachedIn(viewModelScope)
 
-    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val curatedCollectionBooks: Flow<PagingData<Book>> = _uiState
         .map { it.currentCollection }
         .distinctUntilChanged()
         .flatMapLatest { collection ->
             if (collection == null) flowOf(PagingData.empty())
-            else {
-                Pager(config = PagingConfig(pageSize = 30)) {
-                    bookDao.getCollectionBooksPaging(collection.query)
-                }.flow.map { data -> data.map { it.toBook() } }
-            }
+            else catalogRepo.getBooksByTopic(collection.query)
         }.cachedIn(viewModelScope)
 
-    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val curatedCollectionBooksByTag: Flow<PagingData<Book>> = _uiState
         .map { it.currentCuratedCollection }
         .distinctUntilChanged()
         .flatMapLatest { collection ->
             if (collection == null) flowOf(PagingData.empty())
-            else {
-                // Search by the first tag in the collection
-                Pager(config = PagingConfig(pageSize = 30)) {
-                    bookDao.getCollectionBooksPaging(collection.tags.first())
-                }.flow.map { data -> data.map { it.toBook() } }
-            }
+            else catalogRepo.getBooksByTopic(collection.tags.first())
         }.cachedIn(viewModelScope)
 
     val authorResults: Flow<PagingData<String>> = _uiState
@@ -261,131 +254,74 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadStableHomeData()
         
         viewModelScope.launch {
-            homeSections.first { it.isNotEmpty() }
-            
-            _billboardBooks.value.forEach { book ->
-                if (book.externalCoverUrl.isNullOrEmpty()) {
-                    launch { 
-                        val updated = metadataRepo.fetchAndCacheMetadata(book)
-                        updateBookInLists(updated)
-                    }
-                }
-            }
-            
-            _homeSections.value.forEach { section ->
-                section.books.take(2).forEach { book ->
-                    if (book.externalCoverUrl.isNullOrEmpty()) {
-                        launch {
-                            val updated = metadataRepo.fetchAndCacheMetadata(book)
-                            updateBookInLists(updated)
-                        }
-                    }
-                }
+            // Observe continue reading from local DB
+            bookDao.getContinueReadingBooks(10).collect { books ->
+                _continueReadingBooks.value = books.map { it.toBook() }
             }
         }
     }
 
     private fun loadStableHomeData() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val allCategories = bookDao.getAllCategories().first()
-            
-            // Deduplicate categories by name (some have same name with different codes)
-            // Filter out "None" categories
-            val categories = allCategories
-                .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
-                .groupBy { it.name }
-                .map { (_, group) -> group.first() }
-            
-            // Calculate book counts for each category
-            val categoriesWithCounts = categories.map { cat ->
-                val books = bookDao.getBooksByCategoryLimit(cat.code, 1)
-                CategoryWithCount(
-                    code = cat.code,
-                    name = cat.name,
-                    color = cat.color,
-                    bookCount = if (books.isNotEmpty()) books.first().let { 
-                        // Count by fetching more would be expensive, so we'll use 1+ as placeholder
-                        // For accurate counts, we'd need a COUNT query
-                        1 // Placeholder - will be updated when loading
-                    } else 0
-                )
-            }.filter { it.bookCount > 0 }
-            
-            // Get popular subjects from all books
-            val allBooks = bookDao.getBooksByCategoryLimit("", 1000).take(1000)
-            val subjectCounts = allBooks
-                .flatMap { it.subjects }
-                .groupingBy { it }
-                .eachCount()
-                .filter { it.value >= 5 } // Only show subjects with 5+ books
-                .entries
-                .sortedByDescending { it.value }
-                .take(12)
-                .map { SubjectWithCount(it.key, it.value) }
+            _uiState.value = _uiState.value.copy(isLoading = true, isCatalogLoading = true)
             
             // Get selected genres from preferences
             val selectedGenres = GenrePreferences.getSelectedGenres()
-            
-            // Create sections with category codes
-            val allSections = categories.map { cat ->
-                val books = bookDao.getBooksByCategoryLimit(cat.code, 15).map { it.toBook() }
-                HomeSection(cat.name, cat.code, books)
-            }.sortedByDescending { it.books.size }
-            
-            // Filter sections based on selected genres (if any selected)
-            // Also show sections that partially match selected genres
-            val sections = if (selectedGenres.isEmpty()) {
-                allSections  // Show all if nothing selected
+            val topicsToLoad = if (selectedGenres.isEmpty()) {
+                listOf("Fiction", "History", "Science", "Philosophy", "Romance", "Adventure")
             } else {
-                allSections.filter { section -> 
-                    // Check if any selected genre is part of the category code or title
-                    selectedGenres.any { genre ->
-                        section.categoryCode.contains(genre) ||
-                        section.categoryCode.lowercase().contains(genre.lowercase()) ||
-                        section.title.lowercase().contains(genre.removePrefix("category__").replace("_", " ").lowercase())
-                    }
-                }
+                selectedGenres.toList()
             }
             
-            // Load continue reading books
-            viewModelScope.launch {
-                val continueReadingBooks = bookDao.getContinueReadingBooks(10).first().map { it.toBook() }
-                _continueReadingBooks.value = continueReadingBooks
-            }
+            // 1. Load Billboard first (High priority)
+            val billboard = catalogRepo.getStaticBooksByTopic(topicsToLoad.first(), 6)
+            _billboardBooks.value = billboard
+            _uiState.value = _uiState.value.copy(isCatalogLoading = false)
+
+            // 2. Load all other sections in parallel, then update ONCE
+            val sections = topicsToLoad.map { topic ->
+                async(Dispatchers.IO) {
+                    HomeSection(topic, topic, catalogRepo.getStaticBooksByTopic(topic, 15))
+                }
+            }.awaitAll()
             
             _homeSections.value = sections
-            _billboardBooks.value = sections.flatMap { it.books }.shuffled().take(6)
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                dynamicCategories = categoriesWithCounts,
-                popularSubjects = subjectCounts
-            )
+            _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
 
-    private fun updateBookInLists(updated: Book) {
-        _billboardBooks.value = _billboardBooks.value.map { if (it.id == updated.id) updated else it }
-        _homeSections.value = _homeSections.value.map { section ->
-            section.copy(books = section.books.map { if (it.id == updated.id) updated else it })
-        }
+    suspend fun getTopGenres(count: Int = 10): List<CategoryWithCount> {
+        val catalog = catalogRepo.getCatalog()
+        // Group by subject and count
+        return catalog.flatMap { it.s }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .take(count)
+            .map { (name, bookCount) ->
+                CategoryWithCount(
+                    code = name,
+                    name = name,
+                    color = "#E50914", // Default accent
+                    bookCount = bookCount
+                )
+            }
     }
 
     fun openCollection(tag: String) = viewModelScope.launch {
-        // First check if it matches a curated collection
         val curatedCollection = CuratedCollections.findCollectionForTag(tag)
         if (curatedCollection != null) {
             _uiState.value = _uiState.value.copy(currentCuratedCollection = curatedCollection, currentCollection = null)
             return@launch
         }
 
-        // Fallback to legacy category-based collections
         val collection = when {
             tag.contains("Gothic", ignoreCase = true) -> BookCollection("Gothic Echoes", "Dark, moody tales of mystery and the supernatural.", Color(0xFF37474F), "Gothic")
             tag.contains("Adventure", ignoreCase = true) -> BookCollection("High Seas & Beyond", "Epic journeys and daring adventures through history.", Color(0xFF00695C), "Adventure")
             tag.contains("Romance", ignoreCase = true) -> BookCollection("Classic Romance", "Timeless stories of love, passion, and high society.", Color(0xFFAD1457), "Romance")
             tag.contains("Mystery", ignoreCase = true) -> BookCollection("Detective Noir", "Classic whodunnits and complex investigations.", Color(0xFF263238), "Mystery")
-            else -> BookCollection(tag, "A curated selection of books matching '$tag'.", Color(0xFFE50914), tag)
+            else -> BookCollection(tag, "A curated selection of books.", Color(0xFFE50914), tag)
         }
         _uiState.value = _uiState.value.copy(currentCollection = collection, currentCuratedCollection = null)
     }
@@ -403,7 +339,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(isMetadataLoading = true)
             val updated = metadataRepo.fetchAndCacheMetadata(book)
             _uiState.value = _uiState.value.copy(isMetadataLoading = false)
-            updateBookInLists(updated)
             onUpdated(updated)
         }
     }
@@ -434,77 +369,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun reloadHomeData() {
-        // Reload home data - will pick up new genre selections
         loadStableHomeData()
     }
-    
-    suspend fun getTopGenres(count: Int = 10): List<CategoryWithCount> {
-        val allCategories = bookDao.getAllCategories().first()
-        
-        // Deduplicate and filter
-        val categories = allCategories
-            .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
-            .groupBy { it.name }
-            .map { (_, group) -> group.first() }
-        
-        // Get count for each category
-        val categoryList = categories.map { cat ->
-            val books = bookDao.getBooksByCategoryLimit(cat.code, 1000)
-            CategoryWithCount(
-                code = cat.code,
-                name = cat.name,
-                color = cat.color,
-                bookCount = books.size
-            )
-        }
-        
-        // Sort: language-matching categories first, then by book count
-        val langPrefix = LocaleManager.getSystemLanguagePrefix()
-        val sorted = if (langPrefix.isNotEmpty()) {
-            categoryList.sortedWith(
-                compareByDescending<CategoryWithCount> { it.name.startsWith(langPrefix) }
-                    .thenByDescending { it.bookCount }
-            )
-        } else {
-            categoryList.sortedByDescending { it.bookCount }
-        }
-        
-        return sorted.take(count)
-    }
-    
-    suspend fun getAllGenres(): List<CategoryWithCount> {
-        val allCategories = bookDao.getAllCategories().first()
-        
-        // Deduplicate and filter
-        val categories = allCategories
-            .filter { it.name.isNotBlank() && it.name != "None" && it.name != "Genre None" }
-            .groupBy { it.name }
-            .map { (_, group) -> group.first() }
-        
-        // Get count for each category
-        val categoryList = categories.map { cat ->
-            val books = bookDao.getBooksByCategoryLimit(cat.code, 1000)
-            CategoryWithCount(
-                code = cat.code,
-                name = cat.name,
-                color = cat.color,
-                bookCount = books.size
-            )
-        }
-        
-        // Sort: language-matching categories first, then alphabetically
-        val langPrefix = LocaleManager.getSystemLanguagePrefix()
-        return if (langPrefix.isNotEmpty()) {
-            categoryList.sortedWith(
-                compareByDescending<CategoryWithCount> { it.name.startsWith(langPrefix) }
-                    .thenBy { it.name }
-            )
-        } else {
-            categoryList.sortedBy { it.name }
-        }
-    }
 
-    fun startReadTransition(b: Book, bounds: InitialBounds? = null, resumeFromLastPosition: Boolean = true, openAudioPlayer: Boolean = false) { 
+    fun startReadTransition(b: Book, bounds: InitialBounds? = null, resumeFromLastPosition: Boolean = false, openAudioPlayer: Boolean = false) { 
         _uiState.value = _uiState.value.copy(
             transitionBook = b, 
             initialBounds = bounds, 

@@ -89,11 +89,11 @@ interface BookDao {
     @Query("UPDATE books SET date_finished = :dateFinished, reading_status = :status WHERE id = :bookId")
     suspend fun markAsCompleted(bookId: String, status: ReadingStatus = ReadingStatus.COMPLETED, dateFinished: Long)
 
-    @Query("UPDATE books SET last_spine_index = :spineIndex, chapter_progression = :progression WHERE id = :bookId")
-    suspend fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float)
-
     @Query("UPDATE books SET tts_spine_index = :spineIndex, tts_sentence_index = :sentenceIndex, tts_paragraph_index = :paragraphIndex WHERE id = :bookId")
     suspend fun updateTtsPosition(bookId: String, spineIndex: Int, sentenceIndex: Int, paragraphIndex: Int)
+
+    @Query("UPDATE books SET last_spine_index = :spineIndex, chapter_progression = :progression, last_opened = :timestamp WHERE id = :bookId")
+    suspend fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float, timestamp: Long = System.currentTimeMillis())
 
     @Query("SELECT * FROM books WHERE reading_status = 'CURRENTLY_READING' AND last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
     fun getContinueReadingBooks(limit: Int): Flow<List<BookEntity>>
@@ -117,6 +117,9 @@ interface BookDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
+
+    @Query("SELECT * FROM books WHERE id = :bookId")
+    suspend fun getBook(bookId: String): BookEntity?
 
     @Query("SELECT COUNT(*) FROM books")
     suspend fun getBookCount(): Int
