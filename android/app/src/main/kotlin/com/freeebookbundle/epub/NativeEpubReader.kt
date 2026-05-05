@@ -50,10 +50,12 @@ fun NativeEpubReader(
     bookId: String? = null,
     initialChapter: Int = 0,
     targetChapter: Int? = null,
+    targetAnchor: String? = null,
     settings: com.freeebookbundle.viewmodel.ReaderSettings = com.freeebookbundle.viewmodel.ReaderSettings(),
     backgroundColor: Color = Color(0xFFFDFCF0),
     textColor: Color = Color(0xFF5B4636),
     onProgressChange: (progress: Float) -> Unit = {},
+    onJumpToChapter: (Int, String?) -> Unit = { _, _ -> },
     onChapterChange: (chapter: Int, chapterProgress: Float) -> Unit = { _, _ -> },
     onHighlightsAdded: (List<Highlight>) -> Unit = {},
     onHighlightDeleted: (Highlight) -> Unit = {},
@@ -87,7 +89,11 @@ fun NativeEpubReader(
     val itemPositions = remember { mutableStateMapOf<String, Offset>() }
 
     LaunchedEffect(filePath) { viewModel.loadBook(filePath, initialChapter) }
-    LaunchedEffect(targetChapter) { targetChapter?.let { viewModel.jumpToChapter(it) } }
+    LaunchedEffect(targetChapter, targetAnchor) {
+        if (targetChapter != null) {
+            onJumpToChapter(targetChapter, targetAnchor)
+        }
+    }
 
     val clipboardManager = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -185,117 +191,149 @@ fun NativeEpubReader(
             onMenuShown = { rect ->
                 val density = context.resources.displayMetrics.density
                 activeSelections.clear()
-                
+
                 android.util.Log.d("NativeEpubReader", "onMenuShown: Window Rect: $rect")
 
-                // GUARD: only proceed if rect is valid
                 if (rect.height > 0f && rect.width > 0f) {
-                    // Android selection handles extend ~25dp below the last selected line.
-                    // Without this correction, charBounds of the NEXT line fully satisfy the
-                    // 80% overlap threshold (handle offset > line height), causing bleed.
                     val handleHeightPx = 25f * density
-
                     val visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet()
 
                     textLayoutResults.forEach { (itemId, result) ->
-                        if (!visibleKeys.contains(itemId)) return@forEach
-                        val itemPos = itemPositions[itemId] ?: return@forEach
+                    if (!visibleKeys.contains(itemId)) return@forEach
+                    val itemPos = itemPositions[itemId] ?: return@forEach
 
-                        // Shrink bottom by handle height BEFORE converting to local space
-                        val localRect = Rect(
-                            left   = rect.left              - itemPos.x,
-                            top    = rect.top               - itemPos.y,
-                            right  = rect.right             - itemPos.x,
-                            bottom = (rect.bottom - handleHeightPx) - itemPos.y
-                        )
+                    val localRect = Rect(
+                        left   = rect.left - itemPos.x,
+                        top    = rect.top  - itemPos.y,
+                        right  = rect.right - itemPos.x,
+                        bottom = (rect.bottom - handleHeightPx) - itemPos.y
+                    )
 
-                        if (localRect.bottom < localRect.top || localRect.bottom < 0f || localRect.top > result.size.height) return@forEach
+                    if (localRect.bottom < 0f || localRect.top > result.size.height) return@forEach
 
-                        val textLength = result.layoutInput.text.length
-                        if (textLength == 0) return@forEach
+                    val textLength = result.layoutInput.text.length
+                    if (textLength == 0) return@forEach
 
-                        var currentStart = -1
-                        var capturedCount = 0
+                    // ── Pass 1: identify the first and last selected line indices ──────────
+                    // We need these BEFORE the char loop so we know which horizontal
+                    // constraint to apply (left-only / right-only / none / both).
+                    var firstSelectedLine = Int.MAX_VALUE
+                    var lastSelectedLine  = Int.MIN_VALUE
 
-                        for (i in 0 until textLength) {
-                            val line = result.getLineForOffset(i)
-
-                            // Cache line bounds — getLineTop/Bottom is O(1) per line index,
-                            // but avoid re-computing for every char on the same line
-                            val lineTop    = result.getLineTop(line)
-                            val lineBottom = result.getLineBottom(line)
-                            val lineCenter = (lineTop + lineBottom) / 2f
-
-                            // VERTICAL FILTER: use the LINE CENTER, not charBounds.
-                            // getBoundingBox() height == full lineHeight slot (includes spacing above/below
-                            // glyphs), making per-char overlap tests unreliable when lineHeight > fontSize.
-                            // A line's center is never ambiguous — it's either inside the rect or not.
-                            val lineInSelection = lineCenter in localRect.top..localRect.bottom
-
-                            if (!lineInSelection) {
-                                // Flush any open run when we leave a selected line
-                                if (currentStart != -1) {
-                                    activeSelections.add(
-                                        SelectionInfo(
-                                            itemId,
-                                            currentStart to i,
-                                            result.layoutInput.text.text.substring(currentStart, i)
-                                        )
-                                    )
-                                    currentStart = -1
-                                }
-                                continue
-                            }
-
-                            // HORIZONTAL FILTER: use charBounds only for left/right trimming
-                            val charBounds = result.getBoundingBox(i)
-                            val overlapLeft  = Math.max(charBounds.left,  localRect.left)
-                            val overlapRight = Math.min(charBounds.right, localRect.right)
-                            val overlapWidth = Math.max(0f, overlapRight - overlapLeft)
-
-                            // Require >50% horizontal overlap to include the character
-                            val isCharSelected = overlapWidth > charBounds.width * 0.5f
-
-                            if (isCharSelected) {
-                                if (currentStart == -1) currentStart = i
-                                capturedCount++
-                            } else if (currentStart != -1) {
-                                activeSelections.add(
-                                    SelectionInfo(
-                                        itemId,
-                                        currentStart to i,
-                                        result.layoutInput.text.text.substring(currentStart, i)
-                                    )
-                                )
-                                currentStart = -1
-                            }
-                        }
-
-                        // Flush trailing run
-                        if (currentStart != -1) {
-                            activeSelections.add(
-                                SelectionInfo(
-                                    itemId,
-                                    currentStart to textLength,
-                                    result.layoutInput.text.text.substring(currentStart, textLength)
-                                )
-                            )
-                        }
-
-                        if (capturedCount > 0) {
-                            android.util.Log.d("NativeEpubReader", "Block $itemId: Precision-captured $capturedCount chars.")
+                    for (i in 0 until textLength) {
+                        val line       = result.getLineForOffset(i)
+                        val lineCenter = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
+                        if (lineCenter in localRect.top..localRect.bottom) {
+                            if (line < firstSelectedLine) firstSelectedLine = line
+                            if (line > lastSelectedLine)  lastSelectedLine  = line
                         }
                     }
-                    android.util.Log.d("NativeEpubReader", "onMenuShown: Sweep complete. Total regions: ${activeSelections.size}")
+
+                    if (firstSelectedLine == Int.MAX_VALUE) return@forEach // block not in selection
+
+                    // ── Pass 2: collect characters with per-line horizontal rules ──────────
+                    var currentStart  = -1
+                    var capturedCount = 0
+
+                    for (i in 0 until textLength) {
+                        val line       = result.getLineForOffset(i)
+                        val lineCenter = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
+
+                        // Vertical gate: line centre must be inside the (handle-trimmed) rect
+                        if (lineCenter !in localRect.top..localRect.bottom) {
+                            if (currentStart != -1) {
+                                activeSelections.add(SelectionInfo(
+                                    itemId, currentStart to i,
+                                    result.layoutInput.text.text.substring(currentStart, i)
+                                ))
+                                currentStart = -1
+                            }
+                            continue
+                        }
+
+                        val charBounds = result.getBoundingBox(i)
+
+                        // Horizontal rule depends on which line we're on:
+                        //
+                        //  ┌─────── first line ────────────────────────────────────┐
+                        //  │ [localRect.left ──────────────────── line right edge] │
+                        //  ├─────── middle lines ──────────────────────────────────┤
+                        //  │ [line left edge ─────────────── line right edge]      │
+                        //  ├─────── last line ─────────────────────────────────────┤
+                        //  │ [line left edge ──────── localRect.right]             │
+                        //  └───────────────────────────────────────────────────────┘
+                        //  (when firstLine == lastLine both constraints apply)
+
+                        val effectiveLeft = when {
+                            line == firstSelectedLine -> localRect.left  // start of selection
+                            else                     -> Float.NEGATIVE_INFINITY // full line
+                        }
+                        val effectiveRight = when {
+                            line == lastSelectedLine -> localRect.right  // end of selection
+                            else                    -> Float.POSITIVE_INFINITY // full line
+                        }
+
+                        val overlapLeft  = maxOf(charBounds.left,  effectiveLeft)
+                        val overlapRight = minOf(charBounds.right, effectiveRight)
+                        val overlapWidth = maxOf(0f, overlapRight - overlapLeft)
+
+                        val isCharSelected = overlapWidth > charBounds.width * 0.5f
+
+                        if (isCharSelected) {
+                            if (currentStart == -1) currentStart = i
+                            capturedCount++
+                        } else if (currentStart != -1) {
+                            activeSelections.add(SelectionInfo(
+                                itemId, currentStart to i,
+                                result.layoutInput.text.text.substring(currentStart, i)
+                            ))
+                            currentStart = -1
+                        }
+                    }
+
+                    // Flush any trailing run
+                    if (currentStart != -1) {
+                        activeSelections.add(SelectionInfo(
+                            itemId, currentStart to textLength,
+                            result.layoutInput.text.text.substring(currentStart, textLength)
+                        ))
+                    }
+
+                    if (capturedCount > 0) {
+                        android.util.Log.d("NativeEpubReader", "Block $itemId: Precision-captured $capturedCount chars across ${lastSelectedLine - firstSelectedLine + 1} line(s).")
+                    }
                 }
+                android.util.Log.d("NativeEpubReader", "onMenuShown: Sweep complete. Total regions: ${activeSelections.size}")
             }
+        }
         )
     }
 
     LaunchedEffect(readerState.jumpTrigger) {
         if (readerState.jumpTrigger != null && readerState.items.isNotEmpty()) {
-            val targetIndex = readerState.items.indexOfFirst { it.id.startsWith("${readerState.currentChapterIndex}_") }
-            if (targetIndex >= 0) listState.scrollToItem(targetIndex)
+            val anchor = readerState.jumpAnchor
+            
+            // 1. Precise Match: Look for specific fragment/anchor
+            var targetIndex = if (!anchor.isNullOrEmpty()) {
+                readerState.items.indexOfFirst { item ->
+                    (item is ReaderItem.Text && item.locator == anchor)
+                }
+            } else -1
+            
+            // 2. Chapter Match: Fallback to top of chapter
+            if (targetIndex == -1) {
+                val targetChapterPrefix = "${readerState.currentChapterIndex}_item_"
+                targetIndex = readerState.items.indexOfFirst { it.id.startsWith(targetChapterPrefix) }
+            }
+            
+            android.util.Log.d("NativeEpubReader", "Jump Trigger: chapter=${readerState.currentChapterIndex}, anchor=$anchor, targetIndex=$targetIndex")
+            
+            if (targetIndex >= 0) {
+                // Yield to let LazyColumn recompose with the new items list first
+                kotlinx.coroutines.yield()
+                listState.scrollToItem(targetIndex)
+            }
+            viewModel.consumeJumpTrigger()
         }
     }
 

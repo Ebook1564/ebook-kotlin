@@ -26,6 +26,7 @@ data class EpubReaderState(
     val progress: Float = 0f,
     val loadedImages: Map<String, Bitmap?> = emptyMap(),
     val jumpTrigger: Int? = null,
+    val jumpAnchor: String? = null,
     val highlights: List<Highlight> = emptyList()
 )
 
@@ -58,16 +59,16 @@ class EpubReaderViewModel : ViewModel() {
         }
     }
 
-    fun jumpToChapter(chapterIndex: Int) {
+    fun jumpToChapter(chapterIndex: Int, fragmentId: String? = null) {
         val book = _state.value.book ?: return
-        val safeIndex = chapterIndex.coerceIn(0, book.chapters.size - 1)
         
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, items = emptyList()) }
             
             val items = mutableListOf<ReaderItem>()
-            val start = (safeIndex - 1).coerceAtLeast(0)
-            val end = (safeIndex + 1).coerceAtMost(book.chapters.size - 1)
+            // Always use spineIndex from the book metadata
+            val start = (chapterIndex - 1).coerceAtLeast(0)
+            val end = (chapterIndex + 1).coerceAtMost(book.chapters.size - 1)
             
             firstLoadedChapter = start
             lastLoadedChapter = end
@@ -80,9 +81,10 @@ class EpubReaderViewModel : ViewModel() {
             _state.update { 
                 it.copy(
                     items = items, 
-                    currentChapterIndex = safeIndex, 
+                    currentChapterIndex = chapterIndex, 
                     isLoading = false,
-                    jumpTrigger = (it.jumpTrigger ?: 0) + 1
+                    jumpTrigger = (it.jumpTrigger ?: 0) + 1,
+                    jumpAnchor = fragmentId
                 ) 
             }
         }

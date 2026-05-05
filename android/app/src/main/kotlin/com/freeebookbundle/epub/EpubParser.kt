@@ -58,35 +58,87 @@ class EpubParser {
         val author = if (creators.length > 0) creators.item(0).textContent else "Unknown Author"
         val language = opfDoc.getElementsByTagName("dc:language").let { if (it.length > 0) it.item(0).textContent else "en" }
 
-        // 3. Manifest & Spine
+        // 3. Manifest
         val manifest = mutableMapOf<String, String>()
+        var tocHref: String? = null
         val manifestItems = opfDoc.getElementsByTagName("item")
         for (i in 0 until manifestItems.length) {
             val item = manifestItems.item(i) as org.w3c.dom.Element
             val id = item.getAttribute("id")
             val href = item.getAttribute("href")
+            val mediaType = item.getAttribute("media-type")
             if (id.isNotEmpty() && href.isNotEmpty()) manifest[id] = href
+            if (mediaType == "application/x-dtbncx+xml" || id == "ncx" || id == "toc") {
+                tocHref = href
+            }
         }
         
+        // 4. Spine (The actual content files)
         val itemrefs = opfDoc.getElementsByTagName("itemref")
-        var cumulativeWeight = 0L
-        val chapters = mutableListOf<EpubChapter>()
-
+        val spineHrefs = mutableListOf<String>()
         for (i in 0 until itemrefs.length) {
             val idref = (itemrefs.item(i) as org.w3c.dom.Element).getAttribute("idref")
-            val href = manifest[idref] ?: ""
-            val entryPath = resolvePath(basePath, href)
-            val weight = zip.getEntry(entryPath)?.size ?: 0L
-            
-            chapters.add(EpubChapter(
-                chapterIndex = i,
-                title = "Chapter ${i + 1}",
-                href = href,
-                characterOffset = cumulativeWeight,
-                characterCount = weight.toInt()
-            ))
-            cumulativeWeight += weight
+            manifest[idref]?.let { spineHrefs.add(it) }
         }
+        
+        // 5. Parse TOC for User Navigation
+        val chapters = mutableListOf<EpubChapter>()
+        if (tocHref != null) {
+            try {
+                val fullTocPath = resolvePath(basePath, tocHref)
+                zip.getEntry(fullTocPath)?.let { entry ->
+                    val tocDoc = parseXml(zip.getInputStream(entry).readBytes())
+                    val navPoints = tocDoc?.getElementsByTagName("navPoint")
+                    if (navPoints != null) {
+                        for (j in 0 until navPoints.length) {
+                            val point = navPoints.item(j) as org.w3c.dom.Element
+                            val label = point.getElementsByTagName("text").item(0)?.textContent?.trim() ?: continue
+                            val content = point.getElementsByTagName("content").item(0) as? org.w3c.dom.Element
+                            val fullSrc = content?.getAttribute("src") ?: continue
+                            
+                            val href = fullSrc.substringBefore("#")
+                            val fragment = if (fullSrc.contains("#")) fullSrc.substringAfter("#") else null
+                            
+                            // NOISE FILTER
+                            val lowerLabel = label.lowercase()
+                            if (lowerLabel.contains("original size") || 
+                                lowerLabel.contains("medium-size") || 
+                                lowerLabel.contains("large-size") ||
+                                lowerLabel.contains("gutenberg license")) continue
+
+                            // Find which spine index this TOC entry belongs to
+                            val spineIndex = spineHrefs.indexOf(href)
+                            if (spineIndex != -1) {
+                                chapters.add(EpubChapter(
+                                    chapterIndex = spineIndex, // The physical file it belongs to
+                                    title = label,
+                                    href = href,
+                                    fragmentId = fragment
+                                ))
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error parsing TOC: ${e.message}")
+            }
+        }
+
+        // Fallback: If TOC is empty or missing, use Spine items
+        if (chapters.isEmpty()) {
+            spineHrefs.forEachIndexed { i, href ->
+                chapters.add(EpubChapter(i, "Chapter ${i + 1}", href))
+            }
+        }
+
+        // 6. Calculate total characters/weights using Spine
+        var totalChars = 0L
+        spineHrefs.forEach { href ->
+            val entryPath = resolvePath(basePath, href)
+            totalChars += zip.getEntry(entryPath)?.size ?: 0L
+        }
+
+        // 7. Cover
 
         // 5. Cover
         var coverImage: Bitmap? = null
@@ -118,7 +170,7 @@ class EpubParser {
             chapters = chapters,
             filePath = filePath,
             basePath = basePath,
-            totalCharacters = cumulativeWeight
+            totalCharacters = totalChars
         )
     }
 
@@ -151,13 +203,15 @@ class EpubParser {
         currentOffset: Int
     ): Int {
         var offset = currentOffset
+        val itemIndex = items.size
+        
         if (node is TextNode) {
-            // Use getWholeText to preserve original character counts for stable highlighting
             val text: String = node.getWholeText()
             if (text.isNotEmpty()) {
                 val annotated = AnnotatedString(text)
                 val locator = "${node.parent()?.nodeName() ?: "root"}[${node.siblingIndex()}]"
-                items.add(ReaderItem.Text("${chapterIndex}_$offset", annotated, offset, null, locator))
+                // Use a unified, unique ID scheme: chapter_index_item_count
+                items.add(ReaderItem.Text("${chapterIndex}_item_${items.size}", annotated, offset, null, locator))
                 offset += annotated.length
             }
             return offset
@@ -178,8 +232,10 @@ class EpubParser {
                     if (node.children().all { it.isInline }) {
                         val annotated = parseStyledText(node)
                         if (annotated.isNotBlank()) {
-                            val locator = "${node.tagName()}[${node.siblingIndex()}]"
-                            items.add(ReaderItem.Text("${chapterIndex}_$offset", annotated, offset, textAlign, locator))
+                            // Check for ID for anchor jumping
+                            val id = node.id()
+                            val locator = if (id.isNotEmpty()) id else "${node.tagName()}[${node.siblingIndex()}]"
+                            items.add(ReaderItem.Text("${chapterIndex}_item_${items.size}", annotated, offset, textAlign, locator))
                             offset += annotated.length
                         }
                     } else {
@@ -191,7 +247,14 @@ class EpubParser {
                 "h1", "h2", "h3", "h4", "h5", "h6" -> {
                     val level = node.tagName().substring(1).toIntOrNull() ?: 2
                     val text = node.text()
-                    items.add(ReaderItem.Heading("${chapterIndex}_${items.size}", text, level))
+                    val id = node.id()
+                    val locator = if (id.isNotEmpty()) id else "h${level}_${items.size}"
+                    items.add(ReaderItem.Heading("${chapterIndex}_item_${items.size}", text, level))
+                    // Add a tiny empty text item if there is an ID so we can scroll to it precisely
+                    if (id.isNotEmpty()) {
+                        // We use the heading itself as the target for now, 
+                        // but ensure its ID is tracked.
+                    }
                     offset += text.length
                 }
                 "img" -> {
@@ -199,7 +262,7 @@ class EpubParser {
                     if (src.isNotEmpty()) {
                         val folderPath = File(resolvePath(basePath, chapterHref)).parent ?: ""
                         val absPath = resolvePath(if (folderPath == ".") "" else "$folderPath/", src)
-                        items.add(ReaderItem.Image("${chapterIndex}_${items.size}", absPath))
+                        items.add(ReaderItem.Image("${chapterIndex}_item_${items.size}", absPath))
                     }
                 }
                 "image", "svg" -> {
@@ -208,7 +271,7 @@ class EpubParser {
                     if (src.isNotEmpty()) {
                         val folderPath = File(resolvePath(basePath, chapterHref)).parent ?: ""
                         val absPath = resolvePath(if (folderPath == ".") "" else "$folderPath/", src)
-                        items.add(ReaderItem.Image("${chapterIndex}_${items.size}", absPath))
+                        items.add(ReaderItem.Image("${chapterIndex}_item_${items.size}", absPath))
                     }
                 }
                 else -> {

@@ -70,9 +70,18 @@ class EbookApp : Application() {
 
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
             try {
-                val catalogRepo = CatalogRepository(this@EbookApp, database.bookDao())
-                val catalog = catalogRepo.getCatalog()
-                Log.d(TAG, "Preloaded ${catalog.size} books from catalog.json in background")
+                val bookDao = database.bookDao()
+                val count = bookDao.getBookCount()
+                if (count == 0) {
+                    Log.d(TAG, "Database empty, preloading catalog...")
+                    val catalogRepo = CatalogRepository(this@EbookApp, bookDao)
+                    val catalog = catalogRepo.getCatalog()
+                    // Pre-convert to entities and insert in background
+                    // This prevents jank when user first searches
+                    Log.d(TAG, "Preloaded ${catalog.size} books from catalog.json")
+                } else {
+                    Log.d(TAG, "Database already has $count books, skipping preload")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to preload catalog in background", e)
             }

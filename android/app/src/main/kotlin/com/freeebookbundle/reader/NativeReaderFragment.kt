@@ -90,6 +90,7 @@ fun NativeReaderScreen(
     var currentChapter by remember { mutableIntStateOf(0) }
     var currentProgress by remember { mutableStateOf(0f) }
     var targetChapter by remember { mutableStateOf<Int?>(null) }
+    var targetAnchor by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -190,15 +191,20 @@ fun NativeReaderScreen(
                     bookId = bookId,
                     initialChapter = 0, // already loaded in LaunchedEffect
                     targetChapter = targetChapter,
+                    targetAnchor = targetAnchor,
                     settings = readerSettings,
                     backgroundColor = backgroundColor,
                     textColor = textColor,
                     onProgressChange = { fraction ->
                         currentProgress = fraction
                         targetChapter = null
+                        targetAnchor = null
                         if (bookId != null) {
                             readerViewModel.updateReadingProgress(bookId, currentChapter, fraction)
                         }
+                    },
+                    onJumpToChapter = { index, fragmentId ->
+                        epubViewModel.jumpToChapter(index, fragmentId)
                     },
                     onChapterChange = { chapterIndex, _ ->
                         currentChapter = chapterIndex
@@ -247,10 +253,20 @@ fun NativeReaderScreen(
         )
         
         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
+            val rawTitle = readerState.book?.chapters?.getOrNull(currentChapter)?.title ?: "Chapter ${currentChapter + 1}"
+            val displayTitle = if (rawTitle.startsWith("Chapter", ignoreCase = true)) {
+                rawTitle
+            } else {
+                "Chapter ${currentChapter + 1}: $rawTitle"
+            }
+            
             Text(
-                text = "Chapter ${currentChapter + 1} • ${(currentProgress * 100).toInt()}%",
+                text = "$displayTitle • ${(currentProgress * 100).toInt()}%",
                 color = textColor.copy(alpha = 0.5f),
-                fontSize = 10.sp
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
     }
@@ -263,20 +279,30 @@ fun NativeReaderScreen(
                 LazyColumn(modifier = Modifier.fillMaxHeight(0.7f)) {
                     itemsIndexed(readerState.book?.chapters ?: emptyList()) { index, chapter ->
                         Surface(
-                            onClick = { 
+                            onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 targetChapter = index
-                                showTOC = false 
+                                targetAnchor = chapter.fragmentId
+                                showTOC = false
                             },
                             color = if (currentChapter == index) accentColor.copy(alpha = 0.1f) else Color.Transparent,
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            val rawTitle = chapter.title
+                            val displayTitle = if (rawTitle.startsWith("Chapter", ignoreCase = true)) {
+                                rawTitle
+                            } else {
+                                "Chapter ${index + 1}: $rawTitle"
+                            }
+                            
                             Text(
-                                text = chapter.title,
+                                text = displayTitle,
                                 color = if (currentChapter == index) accentColor else textColor,
                                 modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp),
                                 fontSize = 16.sp,
-                                fontWeight = if (currentChapter == index) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (currentChapter == index) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         HorizontalDivider(color = textColor.copy(alpha = 0.05f))
@@ -286,7 +312,6 @@ fun NativeReaderScreen(
             }
         }
     }
-
     if (showSettings) {
         ModalBottomSheet(onDismissRequest = { showSettings = false }, sheetState = sheetState, containerColor = backgroundColor) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp).padding(bottom = 32.dp)) {
