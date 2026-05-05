@@ -183,77 +183,111 @@ fun NativeEpubReader(
                 activeSelections.clear()
             },
             onMenuShown = { rect ->
-                // STRICT GEOMETRIC CAPTURE: 
-                // Uses high vertical threshold (80%) to ignore handles and line-padding.
                 val density = context.resources.displayMetrics.density
                 activeSelections.clear()
                 
                 android.util.Log.d("NativeEpubReader", "onMenuShown: Window Rect: $rect")
-                
-                val visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet()
-                
-                textLayoutResults.forEach { (itemId, result) ->
-                    if (!visibleKeys.contains(itemId)) return@forEach
 
-                    val itemPos = itemPositions[itemId] ?: return@forEach
-                    
-                    // Local rect representing the selection relative to this text block
-                    val localRect = Rect(
-                        left = rect.left - itemPos.x,
-                        top = rect.top - itemPos.y,
-                        right = rect.right - itemPos.x,
-                        bottom = rect.bottom - itemPos.y
-                    )
+                // GUARD: only proceed if rect is valid
+                if (rect.height > 0f && rect.width > 0f) {
+                    // Android selection handles extend ~25dp below the last selected line.
+                    // Without this correction, charBounds of the NEXT line fully satisfy the
+                    // 80% overlap threshold (handle offset > line height), causing bleed.
+                    val handleHeightPx = 25f * density
 
-                    // Skip if the block is clearly outside the selection vertically
-                    if (localRect.bottom < 0 || localRect.top > result.size.height) return@forEach
+                    val visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet()
 
-                    // --- THE STRICT INTERSECTION LOGIC ---
-                    // Instead of snapping lines, we check every character's physical overlap area.
-                    // This is more resilient to varying line heights and font styles.
-                    val textLength = result.layoutInput.text.length
-                    if (textLength > 0) {
+                    textLayoutResults.forEach { (itemId, result) ->
+                        if (!visibleKeys.contains(itemId)) return@forEach
+                        val itemPos = itemPositions[itemId] ?: return@forEach
+
+                        // Shrink bottom by handle height BEFORE converting to local space
+                        val localRect = Rect(
+                            left   = rect.left              - itemPos.x,
+                            top    = rect.top               - itemPos.y,
+                            right  = rect.right             - itemPos.x,
+                            bottom = (rect.bottom - handleHeightPx) - itemPos.y
+                        )
+
+                        if (localRect.bottom < localRect.top || localRect.bottom < 0f || localRect.top > result.size.height) return@forEach
+
+                        val textLength = result.layoutInput.text.length
+                        if (textLength == 0) return@forEach
+
                         var currentStart = -1
                         var capturedCount = 0
-                        
+
                         for (i in 0 until textLength) {
+                            val line = result.getLineForOffset(i)
+
+                            // Cache line bounds — getLineTop/Bottom is O(1) per line index,
+                            // but avoid re-computing for every char on the same line
+                            val lineTop    = result.getLineTop(line)
+                            val lineBottom = result.getLineBottom(line)
+                            val lineCenter = (lineTop + lineBottom) / 2f
+
+                            // VERTICAL FILTER: use the LINE CENTER, not charBounds.
+                            // getBoundingBox() height == full lineHeight slot (includes spacing above/below
+                            // glyphs), making per-char overlap tests unreliable when lineHeight > fontSize.
+                            // A line's center is never ambiguous — it's either inside the rect or not.
+                            val lineInSelection = lineCenter in localRect.top..localRect.bottom
+
+                            if (!lineInSelection) {
+                                // Flush any open run when we leave a selected line
+                                if (currentStart != -1) {
+                                    activeSelections.add(
+                                        SelectionInfo(
+                                            itemId,
+                                            currentStart to i,
+                                            result.layoutInput.text.text.substring(currentStart, i)
+                                        )
+                                    )
+                                    currentStart = -1
+                                }
+                                continue
+                            }
+
+                            // HORIZONTAL FILTER: use charBounds only for left/right trimming
                             val charBounds = result.getBoundingBox(i)
-                            
-                            // Calculate intersection dimensions
-                            val overlapTop = Math.max(charBounds.top, localRect.top)
-                            val overlapBottom = Math.min(charBounds.bottom, localRect.bottom)
-                            val overlapHeight = Math.max(0f, overlapBottom - overlapTop)
-                            
-                            val overlapLeft = Math.max(charBounds.left, localRect.left)
+                            val overlapLeft  = Math.max(charBounds.left,  localRect.left)
                             val overlapRight = Math.min(charBounds.right, localRect.right)
                             val overlapWidth = Math.max(0f, overlapRight - overlapLeft)
-                            
-                            // ULTRA-STRICT CRITERIA:
-                            // 1. Character must vertically overlap by at least 80% of ITS OWN height.
-                            //    (This successfully ignores handles which usually only overlap <30% of the next line)
-                            // 2. Character must horizontally overlap by at least 50% of ITS OWN width.
-                            val isCharSelected = (overlapHeight > charBounds.height * 0.8f) && 
-                                               (overlapWidth > charBounds.width * 0.5f)
-                            
+
+                            // Require >50% horizontal overlap to include the character
+                            val isCharSelected = overlapWidth > charBounds.width * 0.5f
+
                             if (isCharSelected) {
                                 if (currentStart == -1) currentStart = i
                                 capturedCount++
-                            } else {
-                                if (currentStart != -1) {
-                                    activeSelections.add(SelectionInfo(itemId, currentStart to i, result.layoutInput.text.text.substring(currentStart, i)))
-                                    currentStart = -1
-                                }
+                            } else if (currentStart != -1) {
+                                activeSelections.add(
+                                    SelectionInfo(
+                                        itemId,
+                                        currentStart to i,
+                                        result.layoutInput.text.text.substring(currentStart, i)
+                                    )
+                                )
+                                currentStart = -1
                             }
                         }
+
+                        // Flush trailing run
                         if (currentStart != -1) {
-                            activeSelections.add(SelectionInfo(itemId, currentStart to textLength, result.layoutInput.text.text.substring(currentStart, textLength)))
+                            activeSelections.add(
+                                SelectionInfo(
+                                    itemId,
+                                    currentStart to textLength,
+                                    result.layoutInput.text.text.substring(currentStart, textLength)
+                                )
+                            )
                         }
+
                         if (capturedCount > 0) {
                             android.util.Log.d("NativeEpubReader", "Block $itemId: Precision-captured $capturedCount chars.")
                         }
                     }
+                    android.util.Log.d("NativeEpubReader", "onMenuShown: Sweep complete. Total regions: ${activeSelections.size}")
                 }
-                android.util.Log.d("NativeEpubReader", "onMenuShown: Sweep complete. Total regions: ${activeSelections.size}")
             }
         )
     }
