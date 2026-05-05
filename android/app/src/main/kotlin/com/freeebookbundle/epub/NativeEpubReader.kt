@@ -183,16 +183,12 @@ fun NativeEpubReader(
                 activeSelections.clear()
             },
             onMenuShown = { rect ->
-                // HIGH-PRECISION CAPTURE: Shave off handles and use overlap area threshold
+                // STRICT GEOMETRIC CAPTURE: 
+                // Uses high vertical threshold (80%) to ignore handles and line-padding.
                 val density = context.resources.displayMetrics.density
                 activeSelections.clear()
                 
-                // Subtract handle height (approx 28dp) from bottom.
-                // This is critical to avoid "catching" lines below the selection handles.
-                val handleBuffer = 28 * density
-                val correctedRect = Rect(rect.left, rect.top, rect.right, rect.bottom - handleBuffer)
-                
-                android.util.Log.d("NativeEpubReader", "onMenuShown: Window Rect: $rect, Corrected: $correctedRect")
+                android.util.Log.d("NativeEpubReader", "onMenuShown: Window Rect: $rect")
                 
                 val visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet()
                 
@@ -200,16 +196,21 @@ fun NativeEpubReader(
                     if (!visibleKeys.contains(itemId)) return@forEach
 
                     val itemPos = itemPositions[itemId] ?: return@forEach
+                    
+                    // Local rect representing the selection relative to this text block
                     val localRect = Rect(
-                        left = correctedRect.left - itemPos.x,
-                        top = correctedRect.top - itemPos.y,
-                        right = correctedRect.right - itemPos.x,
-                        bottom = correctedRect.bottom - itemPos.y
+                        left = rect.left - itemPos.x,
+                        top = rect.top - itemPos.y,
+                        right = rect.right - itemPos.x,
+                        bottom = rect.bottom - itemPos.y
                     )
 
-                    // Skip blocks with zero vertical overlap
+                    // Skip if the block is clearly outside the selection vertically
                     if (localRect.bottom < 0 || localRect.top > result.size.height) return@forEach
 
+                    // --- THE STRICT INTERSECTION LOGIC ---
+                    // Instead of snapping lines, we check every character's physical overlap area.
+                    // This is more resilient to varying line heights and font styles.
                     val textLength = result.layoutInput.text.length
                     if (textLength > 0) {
                         var currentStart = -1
@@ -218,22 +219,20 @@ fun NativeEpubReader(
                         for (i in 0 until textLength) {
                             val charBounds = result.getBoundingBox(i)
                             
-                            // AREA-BASED INTERSECTION: 
-                            // Calculate the height of the overlap between the character and selection
+                            // Calculate intersection dimensions
                             val overlapTop = Math.max(charBounds.top, localRect.top)
                             val overlapBottom = Math.min(charBounds.bottom, localRect.bottom)
                             val overlapHeight = Math.max(0f, overlapBottom - overlapTop)
                             
-                            // Calculate the width of the overlap
                             val overlapLeft = Math.max(charBounds.left, localRect.left)
                             val overlapRight = Math.min(charBounds.right, localRect.right)
                             val overlapWidth = Math.max(0f, overlapRight - overlapLeft)
                             
-                            // CRITERIA: A character is only selected if:
-                            // 1. At least 75% of its height is within the selection rectangle.
-                            // 2. At least 50% of its width is within the selection rectangle.
-                            // This effectively ignores handles hanging below and padding from nearby lines.
-                            val isCharSelected = (overlapHeight > charBounds.height * 0.75f) && 
+                            // ULTRA-STRICT CRITERIA:
+                            // 1. Character must vertically overlap by at least 80% of ITS OWN height.
+                            //    (This successfully ignores handles which usually only overlap <30% of the next line)
+                            // 2. Character must horizontally overlap by at least 50% of ITS OWN width.
+                            val isCharSelected = (overlapHeight > charBounds.height * 0.8f) && 
                                                (overlapWidth > charBounds.width * 0.5f)
                             
                             if (isCharSelected) {

@@ -180,12 +180,75 @@ fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush
 @Composable
 fun BillboardSkeleton() {
     val brush = shimmerBrush()
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(480.dp)
-            .background(brush)
+    val infiniteTransition = rememberInfiniteTransition(label = "skeleton")
+    val floatAnim by infiniteTransition.animateFloat(
+        initialValue = -8f, 
+        targetValue = 8f, 
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine), 
+            repeatMode = RepeatMode.Reverse
+        ), 
+        label = "float"
     )
+
+    Box(modifier = Modifier.fillMaxWidth().height(480.dp), contentAlignment = Alignment.Center) {
+        // 1. Background Gradient Placeholder
+        Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(listOf(Color.Transparent, BookVerseTheme.colors.background))))
+        
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 20.dp)) {
+            // 2. 3D Book Shape Placeholder
+            Box(contentAlignment = Alignment.Center) {
+                // Shadow
+                Box(modifier = Modifier.padding(top = 260.dp).width(180.dp).height(20.dp).graphicsLayer { 
+                    rotationX = 80f; 
+                    scaleX = 1.2f 
+                }.background(Brush.radialGradient(listOf(Color.Black.copy(0.2f), Color.Transparent))))
+                
+                // The "MVP" 3D Book Shape
+                Box(modifier = Modifier
+                    .width(180.dp)
+                    .height(270.dp)
+                    .graphicsLayer { 
+                        rotationY = -25f
+                        rotationX = 10f
+                        rotationZ = floatAnim / 4f
+                        translationY = floatAnim
+                        cameraDistance = 12f * density 
+                    }
+                    .shadow(16.dp, RoundedCornerShape(4.dp))
+                    .background(brush, RoundedCornerShape(4.dp))
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 3. Title Placeholder
+            Box(modifier = Modifier
+                .width(200.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(brush)
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 4. Buttons Placeholder
+            Row(modifier = Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(brush)
+                )
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(brush)
+                )
+            }
+        }
+    }
 }
 
 @Composable
