@@ -43,6 +43,7 @@ import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import com.freeebookbundle.viewmodel.ReaderTheme
 import com.freeebookbundle.viewmodel.ReaderViewModel
+import com.freeebookbundle.ui.ReaderTutorialOverlay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -106,6 +107,8 @@ fun NativeReaderScreen(
     var showNoteEditor by remember { mutableStateOf(false) }
     var selectedHighlight by remember { mutableStateOf<com.freeebookbundle.db.Highlight?>(null) }
     
+    var showTutorial by remember { mutableStateOf(!settingsRepo.hasSeenReaderTutorial()) }
+    
     val epubViewModel: EpubReaderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val readerState by epubViewModel.state.collectAsState()
     
@@ -139,12 +142,13 @@ fun NativeReaderScreen(
 
     val sheetState = rememberModalBottomSheetState()
 
-    BackHandler(enabled = showSettings || showBookmarks || showTOC || showBookmarkInput || showNoteEditor) {
+    BackHandler(enabled = showSettings || showBookmarks || showTOC || showBookmarkInput || showNoteEditor || showTutorial) {
         showSettings = false
         showBookmarks = false
         showTOC = false
         showBookmarkInput = false
         showNoteEditor = false
+        showTutorial = false
     }
 
     Column(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
@@ -240,6 +244,15 @@ fun NativeReaderScreen(
                     onHighlightNoteClicked = { hl ->
                         selectedHighlight = hl
                         showNoteEditor = true
+                    }
+                )
+            }
+
+            if (showTutorial) {
+                ReaderTutorialOverlay(
+                    onFinish = {
+                        showTutorial = false
+                        settingsRepo.setHasSeenReaderTutorial(true)
                     }
                 )
             }

@@ -131,10 +131,11 @@ fun HomeScreen(
                 // 4. SELECTED CATEGORIES (DYNAMICALY FILTERED BY VIEWMODEL)
                 homeSections.forEach { section ->
                     item { 
+                        val displayTitle = getCategoryDisplayName(section.title)
                         if (section.books.isNotEmpty()) {
-                            CategoryRow(title = section.title, books = section.books, onBookClick = onBookClick)
+                            CategoryRow(title = displayTitle, books = section.books, onBookClick = onBookClick)
                         } else {
-                            CategorySkeleton(title = section.title)
+                            CategorySkeleton(title = displayTitle)
                         }
                     }
                 }

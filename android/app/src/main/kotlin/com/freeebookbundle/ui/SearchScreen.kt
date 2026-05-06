@@ -335,7 +335,7 @@ private fun DayNightSearchContent(
                     ) {
                         items(
                             count = pagingItems.itemCount,
-                            key = { index -> pagingItems[index]?.id ?: index }
+                            key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
                         ) { index ->
                             pagingItems[index]?.let { book ->
                                 SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
@@ -650,7 +650,7 @@ private fun CategoryOverlay(
             ) {
                 items(
                     count = pagingItems.itemCount.coerceAtMost(12),
-                    key = { index -> "${currentCategory}_${pagingItems[index]?.id ?: index}" }
+                    key = { index -> "${currentCategory}_${pagingItems[index]?.id ?: "null"}_$index" }
                 ) { index ->
                     pagingItems[index]?.let { book ->
                         OverlayBookCard(
@@ -762,7 +762,7 @@ private fun SpaceSearchContent(
                     ) {
                         items(
                             count = pagingItems.itemCount,
-                            key = { index -> pagingItems[index]?.id ?: index }
+                            key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
                         ) { index ->
                             pagingItems[index]?.let { book ->
                                 SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
@@ -939,7 +939,7 @@ private fun SpaceCategoryOverlay(
             ) {
                 items(
                     count = pagingItems.itemCount.coerceAtMost(12),
-                    key = { index -> "${currentCategory}_${pagingItems[index]?.id ?: index}" }
+                    key = { index -> "${currentCategory}_${pagingItems[index]?.id ?: "null"}_$index" }
                 ) { index ->
                     pagingItems[index]?.let { book ->
                         SpaceOverlayBookCard(
@@ -1136,7 +1136,7 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
                     )
                 )
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(count = authorItems.itemCount, key = { index -> authorItems[index] ?: index }) { index ->
+                    items(count = authorItems.itemCount, key = { index -> "${authorItems[index] ?: "null"}_$index" }) { index ->
                         authorItems[index]?.let { author ->
                             val authorColor = getAuthorColor(author)
                             Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (isSpaceTheme) Color.White.copy(alpha = 0.05f) else Color.Transparent).clickable { onClose(); onAuthorClick(author) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1201,21 +1201,29 @@ fun getDrawerColor(cat: String): Color {
 
 @Composable
 fun getCategoryDisplayName(category: String): String {
-    return when (category) {
-        "Fiction", "Novels", "category__novels" -> stringResource(R.string.category_fiction)
-        "History of the Americas", "Historical Novels", "category__historical_novels" -> stringResource(R.string.category_history)
-        "Science", "Science Fiction & Fantasy", "category__science_fiction___fantasy" -> stringResource(R.string.category_science)
-        "Romance", "category__romance" -> stringResource(R.string.category_romance)
-        "Fantasy" -> stringResource(R.string.category_fantasy)
-        "Mystery" -> stringResource(R.string.category_mystery)
-        "Biography", "Biographies", "category__biographies" -> stringResource(R.string.category_biography)
-        "Adventure", "category__adventure" -> stringResource(R.string.category_adventure)
-        "Short Stories", "category__short_stories" -> stringResource(R.string.category_short_stories)
-        "Children & Young Adult", "category__children___young_adult_reading" -> stringResource(R.string.category_children)
-        "Poetry", "category__poetry" -> stringResource(R.string.category_poetry)
-        "Humour", "category__humour" -> stringResource(R.string.category_humour)
-        else -> category
+    val hardcoded = when (category) {
+        "Fiction", "Novels", "novels" -> stringResource(R.string.category_fiction)
+        "History of the Americas", "Historical Novels", "historical_novels" -> stringResource(R.string.category_history)
+        "Science", "Science Fiction & Fantasy", "science_fiction_fantasy" -> stringResource(R.string.category_science)
+        "Romance", "romance" -> stringResource(R.string.category_romance)
+        "Fantasy", "fantasy" -> stringResource(R.string.category_fantasy)
+        "Mystery", "mystery" -> stringResource(R.string.category_mystery)
+        "Biography", "Biographies", "biographies" -> stringResource(R.string.category_biography)
+        "Adventure", "adventure" -> stringResource(R.string.category_adventure)
+        "Short Stories", "short_stories" -> stringResource(R.string.category_short_stories)
+        "Children & Young Adult Reading", "children_young_adult_reading" -> stringResource(R.string.category_children)
+        "Poetry", "poetry" -> stringResource(R.string.category_poetry)
+        "Humour", "humour" -> stringResource(R.string.category_humour)
+        else -> null
     }
+
+    if (hardcoded != null) return hardcoded
+
+    // High-quality humanizing fallback
+    return category.replace("_", " ").split(" ")
+        .joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
 }
 
 fun getAuthorColor(authorName: String): Color {

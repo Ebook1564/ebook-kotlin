@@ -257,16 +257,16 @@ fun LibraryScreen(
                             if (uiState.selectedAuthor != null) it.author == uiState.selectedAuthor
                             else it.subjects.contains(uiState.selectedTag) || it.categories.contains(uiState.selectedTag)
                         }.distinctBy { it.id }
-
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            verticalArrangement = Arrangement.spacedBy(24.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(filteredBooks) { book ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { inspectedBook = book }) {
-                                    LibraryBookPoster(book)
+LazyVerticalGrid(
+    columns = GridCells.Fixed(3),
+    verticalArrangement = Arrangement.spacedBy(24.dp),
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    modifier = Modifier.fillMaxSize()
+) {
+    items(filteredBooks) { book ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { inspectedBook = book }) {
+            LibraryBookPoster(book, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BookVerseTheme.colors.textPrimary)
                                 }
@@ -321,10 +321,10 @@ fun LibraryScreen(
 }
 
 @Composable
-fun LibraryBookPoster(book: Book) {
+fun LibraryBookPoster(book: Book, modifier: Modifier = Modifier) {
     val serverCoverUrl = book.getServerCoverUrl()
     Surface(
-        modifier = Modifier.aspectRatio(0.7f).fillMaxWidth(),
+        modifier = modifier.aspectRatio(0.7f),
         shape = RoundedCornerShape(4.dp),
         shadowElevation = 8.dp
     ) {
@@ -587,7 +587,7 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            LibraryBookPoster(book = book)
+            LibraryBookPoster(book = book, modifier = Modifier.width(200.dp))
             Spacer(modifier = Modifier.height(48.dp))
             Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
             Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)
@@ -620,7 +620,7 @@ fun SeeAllPage(title: String, books: LazyPagingItems<Book>, onBack: () -> Unit, 
             items(books.itemCount) { index ->
                 books[index]?.let { book ->
                     Column(modifier = Modifier.clickable { onBookClick(book) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        LibraryBookPoster(book)
+                        LibraryBookPoster(book, modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = book.title, style = BookVerseTheme.typography.body, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         Text(text = book.author, style = BookVerseTheme.typography.label, color = colors.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)

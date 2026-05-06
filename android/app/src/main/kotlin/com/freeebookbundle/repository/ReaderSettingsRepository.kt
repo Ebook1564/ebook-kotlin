@@ -90,4 +90,12 @@ class ReaderSettingsRepository(context: Context) {
     fun setLastTabIndex(index: Int) {
         prefs.edit().putInt("last_tab", index).apply()
     }
+
+    fun hasSeenReaderTutorial(): Boolean {
+        return prefs.getBoolean("has_seen_reader_tutorial", false)
+    }
+
+    fun setHasSeenReaderTutorial(hasSeen: Boolean) {
+        prefs.edit().putBoolean("has_seen_reader_tutorial", hasSeen).apply()
+    }
 }

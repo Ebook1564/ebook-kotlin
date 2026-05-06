@@ -76,9 +76,32 @@ class EbookApp : Application() {
                     Log.d(TAG, "Database empty, preloading catalog...")
                     val catalogRepo = CatalogRepository(this@EbookApp, bookDao)
                     val catalog = catalogRepo.getCatalog()
-                    // Pre-convert to entities and insert in background
-                    // This prevents jank when user first searches
-                    Log.d(TAG, "Preloaded ${catalog.size} books from catalog.json")
+                    
+                    val entities = catalog.map { entry ->
+                        // Clean first subject/category for the primary categoryCode
+                        var rawCat = entry.s.firstOrNull { it.startsWith("Category:") } ?: entry.s.firstOrNull() ?: "Uncategorized"
+                        for (prefix in listOf("Category:", "Bookshelf:", "Bookshelves:")) {
+                            if (rawCat.startsWith(prefix)) {
+                                rawCat = rawCat.removePrefix(prefix).trim()
+                            }
+                        }
+                        val code = rawCat.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                        
+                        com.freeebookbundle.db.BookEntity(
+                            id = entry.id,
+                            title = entry.t,
+                            author = entry.a,
+                            description = "",
+                            categoryCode = code,
+                            sourceFolder = "",
+                            coverImageName = "${entry.id}_cover_image.jpg",
+                            epubFileName = "${entry.t}.${entry.id}.epub",
+                            subjects = entry.s,
+                            dateAdded = System.currentTimeMillis()
+                        )
+                    }
+                    bookDao.insertBooks(entities)
+                    Log.d(TAG, "Preloaded ${entities.size} books into database from catalog.json")
                 } else {
                     Log.d(TAG, "Database already has $count books, skipping preload")
                 }

@@ -44,6 +44,10 @@ class EpubTextToolbar(
     override val status: TextToolbarStatus
         get() = _status.value
 
+    // Latch: set true when user explicitly dismisses without picking a colour.
+    // Suppresses the immediate re-show that SelectionManager triggers.
+    private var isDismissedByUser = false
+
     private var currentRect by mutableStateOf(Rect.Zero)
     private var activeOnCopyRequested by mutableStateOf<(() -> Unit)?>(null)
     private var lastActionTime by mutableLongStateOf(0L)
@@ -62,6 +66,17 @@ class EpubTextToolbar(
         onCutRequested: (() -> Unit)?,
         onSelectAllRequested: (() -> Unit)?
     ) {
+        // Consume the latch on ANY showMenu call — blocked or not.
+        // This prevents the latch staying stuck when hideMenu() fires
+        // programmatically (e.g. from SelectionContainer remount after selectionKey++).
+        val blocked = isDismissedByUser
+        isDismissedByUser = false
+
+        if (blocked) {
+            _status.value = TextToolbarStatus.Hidden
+            return
+        }
+
         // Prevent re-showing within 500ms of an action to let system state settle
         if (System.currentTimeMillis() - lastActionTime < 500) return
 
@@ -69,6 +84,19 @@ class EpubTextToolbar(
         activeOnCopyRequested = onCopyRequested
         onMenuShown(rect)
         _status.value = TextToolbarStatus.Shown
+    }
+
+    // Call this from every action that should NOT persist the toolbar:
+    // dismiss-tap, copy, speak, etc. Do NOT call it from colour/note actions
+    // that already handle their own selectionKey increment.
+    fun dismissedByUser() {
+        isDismissedByUser = true
+        _status.value = TextToolbarStatus.Hidden
+    }
+
+    // Call this when a brand-new selection gesture begins so the latch resets.
+    fun resetDismissLatch() {
+        isDismissedByUser = false
     }
 
     @Composable

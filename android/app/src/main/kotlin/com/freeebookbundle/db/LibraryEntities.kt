@@ -89,6 +89,11 @@ fun BookEntity.toBook(): com.freeebookbundle.models.Book {
     val serverPort = ServerConfig.getServerPort()
     val coversUrl = "http://$serverIp:$serverPort/covers/${id}_cover_image.jpg"
 
+    val categoryName = categoryCode.replace("_", " ").split(" ")
+        .joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+
     return com.freeebookbundle.models.Book(
         id = id,
         title = title,
@@ -97,7 +102,7 @@ fun BookEntity.toBook(): com.freeebookbundle.models.Book {
         coverImageUrl = coversUrl, 
         externalCoverUrl = externalCoverUrl,
         sourceFolder = sourceFolder,
-        categories = if (categoryCode.isNotEmpty()) listOf(categoryCode) else emptyList(),
+        categories = if (categoryCode.isNotEmpty()) listOf(categoryName) else emptyList(),
         epubFileName = epubFileName,
         readingStatus = readingStatus,
         dateAdded = dateAdded,
