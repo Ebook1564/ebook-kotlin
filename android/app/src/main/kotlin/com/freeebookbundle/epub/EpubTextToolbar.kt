@@ -107,7 +107,7 @@ class EpubTextToolbar(
                     currentRect.left.toInt(),
                     (currentRect.top - 200).toInt().coerceAtLeast(0)
                 ),
-                onDismissRequest = { hide() },
+                onDismissRequest = { dismissedByUser() },
                 properties = PopupProperties(focusable = true)
             ) {
                 Surface(
@@ -124,28 +124,18 @@ class EpubTextToolbar(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            HighlightDot(Color(0xFFFFF176)) { 
-                                lastActionTime = System.currentTimeMillis()
-                                onColorSelected(0xFFFFF176.toInt()); onDismissSelection(); hide() 
+                            listOf(0xFFFFF176, 0xFFAED581, 0xFF81D4FA, 0xFFF06292).forEach { colorLong ->
+                                HighlightDot(Color(colorLong)) {
+                                    lastActionTime = System.currentTimeMillis()
+                                    dismissedByUser() // latch BEFORE the save
+                                    onColorSelected(colorLong.toInt())
+                                }
                             }
-                            HighlightDot(Color(0xFFAED581)) { 
-                                lastActionTime = System.currentTimeMillis()
-                                onColorSelected(0xFFAED581.toInt()); onDismissSelection(); hide() 
-                            }
-                            HighlightDot(Color(0xFF81D4FA)) { 
-                                lastActionTime = System.currentTimeMillis()
-                                onColorSelected(0xFF81D4FA.toInt()); onDismissSelection(); hide() 
-                            }
-                            HighlightDot(Color(0xFFF06292)) { 
-                                lastActionTime = System.currentTimeMillis()
-                                onColorSelected(0xFFF06292.toInt()); onDismissSelection(); hide() 
-                            }
-                            }
+                        }
 
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
 
-                            // 2. Action Buttons (Bottom Row)
-
+                        // 2. Action Buttons (Bottom Row)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -153,21 +143,24 @@ class EpubTextToolbar(
                         ) {
                             ToolbarAction(Icons.Default.ContentCopy, "Copy") { 
                                 lastActionTime = System.currentTimeMillis()
+                                dismissedByUser()
                                 val copy = activeOnCopyRequested
                                 if (copy != null) copy() else onCopyRequested()
-                                onDismissSelection(); hide() 
                             }
                             ToolbarAction(Icons.Default.VolumeUp, "Speak") { 
                                 lastActionTime = System.currentTimeMillis()
-                                onSpeakRequested(); onDismissSelection(); hide() 
+                                dismissedByUser()
+                                onSpeakRequested()
                             }
                             ToolbarAction(Icons.Default.MenuBook, "Dict") { 
                                 lastActionTime = System.currentTimeMillis()
-                                onDictionaryRequested(); onDismissSelection(); hide() 
+                                dismissedByUser()
+                                onDictionaryRequested()
                             }
                             ToolbarAction(Icons.Default.Search, "Wiki") { 
                                 lastActionTime = System.currentTimeMillis()
-                                onWikipediaRequested(); onDismissSelection(); hide() 
+                                dismissedByUser()
+                                onWikipediaRequested()
                             }
                         }
                     }
