@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -93,11 +94,19 @@ val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 const val PremiumDuration = 1400
 
 class CircularRevealShape(private val radius: Float, private val center: Offset) : Shape {
+    // Path is reused across frames for the same radius/center values
+    private val cachedPath = Path()
+    private var cachedRadius = -1f
+    private var cachedCenter = Offset.Unspecified
+
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val path = Path().apply {
-            addOval(Rect(center, radius))
+        if (radius != cachedRadius || center != cachedCenter) {
+            cachedPath.reset()
+            cachedPath.addOval(Rect(center, radius))
+            cachedRadius = radius
+            cachedCenter = center
         }
-        return Outline.Generic(path)
+        return Outline.Generic(cachedPath)
     }
 }
 
@@ -115,7 +124,7 @@ class MainActivity : ComponentActivity() {
             val previousTheme by appViewModel.previousThemeMode
             val transitionTrigger by appViewModel.themeTransitionTrigger
             val isTransitioning by appViewModel.isTransitioning
-            val userProfile by appViewModel.userProfile.collectAsState()
+            val userProfile by appViewModel.userProfile.collectAsStateWithLifecycle()
             
             var showProfile by remember { mutableStateOf(false) }
             
@@ -133,12 +142,10 @@ class MainActivity : ComponentActivity() {
                         appViewModel.setTheme(theme)
                     },
                     onSyncRequired = {
-                        // For now we just return true to allow proceed
                         true
                     }
                 )
             } else {
-                // Request Notification Permission for Android 13+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val context = LocalContext.current
                     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -161,7 +168,7 @@ class MainActivity : ComponentActivity() {
 
                 val pagerState = rememberPagerState(pageCount = { 3 })
                 val homeScrollState = rememberLazyListState()
-                val homeUiState by homeViewModel.uiState.collectAsState()
+                val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
                 LaunchedEffect(homeUiState.selectedCategoryForSearch) {
                     homeUiState.selectedCategoryForSearch?.let {
@@ -355,8 +362,8 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
 fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, userName: String, isInteractive: Boolean, onProfileClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val homeUiState by homeViewModel.uiState.collectAsState()
-    val libraryUiState by libraryViewModel.uiState.collectAsState()
+    val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val libraryUiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
     val themeMode = appViewModel.themeMode.value
     val useSpaceTouchNav = appViewModel.useSpaceTouchNav.value
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
@@ -378,7 +385,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
     fun onBookClick(book: com.freeebookbundle.models.Book) {
         selectedBookForSheet = book
         showSheet = true
-        // TRIGGER BACKGROUND FETCH
         homeViewModel.fetchMetadataForBook(book) { updatedBook ->
             if (selectedBookForSheet?.id == updatedBook.id) {
                 selectedBookForSheet = updatedBook
@@ -486,15 +492,12 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                         }
                     },
                     onAudioClick = { book ->
-                        // Open TTS audio player for this book
-                        // The reader will be opened with TTS mode
                         onReadClick(book, null, openAudioPlayer = true)
                     }
                 )
             }
         }
 
-        // CURATED COLLECTION PAGE OVERLAY
         AnimatedVisibility(
             visible = homeUiState.currentCollection != null,
             enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
@@ -512,7 +515,6 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
             }
         }
 
-        // CURATED COLLECTION (SPOTIFY-STYLE) PAGE OVERLAY
         AnimatedVisibility(
             visible = homeUiState.currentCuratedCollection != null,
             enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
@@ -539,29 +541,22 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
                 themeColor = themeColor, 
                 textColor = textColor, 
                 onAnimationFinished = { file ->
-                    // Update Reading Metadata
                     val book = homeUiState.transitionBook
                     if (book != null) {
                         scope.launch {
-                            // This will insert the book if it doesn't exist AND update status/last_opened
-                            // We only set it to CURRENTLY_READING if it's currently NONE or if we want to force it
                             val existing = (context.applicationContext as EbookApp).database.bookDao().getBook(book.id)
                             if (existing == null || existing.readingStatus == ReadingStatus.NONE || existing.readingStatus == ReadingStatus.WISHLIST) {
                                 libraryViewModel.updateReadingStatus(book, ReadingStatus.CURRENTLY_READING)
                             } else {
-                                // Just update last opened for COMPLETED or already CURRENTLY_READING books
                                 (context.applicationContext as EbookApp).database.bookDao().updateLastOpened(book.id, System.currentTimeMillis())
                             }
                         }
                     }
                     
-                    // Track book opened for analytics
                     val bookForAnalytics = homeUiState.transitionBook
                     if (bookForAnalytics != null) {
                         Analytics.trackBookOpened(bookForAnalytics.id, bookForAnalytics.categories.firstOrNull() ?: "")
                         ReviewManager.onBookOpened(context)
-                        
-                        // Check if we should request a review
                         if (ReviewManager.shouldRequestReview(context) && context is Activity) {
                             scope.launch {
                                 ReviewManager.requestReview(context)
@@ -624,7 +619,56 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
 
 @Composable
 fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
-    val infiniteTransition = rememberInfiniteTransition(label = "space_nav")
+    val tabs = listOf(stringResource(R.string.nav_home), stringResource(R.string.nav_search), stringResource(R.string.nav_library))
+
+    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        StarfieldCanvas()
+
+        Row(
+            modifier = Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEachIndexed { index, title ->
+                val isSelected = selectedIndex == index
+                val navColor by animateColorAsState(
+                    targetValue = if (isSelected) Color(0xFF4A90D9) else Color.White.copy(alpha = 0.5f),
+                    animationSpec = tween(600, easing = PremiumEasing)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = title,
+                            color = navColor,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .size(4.dp)
+                                    .background(navColor, CircleShape)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StarfieldCanvas() {
+    val infiniteTransition = rememberInfiniteTransition(label = "space_nav_stars")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.5f,
         targetValue = 1f,
@@ -632,168 +676,44 @@ fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
         label = "pulse"
     )
     
-    val cosmicRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-        label = "rotation"
-    )
-    
-    val tabs = listOf(stringResource(R.string.nav_home), stringResource(R.string.nav_search), stringResource(R.string.nav_library))
-    
-    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
-            val gradientBrush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    Color(0xFF0A0A1A).copy(alpha = 0.95f),
-                    Color(0xFF0A0A1A)
-                )
+    val stars = remember {
+        listOf(
+            0.1f to 0.3f, 0.25f to 0.6f, 0.4f to 0.2f, 0.55f to 0.7f,
+            0.7f to 0.4f, 0.85f to 0.25f, 0.15f to 0.8f, 0.6f to 0.1f,
+            0.9f to 0.6f
+        )
+    }
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+        val gradientBrush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Transparent,
+                Color(0xFF0A0A1A).copy(alpha = 0.95f),
+                Color(0xFF0A0A1A)
             )
-            drawRect(brush = gradientBrush)
-            
-            val stars = listOf(
-                Offset(size.width * 0.1f, size.height * 0.3f),
-                Offset(size.width * 0.25f, size.height * 0.6f),
-                Offset(size.width * 0.4f, size.height * 0.2f),
-                Offset(size.width * 0.55f, size.height * 0.7f),
-                Offset(size.width * 0.7f, size.height * 0.4f),
-                Offset(size.width * 0.85f, size.height * 0.25f),
-                Offset(size.width * 0.15f, size.height * 0.8f),
-                Offset(size.width * 0.6f, size.height * 0.1f),
-                Offset(size.width * 0.9f, size.height * 0.6f)
-            )
-            stars.forEachIndexed { index, star ->
-                val baseAngle = index * 40f + cosmicRotation * 0.1f
-                val starPulse = if (index % 2 == 0) pulseAlpha else 1f - (pulseAlpha - 0.5f)
-                val offsetX = kotlin.math.cos(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
-                val offsetY = kotlin.math.sin(Math.toRadians(baseAngle.toDouble())).toFloat() * 2f
-                drawCircle(
-                    color = Color.White.copy(alpha = starPulse * 0.8f),
-                    radius = (2f + (index % 3) * 0.5f).dp.toPx(),
-                    center = Offset(star.x + offsetX, star.y + offsetY)
-                )
-            }
-            
-            val arcRadius = size.width * 0.3f
-            val arcCenter = Offset(size.width / 2, size.height * 1.2f)
-            drawArc(
-                color = Color(0xFF4A90D9).copy(alpha = 0.15f),
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = Offset(arcCenter.x - arcRadius, arcCenter.y - arcRadius),
-                size = androidx.compose.ui.geometry.Size(arcRadius * 2, arcRadius * 2),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-            )
-            
-            drawLine(
-                color = Color(0xFF4A90D9).copy(alpha = 0.4f),
-                start = Offset(size.width * 0.05f, size.height * 0.9f),
-                end = Offset(size.width * 0.95f, size.height * 0.9f),
-                strokeWidth = 1.dp.toPx()
+        )
+        drawRect(brush = gradientBrush)
+
+        stars.forEachIndexed { index, (xFrac, yFrac) ->
+            val starPulse = if (index % 2 == 0) pulseAlpha else 1f - (pulseAlpha - 0.5f)
+            drawCircle(
+                color = Color.White.copy(alpha = starPulse * 0.8f),
+                radius = (2f + (index % 3) * 0.5f).dp.toPx(),
+                center = Offset(size.width * xFrac, size.height * yFrac)
             )
         }
-        
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.Transparent
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(80.dp).padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    val isSelected = selectedIndex == index
-                    val navColor by animateColorAsState(
-                        targetValue = when {
-                            isSelected -> Color(0xFF4A90D9)
-                            else -> Color.White.copy(alpha = 0.5f)
-                        },
-                        animationSpec = tween(1200, easing = PremiumEasing)
-                    )
-                    
-                    val scale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.1f else 1f,
-                        animationSpec = tween(800, easing = PremiumEasing)
-                    )
-                    
-                    val glowAlpha by animateFloatAsState(
-                        targetValue = if (isSelected) 1f else 0f,
-                        animationSpec = tween(1000, easing = PremiumEasing)
-                    )
-                    
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(contentAlignment = Alignment.Center) {
-                                if (glowAlpha > 0f) {
-                                    Canvas(modifier = Modifier.size(44.dp)) {
-                                        drawCircle(
-                                            color = navColor.copy(alpha = 0.15f * glowAlpha),
-                                            radius = size.minDimension / 2
-                                        )
-                                        drawCircle(
-                                            color = navColor.copy(alpha = 0.3f * glowAlpha),
-                                            radius = size.minDimension / 2 * 0.7f
-                                        )
-                                        drawCircle(
-                                            color = navColor.copy(alpha = 0.5f * glowAlpha),
-                                            radius = size.minDimension / 2 * 0.4f,
-                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = when(index) {
-                                        0 -> "⬡"
-                                        1 -> "◎"
-                                        else -> "◈"
-                                    },
-                                    color = navColor,
-                                    fontSize = 22.sp
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = title,
-                                color = navColor,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                letterSpacing = 1.5.sp
-                            )
-                            val indicatorWidth by animateFloatAsState(
-                                targetValue = if (isSelected) 24.dp.value else 0.dp.value,
-                                animationSpec = tween(800, easing = PremiumEasing)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 4.dp)
-                                    .width(indicatorWidth.dp)
-                                    .height(2.dp)
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                navColor,
-                                                Color.Transparent
-                                            )
-                                        ),
-                                        shape = RoundedCornerShape(1.dp)
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-        }
+
+        val arcRadius = size.width * 0.3f
+        val arcCenter = Offset(size.width / 2, size.height * 1.2f)
+        drawArc(
+            color = Color(0xFF4A90D9).copy(alpha = 0.15f * pulseAlpha),
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(arcCenter.x - arcRadius, arcCenter.y - arcRadius),
+            size = androidx.compose.ui.geometry.Size(arcRadius * 2, arcRadius * 2),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+        )
     }
 }
 
@@ -833,23 +753,23 @@ fun SpaceEasyTouchNav(
     val driftAnimatableX = remember { Animatable(0f) }
     val driftAnimatableY = remember { Animatable(0f) }
 
-    LaunchedEffect(!expanded) {
-        if (!expanded) {
-            while (true) {
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (!expanded) {
                 val targetX = (Random.nextFloat() * 0.1f - 0.05f) * screenWidthPx
                 val targetY = (Random.nextFloat() * 0.1f - 0.05f) * screenHeightPx
-                
-                driftAnimatableX.animateTo(targetX, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
-                driftAnimatableY.animateTo(targetY, animationSpec = tween(durationMillis = 2000, easing = LinearEasing))
+                driftAnimatableX.animateTo(targetX, animationSpec = tween(2000, easing = LinearEasing))
+                driftAnimatableY.animateTo(targetY, animationSpec = tween(2000, easing = LinearEasing))
+            } else {
+                driftAnimatableX.snapTo(0f)
+                driftAnimatableY.snapTo(0f)
+                delay(100) 
             }
         }
     }
 
     LaunchedEffect(expanded) {
         if (expanded) {
-            driftAnimatableX.stop()
-            driftAnimatableY.stop()
-
             val targetX = offsetX.value.coerceIn(
                 barWidthPx / 2f + safeMarginPx,
                 screenWidthPx - barWidthPx / 2f - safeMarginPx

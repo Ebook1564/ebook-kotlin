@@ -1,6 +1,7 @@
 package com.freeebookbundle.models
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
 import com.freeebookbundle.utils.ServerConfig
 import kotlinx.parcelize.Parcelize
 
@@ -11,6 +12,7 @@ enum class ReadingStatus {
     COMPLETED
 }
 
+@Immutable
 @Parcelize
 data class Book(
     val id: String = "",

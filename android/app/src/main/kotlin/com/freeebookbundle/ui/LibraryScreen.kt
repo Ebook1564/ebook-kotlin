@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -83,7 +84,7 @@ fun LibraryScreen(
     onBookClick: (Book) -> Unit,
     onInspectStateChange: (Boolean) -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentTheme by appViewModel.themeMode
     var expandedTier by remember { mutableStateOf<String?>(null) }
     var inspectedBook by remember { mutableStateOf<Book?>(null) }
@@ -160,7 +161,7 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
+                item(key = "authors_button") {
                     val isSelected = uiState.selectedAuthor != null
                     Surface(
                         onClick = { /* Open authors */ },
@@ -177,7 +178,7 @@ fun LibraryScreen(
                     }
                 }
 
-                items(uiState.dynamicTags) { tag ->
+                items(uiState.dynamicTags, key = { it }) { tag ->
                     val isSelected = uiState.selectedTag == tag && uiState.selectedAuthor == null
                     Surface(
                         onClick = { homeViewModel.openCollection(tag) },
@@ -263,15 +264,14 @@ LazyVerticalGrid(
     horizontalArrangement = Arrangement.spacedBy(16.dp),
     modifier = Modifier.fillMaxSize()
 ) {
-    items(filteredBooks) { book ->
+    items(filteredBooks, key = { it.id }) { book ->
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { inspectedBook = book }) {
             LibraryBookPoster(book, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BookVerseTheme.colors.textPrimary)
-                                }
-                            }
-                        }
+            Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BookVerseTheme.colors.textPrimary)
+        }
+    }
+}
                     }
                 }
             }
@@ -587,7 +587,19 @@ fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Uni
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            LibraryBookPoster(book = book, modifier = Modifier.width(200.dp))
+            LibraryBookPoster(
+                book = book, 
+                modifier = Modifier
+                    .width(200.dp)
+                    .graphicsLayer {
+                        // Levitating effect
+                        translationY = (breatheAnim - 1f) * 20.dp.toPx()
+                        // Rotating effect (Resident Evil style)
+                        rotationY = autoRotation
+                        rotationZ = autoRotation * 0.1f // Subtle tilt
+                        cameraDistance = 12f * density
+                    }
+            )
             Spacer(modifier = Modifier.height(48.dp))
             Text(text = book.title, style = BookVerseTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, fontWeight = FontWeight.Black)
             Text(text = book.author.uppercase(), style = BookVerseTheme.typography.label, color = BookVerseTheme.colors.primary, letterSpacing = 4.sp, textAlign = TextAlign.Center, fontSize = 12.sp, fontWeight = FontWeight.Black)

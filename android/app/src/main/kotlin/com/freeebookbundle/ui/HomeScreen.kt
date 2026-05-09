@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -89,10 +90,10 @@ fun HomeScreen(
     onBookClick: (Book) -> Unit,
     onReadNowClick: (Book) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val homeSections by viewModel.homeSections.collectAsState()
-    val billboardBooks by viewModel.billboardBooks.collectAsState()
-    val continueReadingBooks by viewModel.continueReadingBooks.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val homeSections by viewModel.homeSections.collectAsStateWithLifecycle()
+    val billboardBooks by viewModel.billboardBooks.collectAsStateWithLifecycle()
+    val continueReadingBooks by viewModel.continueReadingBooks.collectAsStateWithLifecycle()
     val backgroundColor = BookVerseTheme.colors.background
     val themeMode by appViewModel.themeMode
     
@@ -112,10 +113,10 @@ fun HomeScreen(
                 contentPadding = PaddingValues(bottom = 140.dp) 
             ) {
                 // 1. HEADER
-                item { HeaderSection(appViewModel, userName) }
+                item(key = "header") { HeaderSection(appViewModel, userName) }
                 
                 // 2. BILLBOARD (HERO) - NOW AT TOP
-                item {
+                item(key = "billboard") {
                     if (billboardBooks.isNotEmpty()) {
                         BillboardCarousel(books = billboardBooks, continueReadingBooks = continueReadingBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick)
                     } else if (uiState.isCatalogLoading) {
@@ -125,12 +126,12 @@ fun HomeScreen(
 
                 // 3. CONTINUE READING (HIGH PRIORITY) - NOW BELOW BILLBOARD
                 if (continueReadingBooks.isNotEmpty()) {
-                    item { ContinueReadingSection(books = continueReadingBooks, onBookClick = onBookClick, onReadClick = onReadNowClick) }
+                    item(key = "continue_reading") { ContinueReadingSection(books = continueReadingBooks, onBookClick = onBookClick, onReadClick = onReadNowClick) }
                 }
                 
                 // 4. SELECTED CATEGORIES (DYNAMICALY FILTERED BY VIEWMODEL)
                 homeSections.forEach { section ->
-                    item { 
+                    item(key = "section_${section.categoryCode}") { 
                         val displayTitle = getCategoryDisplayName(section.title)
                         if (section.books.isNotEmpty()) {
                             CategoryRow(title = displayTitle, books = section.books, onBookClick = onBookClick)
@@ -430,6 +431,7 @@ fun HeaderSection(appViewModel: AppViewModel, userName: String) {
 
 @Composable
 fun DynamicGreeting(userName: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
         in 0..5 -> stringResource(R.string.greeting_night)
@@ -439,17 +441,18 @@ fun DynamicGreeting(userName: String) {
         else -> stringResource(R.string.greeting_night)
     }
     
-    val punchlines = when (hour) {
-        in 0..5 -> listOf(stringResource(R.string.punchline_quiet_world), stringResource(R.string.punchline_midnight_reading), stringResource(R.string.punchline_explore_worlds))
-        in 6..8 -> listOf(stringResource(R.string.punchline_morning_story), stringResource(R.string.punchline_morning_reads), stringResource(R.string.punchline_rise_read))
-        in 9..11 -> listOf(stringResource(R.string.punchline_new_adventure), stringResource(R.string.punchline_discover), stringResource(R.string.punchline_dive_book))
-        in 12..14 -> listOf(stringResource(R.string.punchline_lunch_reading), stringResource(R.string.punchline_afternoon_escape), stringResource(R.string.punchline_reading_break))
-        in 15..17 -> listOf(stringResource(R.string.punchline_momentum), stringResource(R.string.punchline_story_time), stringResource(R.string.punchline_chapter))
-        in 18..20 -> listOf(stringResource(R.string.punchline_unwind), stringResource(R.string.punchline_evening), stringResource(R.string.punchline_perfect_stories))
-        else -> listOf(stringResource(R.string.punchline_cozy), stringResource(R.string.punchline_nighttime), stringResource(R.string.punchline_transport))
+    val punchline = remember(hour) {
+        val punchlines = when (hour) {
+            in 0..5 -> listOf(context.getString(R.string.punchline_quiet_world), context.getString(R.string.punchline_midnight_reading), context.getString(R.string.punchline_explore_worlds))
+            in 6..8 -> listOf(context.getString(R.string.punchline_morning_story), context.getString(R.string.punchline_morning_reads), context.getString(R.string.punchline_rise_read))
+            in 9..11 -> listOf(context.getString(R.string.punchline_new_adventure), context.getString(R.string.punchline_discover), context.getString(R.string.punchline_dive_book))
+            in 12..14 -> listOf(context.getString(R.string.punchline_lunch_reading), context.getString(R.string.punchline_afternoon_escape), context.getString(R.string.punchline_reading_break))
+            in 15..17 -> listOf(context.getString(R.string.punchline_momentum), context.getString(R.string.punchline_story_time), context.getString(R.string.punchline_chapter))
+            in 18..20 -> listOf(context.getString(R.string.punchline_unwind), context.getString(R.string.punchline_evening), context.getString(R.string.punchline_perfect_stories))
+            else -> listOf(context.getString(R.string.punchline_cozy), context.getString(R.string.punchline_nighttime), context.getString(R.string.punchline_transport))
+        }
+        punchlines.random()
     }
-    
-    val punchline = punchlines.random()
     
     Column {
         Text(text = "$greeting, $userName", style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Black)
@@ -583,7 +586,7 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(books) { book -> BookPoster(book, onClick = { onBookClick(book) }) }
+            items(books, key = { it.id }) { book -> BookPoster(book, onClick = { onBookClick(book) }) }
         }
     }
 }

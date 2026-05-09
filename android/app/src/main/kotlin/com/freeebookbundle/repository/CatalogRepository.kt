@@ -13,6 +13,8 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.InputStreamReader
 
 data class CatalogEntry(
@@ -22,16 +24,16 @@ data class CatalogEntry(
     val s: List<String> // subjects
 )
 
+private val audioBooksIds = setOf(
+    "64629", "44419", "1342", "11", "1661", "2701", "120", "84", "1322", "158",
+    "1952", "76", "1400", "205", "5200", "1232", "16317", "2591", "2852", "345",
+    "43", "74", "98", "166", "215", "4300", "36", "11339", "135", "100", "219",
+    "1080", "19033", "2000", "1497", "1260", "768", "3207", "46", "3825", "10",
+    "55", "145", "1533", "1250", "2554", "2593", "2600", "30406", "32325"
+    // ... (truncated for brevity, but logic applies to all 148)
+)
+
 fun CatalogEntry.toBook(): Book {
-    // These are the 148 books with available M4B audiobooks on your EC2 server
-    val audioBooksIds = listOf(
-        "64629", "44419", "1342", "11", "1661", "2701", "120", "84", "1322", "158",
-        "1952", "76", "1400", "205", "5200", "1232", "16317", "2591", "2852", "345",
-        "43", "74", "98", "166", "215", "4300", "36", "11339", "135", "100", "219",
-        "1080", "19033", "2000", "1497", "1260", "768", "3207", "46", "3825", "10",
-        "55", "145", "1533", "1250", "2554", "2593", "2600", "30406", "32325"
-        // ... (truncated for brevity, but logic applies to all 148)
-    )
     val hasAudio = audioBooksIds.contains(id)
     
     return Book(
@@ -49,30 +51,57 @@ class CatalogRepository(
     private val bookDao: BookDao
 ) {
     private var cachedCatalog: List<CatalogEntry>? = null
+    private var genreIndex: Map<String, List<CatalogEntry>>? = null
+    private val mutex = Mutex()
 
     suspend fun getCatalog(): List<CatalogEntry> = withContext(Dispatchers.IO) {
-        cachedCatalog?.let { return@withContext it }
-        
-        val books = mutableListOf<CatalogEntry>()
-        try {
-            context.assets.open("catalog.json").use { inputStream ->
-                val reader = com.google.gson.stream.JsonReader(InputStreamReader(inputStream, "UTF-8"))
-                val gson = Gson()
-                
-                reader.beginArray()
-                while (reader.hasNext()) {
-                    val entry: CatalogEntry = gson.fromJson(reader, CatalogEntry::class.java)
-                    books.add(entry)
+        mutex.withLock {
+            cachedCatalog?.let { return@withLock it }
+            
+            val books = mutableListOf<CatalogEntry>()
+            val index = mutableMapOf<String, MutableList<CatalogEntry>>()
+            
+            try {
+                context.assets.open("catalog.json").use { inputStream ->
+                    val reader = com.google.gson.stream.JsonReader(InputStreamReader(inputStream, "UTF-8"))
+                    val gson = Gson()
+                    
+                    reader.beginArray()
+                    while (reader.hasNext()) {
+                        val entry: CatalogEntry = gson.fromJson(reader, CatalogEntry::class.java)
+                        books.add(entry)
+                        
+                        // Build index for common genres (clean names)
+                        entry.s.forEach { rawSubject ->
+                            var name = rawSubject
+                            for (prefix in listOf("Category:", "Bookshelf:", "Bookshelves:")) {
+                                if (name.startsWith(prefix)) {
+                                    name = name.removePrefix(prefix).trim()
+                                }
+                            }
+                            index.getOrPut(name) { mutableListOf() }.add(entry)
+                        }
+                    }
+                    reader.endArray()
+                    reader.close()
                 }
-                reader.endArray()
-                reader.close()
+                cachedCatalog = books
+                genreIndex = index
+                books
+            } catch (e: Exception) {
+                android.util.Log.e("CatalogRepo", "Error parsing catalog: ${e.message}")
+                emptyList()
             }
-            cachedCatalog = books
-            books
-        } catch (e: Exception) {
-            android.util.Log.e("CatalogRepo", "Error parsing catalog: ${e.message}")
-            emptyList()
         }
+    }
+
+    private suspend fun getGenreIndex(): Map<String, List<CatalogEntry>> {
+        if (genreIndex == null) getCatalog()
+        return genreIndex ?: emptyMap()
+    }
+
+    suspend fun getGenreCounts(): Map<String, Int> {
+        return getGenreIndex().mapValues { it.value.size }
     }
 
     fun searchBooks(query: String): Flow<PagingData<Book>> {
@@ -97,18 +126,22 @@ class CatalogRepository(
     }
 
     suspend fun getStaticBooksByTopic(topic: String, limit: Int): List<Book> {
-        val catalog = getCatalog()
-        if (catalog.isEmpty()) return emptyList()
+        val index = getGenreIndex()
+        val match = index[topic]
+        
+        if (match != null) {
+            return match.take(limit).map { it.toBook() }
+        }
 
+        // Fallback: search if not in index keys
+        val catalog = getCatalog()
         val filtered = catalog.filter { 
             it.s.any { s -> s.contains(topic, true) } || 
             it.t.contains(topic, true) 
         }
         
-        // Fallback: If no books match the topic, return a random slice of the catalog
-        // so the home screen isn't empty while the user is still organizing their subjects.
         val results = if (filtered.isEmpty()) {
-            catalog.shuffled().take(limit)
+            catalog.take(limit) // avoid shuffled() as it copies 49k list
         } else {
             filtered.take(limit)
         }
@@ -126,15 +159,21 @@ class StaticCatalogPagingSource(
 ) : PagingSource<Int, Book>() {
     var query: String? = null
     var topic: String? = null
+    
+    private var cachedFilteredList: List<CatalogEntry>? = null
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Book> {
         val position = params.key ?: 0
-        val catalog = loader()
         
-        val filtered = when {
-            query != null -> catalog.filter { it.t.contains(query!!, true) || it.a.contains(query!!, true) }
-            topic != null -> catalog.filter { it.s.any { s -> s.contains(topic!!, true) } || it.t.contains(topic!!, true) }
-            else -> catalog
+        val filtered = cachedFilteredList ?: run {
+            val catalog = loader()
+            val result = when {
+                query != null -> catalog.filter { it.t.contains(query!!, true) || it.a.contains(query!!, true) }
+                topic != null -> catalog.filter { it.s.any { s -> s.contains(topic!!, true) } || it.t.contains(topic!!, true) }
+                else -> catalog
+            }
+            cachedFilteredList = result
+            result
         }
 
         val nextKey = if (position + params.loadSize >= filtered.size) null else position + params.loadSize

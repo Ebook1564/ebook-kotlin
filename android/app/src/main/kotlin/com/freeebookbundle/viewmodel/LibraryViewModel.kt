@@ -1,6 +1,7 @@
 package com.freeebookbundle.viewmodel
 
 import android.app.Application
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
@@ -16,20 +17,22 @@ import com.freeebookbundle.utils.Analytics
 import com.freeebookbundle.utils.ReviewManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map as flowMap
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 enum class LibrarySortOrder {
-    RECENTLY_OPENED,
-    DATE_ADDED,
-    TITLE,
-    AUTHOR,
-    PROGRESS
+    RECENTLY_OPENED, DATE_ADDED, TITLE, AUTHOR, PROGRESS
 }
 
+@Immutable
 data class LibraryUiState(
     val currentlyReading: List<Book> = emptyList(),
     val completed: List<Book> = emptyList(),
@@ -46,106 +49,97 @@ data class LibraryUiState(
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()
-    
-    private val _uiState = MutableStateFlow(LibraryUiState())
-    val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
-    init {
-        observeBooks()
+    private val _sortOrder     = MutableStateFlow(LibrarySortOrder.RECENTLY_OPENED)
+    private val _isLoading     = MutableStateFlow(false)
+    private val _selectedTag   = MutableStateFlow("All")
+    private val _selectedAuthor = MutableStateFlow<String?>(null)
+    private val _seeAllStatus  = MutableStateFlow<ReadingStatus?>(null)
+
+    val uiState: StateFlow<LibraryUiState> = combine(
+        _sortOrder,
+        _selectedTag,
+        _selectedAuthor,
+        _seeAllStatus,
+        bookDao.getLibraryBooksFlow().distinctUntilChanged()
+    ) { sortOrder, tag, author, seeAll, entities ->
+        DataBundle(entities, sortOrder, tag, author, seeAll)
     }
+    .debounce(80)
+    .flowMap { bundle ->
+        val entities = bundle.entities
+        val libraryBooks = entities.map { it.toBook() }
 
-    private fun observeBooks() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            
-            bookDao.getLibraryBooksFlow().collectLatest { entities ->
-                android.util.Log.d("LibraryVM", "Received ${entities.size} active books from DB")
-                val libraryBooks = entities.map { it.toBook() }
-                
-                val tags = libraryBooks.flatMap { it.subjects }.distinct().take(10)
-                val authors = libraryBooks.map { it.author }.distinct().sorted()
+        val tags    = libraryBooks.flatMap { it.subjects }.distinct().take(10)
+        val authors = libraryBooks.map { it.author }.distinct().sorted()
 
-                updateSortedBooks(libraryBooks, tags, authors)
-            }
-        }
-    }
-
-    private fun updateSortedBooks(libraryBooks: List<Book>, tags: List<String> = emptyList(), authors: List<String> = emptyList()) {
-        val sorted = when (_uiState.value.sortOrder) {
+        val sorted = when (bundle.sortOrder) {
             LibrarySortOrder.RECENTLY_OPENED -> libraryBooks.sortedByDescending { it.lastOpened ?: 0L }
-            LibrarySortOrder.DATE_ADDED -> libraryBooks.sortedByDescending { it.dateAdded ?: 0L }
-            LibrarySortOrder.TITLE -> libraryBooks.sortedBy { it.title }
-            LibrarySortOrder.AUTHOR -> libraryBooks.sortedBy { it.author }
-            LibrarySortOrder.PROGRESS -> libraryBooks.sortedByDescending { it.getReadingProgressPercent() }
+            LibrarySortOrder.DATE_ADDED      -> libraryBooks.sortedByDescending { it.dateAdded ?: 0L }
+            LibrarySortOrder.TITLE           -> libraryBooks.sortedBy { it.title }
+            LibrarySortOrder.AUTHOR          -> libraryBooks.sortedBy { it.author }
+            LibrarySortOrder.PROGRESS        -> libraryBooks.sortedByDescending { it.getReadingProgressPercent() }
         }
 
-        _uiState.value = _uiState.value.copy(
+        android.util.Log.d("LibraryVM", "Processed ${entities.size} active books (Sort: ${bundle.sortOrder})")
+
+        LibraryUiState(
             currentlyReading = sorted.filter { it.readingStatus == ReadingStatus.CURRENTLY_READING },
-            completed = sorted.filter { it.readingStatus == ReadingStatus.COMPLETED },
-            wishlist = sorted.filter { it.readingStatus == ReadingStatus.WISHLIST },
-            dynamicTags = if (tags.isNotEmpty()) listOf("All") + tags else _uiState.value.dynamicTags,
-            dynamicAuthors = if (authors.isNotEmpty()) authors else _uiState.value.dynamicAuthors,
-            isLoading = false
+            completed        = sorted.filter { it.readingStatus == ReadingStatus.COMPLETED },
+            wishlist         = sorted.filter { it.readingStatus == ReadingStatus.WISHLIST },
+            dynamicTags      = listOf("All") + tags,
+            dynamicAuthors   = authors,
+            selectedTag      = bundle.tag,
+            selectedAuthor   = bundle.author,
+            isLoading        = _isLoading.value,
+            seeAllStatus     = bundle.seeAll,
+            sortOrder        = bundle.sortOrder
         )
     }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())
 
-    fun setSortOrder(order: LibrarySortOrder) {
-        _uiState.value = _uiState.value.copy(sortOrder = order)
-        // Re-trigger observation or manually re-sort
-        viewModelScope.launch {
-            bookDao.getLibraryBooksFlow().collectLatest { entities ->
-                updateSortedBooks(entities.map { it.toBook() })
-            }
-        }
-    }
+    private data class DataBundle(
+        val entities: List<com.freeebookbundle.db.BookEntity>,
+        val sortOrder: LibrarySortOrder,
+        val tag: String,
+        val author: String?,
+        val seeAll: ReadingStatus?
+    )
 
-    fun getPagedBooks(status: ReadingStatus): Flow<PagingData<Book>> {
-        return Pager(
+    fun setSortOrder(order: LibrarySortOrder)   { _sortOrder.value = order }
+    fun selectTag(tag: String)                  { _selectedTag.value = tag; _selectedAuthor.value = null }
+    fun selectAuthor(author: String?)           { _selectedAuthor.value = author; _selectedTag.value = "All" }
+    fun setSeeAll(status: ReadingStatus?)       { _seeAllStatus.value = status }
+
+    fun getPagedBooks(status: ReadingStatus): Flow<PagingData<Book>> =
+        Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = { bookDao.getBooksByStatusPaging(status) }
-        ).flow.flowMap { pagingData ->
-            pagingData.map { it.toBook() }
-        }.cachedIn(viewModelScope)
-    }
-
-    fun selectTag(tag: String) {
-        _uiState.value = _uiState.value.copy(selectedTag = tag, selectedAuthor = null)
-    }
-
-    fun selectAuthor(author: String?) {
-        _uiState.value = _uiState.value.copy(selectedAuthor = author, selectedTag = "All")
-    }
+        ).flow.flowMap { it.map { entity -> entity.toBook() } }.cachedIn(viewModelScope)
 
     fun updateReadingStatus(book: Book, status: ReadingStatus) {
         viewModelScope.launch {
-            val existing = bookDao.getBook(book.id)
+            val existing  = bookDao.getBook(book.id)
             val timestamp = System.currentTimeMillis()
-            
             if (existing == null) {
-                // Insert new entity
-                val entity = com.freeebookbundle.db.BookEntity(
-                    id = book.id,
-                    title = book.title,
-                    author = book.author,
+                bookDao.insertBook(com.freeebookbundle.db.BookEntity(
+                    id = book.id, title = book.title, author = book.author,
                     description = book.description,
                     categoryCode = book.categories.firstOrNull() ?: "",
                     sourceFolder = book.sourceFolder ?: "remote",
-                    coverImageName = null,
-                    epubFileName = book.epubFileName,
-                    isDownloaded = false,
-                    readingStatus = status,
+                    coverImageName = null, epubFileName = book.epubFileName,
+                    isDownloaded = false, readingStatus = status,
                     dateAdded = if (status != ReadingStatus.NONE) timestamp else null,
-                    subjects = book.subjects,
-                    externalCoverUrl = book.externalCoverUrl,
+                    subjects = book.subjects, externalCoverUrl = book.externalCoverUrl,
                     audioUrl = book.audioUrl
-                )
-                bookDao.insertBook(entity)
+                ))
             } else {
-                // Update existing entity status and dateAdded
-                val dateAdded = if (status != ReadingStatus.NONE) timestamp else existing.dateAdded
-                bookDao.updateReadingStatus(book.id, status, dateAdded)
+                bookDao.updateReadingStatus(
+                    book.id, status,
+                    if (status != ReadingStatus.NONE) timestamp else existing.dateAdded
+                )
             }
-            
             if (status == ReadingStatus.CURRENTLY_READING) {
                 bookDao.updateLastOpened(book.id, timestamp)
             }
@@ -158,9 +152,5 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             Analytics.trackBookCompleted(book.id)
             ReviewManager.onBookCompleted(getApplication())
         }
-    }
-
-    fun setSeeAll(status: ReadingStatus?) {
-        _uiState.value = _uiState.value.copy(seeAllStatus = status)
     }
 }

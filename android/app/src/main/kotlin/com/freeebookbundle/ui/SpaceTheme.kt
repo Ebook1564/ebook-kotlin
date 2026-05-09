@@ -21,6 +21,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
+@Immutable
 data class PlanetData(
     val name: String,
     val mainColor: Color,
@@ -31,6 +32,7 @@ data class PlanetData(
     val particleCount: Int = 3
 )
 
+@Immutable
 data class OrbitingPlanet(
     val data: PlanetData,
     val orbitRadius: Dp,
@@ -38,6 +40,7 @@ data class OrbitingPlanet(
     val speed: Float
 )
 
+@Immutable
 data class PlanetSystem(
     val planet: PlanetData,
     val orbitingPlanets: List<OrbitingPlanet>

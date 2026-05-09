@@ -1,6 +1,7 @@
 package com.freeebookbundle.viewmodel
 
 import android.app.Application
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,16 +21,19 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Dispatchers
 
+@Immutable
 data class InitialBounds(
     val left: Float, val top: Float, val width: Float, val height: Float
 )
 
+@Immutable
 data class HomeSection(
     val title: String,
     val categoryCode: String,
     val books: List<Book>
 )
 
+@Immutable
 data class BookCollection(
     val title: String,
     val description: String,
@@ -37,6 +41,7 @@ data class BookCollection(
     val query: String
 )
 
+@Immutable
 data class CuratedCollection(
     val id: String,
     val title: String,
@@ -154,6 +159,7 @@ sealed class SearchFilter {
     data class Category(val code: String) : SearchFilter()
 }
 
+@Immutable
 data class CategoryWithCount(
     val code: String,
     val name: String,
@@ -161,11 +167,13 @@ data class CategoryWithCount(
     val bookCount: Int
 )
 
+@Immutable
 data class SubjectWithCount(
     val name: String,
     val bookCount: Int
 )
 
+@Immutable
 data class HomeUiState(
     val userName: String = "User",
     val isLoading: Boolean = false,
@@ -256,9 +264,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         
         viewModelScope.launch {
             // Observe continue reading from local DB
-            bookDao.getContinueReadingBooks(10).collect { books ->
-                _continueReadingBooks.value = books.map { it.toBook() }
-            }
+            bookDao.getContinueReadingBooks(10)
+                .distinctUntilChanged()
+                .debounce(100)
+                .flowOn(Dispatchers.IO)
+                .collect { books ->
+                    _continueReadingBooks.value = books.map { it.toBook() }
+                }
         }
     }
 
@@ -292,20 +304,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun getTopGenres(count: Int = 10): List<CategoryWithCount> {
-        val catalog = catalogRepo.getCatalog()
-        // Group by subject and count
-        return catalog.flatMap { it.s }
-            .groupingBy { 
-                var name = it
-                for (prefix in listOf("Category:", "Bookshelf:", "Bookshelves:")) {
-                    if (name.startsWith(prefix)) {
-                        name = name.removePrefix(prefix).trim()
-                    }
-                }
-                name
-            }
-            .eachCount()
-            .entries
+        val counts = catalogRepo.getGenreCounts()
+        
+        return counts.entries
             .sortedByDescending { it.value }
             .take(count)
             .map { (name, bookCount) ->
@@ -313,7 +314,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 CategoryWithCount(
                     code = code,
                     name = name,
-                    color = "#E50914", // Default accent (SearchScreen.kt will use getDrawerColor on the name anyway)
+                    color = "#E50914", // Default accent
                     bookCount = bookCount
                 )
             }

@@ -34,12 +34,14 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.freeebookbundle.db.Highlight
 import kotlinx.coroutines.launch
@@ -63,7 +65,7 @@ fun NativeEpubReader(
     modifier: Modifier = Modifier
 ) {
     val viewModel: EpubReaderViewModel = viewModel()
-    val readerState by viewModel.state.collectAsState()
+    val readerState by viewModel.state.collectAsStateWithLifecycle()
 
     val adjustedFontSize = (18.sp.value * settings.fontSize / 100).sp
     val fontFamily = when(settings.fontFamily) {
@@ -100,7 +102,8 @@ fun NativeEpubReader(
     val ttsManager = remember { com.freeebookbundle.voice.TtsVoiceManager(context) }
     
     val activeSelections = remember { mutableStateListOf<SelectionInfo>() }
-    var selectionKey by remember { mutableIntStateOf(0) }
+    var clearSelectionTick by remember { mutableIntStateOf(0) }
+    val focusManager = LocalFocusManager.current
 
     // CRITICAL: Capture current state in refs to avoid stale closures in the toolbar callbacks
     val currentReaderState by rememberUpdatedState(readerState)
@@ -145,7 +148,7 @@ fun NativeEpubReader(
                 }
                 selectedTextInfo = null
                 // Force clear selection handles
-                selectionKey++
+                clearSelectionTick++
                 activeSelections.clear()
             },
             onCopyRequested = {
@@ -154,7 +157,7 @@ fun NativeEpubReader(
                     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(fullText))
                 }
                 selectedTextInfo = null
-                selectionKey++
+                clearSelectionTick++
                 activeSelections.clear()
                 toolbar.dismissedByUser()
             },
@@ -163,7 +166,7 @@ fun NativeEpubReader(
                 if (fullText.isNotEmpty()) {
                     ttsManager.speak(text = fullText, utteranceId = "selection_multi")
                 }
-                selectionKey++
+                clearSelectionTick++
                 activeSelections.clear()
                 toolbar.dismissedByUser()
             },
@@ -189,7 +192,7 @@ fun NativeEpubReader(
             },
             onDismissSelection = {
                 toolbar.dismissedByUser()
-                selectionKey++
+                clearSelectionTick++
                 activeSelections.clear()
             },
             onMenuShown = { rect ->
@@ -202,17 +205,12 @@ fun NativeEpubReader(
                 if (rect.height > 0f && rect.width > 0f) {
                     val handleHeightPx = 25f * density
                     
-                    // Pull visibleKeys from layoutInfo — but treat an empty result
-                    // (which happens while the LazyColumn is remounting after selectionKey++)
-                    // as "no filter" rather than "filter everything".
                     val visibleKeys = listState.layoutInfo.visibleItemsInfo
                         .mapNotNull { it.key as? String }
                         .toSet()
                     val layoutInfoReady = visibleKeys.isNotEmpty()
 
                     textLayoutResults.forEach { (itemId, result) ->
-                        // Only apply the visibleKeys filter when layoutInfo is actually populated.
-                        // When it's empty (mid-remount), fall back to position-based filtering only.
                         if (layoutInfoReady && itemId !in visibleKeys) return@forEach
 
                         val itemPos = itemPositions[itemId] ?: return@forEach
@@ -229,30 +227,37 @@ fun NativeEpubReader(
                         val textLength = result.layoutInput.text.length
                         if (textLength == 0) return@forEach
 
-                        // ── Pass 1: identify the first and last selected line indices ──────────
+                        // SINGLE PASS — track first/last line and collect chars simultaneously
                         var firstSelectedLine = Int.MAX_VALUE
                         var lastSelectedLine  = Int.MIN_VALUE
+                        var currentStart      = -1
+                        var capturedCount     = 0
+
+                        // Cache line metrics to avoid redundant getLineTop/Bottom calls
+                        // for every character on the same line
+                        var cachedLine       = -1
+                        var cachedLineCenter = 0f
 
                         for (i in 0 until textLength) {
-                            val line       = result.getLineForOffset(i)
-                            val lineCenter = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
-                            if (lineCenter in localRect.top..localRect.bottom) {
+                            val line = result.getLineForOffset(i)
+                            
+                            val lineCenter = if (line == cachedLine) {
+                                cachedLineCenter
+                            } else {
+                                val c = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
+                                cachedLine = line
+                                cachedLineCenter = c
+                                c
+                            }
+
+                            val lineInSelection = lineCenter in localRect.top..localRect.bottom
+
+                            if (lineInSelection) {
                                 if (line < firstSelectedLine) firstSelectedLine = line
                                 if (line > lastSelectedLine)  lastSelectedLine  = line
                             }
-                        }
 
-                        if (firstSelectedLine == Int.MAX_VALUE) return@forEach
-
-                        // ── Pass 2: collect characters with per-line horizontal rules ──────────
-                        var currentStart  = -1
-                        var capturedCount = 0
-
-                        for (i in 0 until textLength) {
-                            val line       = result.getLineForOffset(i)
-                            val lineCenter = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
-
-                            if (lineCenter !in localRect.top..localRect.bottom) {
+                            if (!lineInSelection) {
                                 if (currentStart != -1) {
                                     activeSelections.add(SelectionInfo(
                                         itemId, currentStart to i,
@@ -349,17 +354,25 @@ fun NativeEpubReader(
         LocalTextToolbar provides textToolbar
     ) {
         Box(modifier = modifier.fillMaxSize().background(backgroundColor).onGloballyPositioned { 
-            itemPositions["container"] = it.positionInWindow() 
+            val newPos = it.positionInWindow()
+            if (itemPositions["container"] != newPos) {
+                itemPositions["container"] = newPos
+            }
         }) {
             textToolbar.Content()
+
+            LaunchedEffect(clearSelectionTick) {
+                if (clearSelectionTick > 0) {
+                    focusManager.clearFocus(force = true)
+                }
+            }
             
-            key(selectionKey) {
-                SelectionContainer {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(24.dp)
-                    ) {
+            SelectionContainer {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(24.dp)
+                ) {
                         items(items = readerState.items, key = { it.id }) { item ->
                             when (item) {
                                 is ReaderItem.Text -> {
@@ -394,7 +407,10 @@ fun NativeEpubReader(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .onGloballyPositioned { layoutCoordinates ->
-                                                itemPositions[item.id] = layoutCoordinates.positionInWindow()
+                                                val newPos = layoutCoordinates.positionInWindow()
+                                                if (itemPositions[item.id] != newPos) {
+                                                    itemPositions[item.id] = newPos
+                                                }
                                             }
                                             .drawWithContent {
                                                 // DRAW HIGHLIGHTS BEFORE CONTENT (so they appear behind text)
@@ -458,14 +474,16 @@ fun NativeEpubReader(
                                             .fillMaxWidth()
                                             .padding(vertical = 16.dp)
                                             .onGloballyPositioned { layoutCoordinates ->
-                                                itemPositions[item.id] = layoutCoordinates.positionInWindow()
+                                                val newPos = layoutCoordinates.positionInWindow()
+                                                if (itemPositions[item.id] != newPos) {
+                                                    itemPositions[item.id] = newPos
+                                                }
                                             }
                                     )
                                 }
                                 is ReaderItem.Image -> EpubImageItem(item.path, readerState.loadedImages) { viewModel.loadImage(item.path) }
                             }
                         }
-                    }
                 }
             }
             

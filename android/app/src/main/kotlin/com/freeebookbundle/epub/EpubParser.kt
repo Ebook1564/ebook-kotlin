@@ -42,12 +42,12 @@ class EpubParser {
         
         // 1. Find OPF
         val containerEntry = zip.getEntry("META-INF/container.xml") ?: throw Exception("Not an epub")
-        val containerDoc = parseXml(zip.getInputStream(containerEntry).readBytes()) ?: throw Exception("Invalid container")
+        val containerDoc = zip.getInputStream(containerEntry).use { it.readBytes() }.let { parseXml(it) } ?: throw Exception("Invalid container")
         val rootFile = containerDoc.getElementsByTagName("rootfile").item(0) as? org.w3c.dom.Element
         val opfPath = rootFile?.getAttribute("full-path") ?: throw Exception("OPF not found")
         
         val opfEntry = zip.getEntry(opfPath) ?: throw Exception("OPF missing: $opfPath")
-        val opfDoc = parseXml(zip.getInputStream(opfEntry).readBytes()) ?: throw Exception("Invalid OPF")
+        val opfDoc = zip.getInputStream(opfEntry).use { it.readBytes() }.let { parseXml(it) } ?: throw Exception("Invalid OPF")
         
         val basePath = File(opfPath).parent?.let { "$it/" } ?: ""
 
@@ -87,7 +87,7 @@ class EpubParser {
             try {
                 val fullTocPath = resolvePath(basePath, tocHref)
                 zip.getEntry(fullTocPath)?.let { entry ->
-                    val tocDoc = parseXml(zip.getInputStream(entry).readBytes())
+                    val tocDoc = zip.getInputStream(entry).use { it.readBytes() }.let { parseXml(it) }
                     val navPoints = tocDoc?.getElementsByTagName("navPoint")
                     if (navPoints != null) {
                         for (j in 0 until navPoints.length) {
@@ -156,7 +156,9 @@ class EpubParser {
             if (coverHref != null) {
                 val entryPath = resolvePath(basePath, coverHref)
                 zip.getEntry(entryPath)?.let { entry ->
-                    coverImage = BitmapFactory.decodeStream(zip.getInputStream(entry))
+                    zip.getInputStream(entry).use { inputStream ->
+                        coverImage = BitmapFactory.decodeStream(inputStream)
+                    }
                 }
             }
         } catch (e: Exception) {}
@@ -180,7 +182,7 @@ class EpubParser {
         val entryPath = resolvePath(book.basePath, chapter.href)
         val entry = zip.getEntry(entryPath) ?: return@withContext emptyList()
         
-        val html = zip.getInputStream(entry).bufferedReader().readText()
+        val html = zip.getInputStream(entry).use { it.bufferedReader().readText() }
         val doc = Jsoup.parse(html)
         val body = doc.body()
 
@@ -322,7 +324,9 @@ class EpubParser {
         try {
             val zip = getZip(filePath)
             val entry = zip.getEntry(absPath) ?: return@withContext null
-            BitmapFactory.decodeStream(zip.getInputStream(entry))
+            zip.getInputStream(entry).use { inputStream ->
+                BitmapFactory.decodeStream(inputStream)
+            }
         } catch (e: Exception) { null }
     }
 

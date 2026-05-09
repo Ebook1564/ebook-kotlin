@@ -2,10 +2,8 @@ package com.freeebookbundle.epub
 
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeebookbundle.db.Highlight
@@ -14,9 +12,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
+@Immutable
 data class EpubReaderState(
     val book: EpubBook? = null,
     val items: List<ReaderItem> = emptyList(),
@@ -40,58 +39,98 @@ class EpubReaderViewModel : ViewModel() {
     private var lastLoadedChapter = -1
     private var firstLoadedChapter = -1
 
-    fun loadBook(filePath: String?, initialChapter: Int = 0, bookId: String? = null, savedHighlights: List<Highlight> = emptyList()) {
+    // Guard against duplicate loadBook calls (e.g. from both Fragment and NativeEpubReader)
+    private var loadedFilePath: String? = null
+    private val isLoadInProgress = AtomicBoolean(false)
+
+    fun loadBook(
+        filePath: String?,
+        initialChapter: Int = 0,
+        bookId: String? = null,
+        savedHighlights: List<Highlight> = emptyList()
+    ) {
         if (filePath == null) {
             _state.update { it.copy(error = "File path is null") }
             return
         }
-        
+
+        // Deduplicate: if this exact file is already loaded or loading, skip
+        if (filePath == loadedFilePath && _state.value.book != null) {
+            Log.d(TAG, "loadBook: $filePath already loaded, skipping duplicate call")
+            return
+        }
+        if (!isLoadInProgress.compareAndSet(false, true)) {
+            Log.d(TAG, "loadBook: load already in progress, skipping duplicate call")
+            return
+        }
+
+        loadedFilePath = filePath
+
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, items = emptyList(), highlights = savedHighlights) }
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    items = emptyList(),
+                    highlights = savedHighlights
+                )
+            }
             try {
                 val book = parser.createEpubBook(filePath)
                 _state.update { it.copy(book = book, isLoading = false) }
-                
-                jumpToChapter(initialChapter)
+                // Single internal jump — callers must NOT call jumpToChapter separately
+                // for the initial load. Use targetChapter state for subsequent jumps.
+                jumpToChapterInternal(book, initialChapter, fragmentId = null)
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
+            } finally {
+                isLoadInProgress.set(false)
             }
         }
     }
 
     fun jumpToChapter(chapterIndex: Int, fragmentId: String? = null) {
         val book = _state.value.book ?: return
-        
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, items = emptyList()) }
-            
-            val items = mutableListOf<ReaderItem>()
-            // Always use spineIndex from the book metadata
-            val start = (chapterIndex - 1).coerceAtLeast(0)
-            val end = (chapterIndex + 1).coerceAtMost(book.chapters.size - 1)
-            
-            firstLoadedChapter = start
-            lastLoadedChapter = end
-
-            for (i in start..end) {
-                val chapterItems = parser.getChapterItems(book, i)
-                items.addAll(applyHighlightsToItems(i, chapterItems))
-            }
-
-            _state.update { 
-                it.copy(
-                    items = items, 
-                    currentChapterIndex = chapterIndex, 
-                    isLoading = false,
-                    jumpTrigger = (it.jumpTrigger ?: 0) + 1,
-                    jumpAnchor = fragmentId
-                ) 
-            }
+            jumpToChapterInternal(book, chapterIndex, fragmentId)
         }
     }
 
-    private fun applyHighlightsToItems(chapterIndex: Int, items: List<ReaderItem>): List<ReaderItem> {
-        return items // Highlights will be drawn on canvas in the UI layer
+    // Internal version — avoids launching a new coroutine when already inside one
+    private suspend fun jumpToChapterInternal(
+        book: EpubBook,
+        chapterIndex: Int,
+        fragmentId: String?
+    ) {
+        // Don't clear items immediately — keep old content visible while loading
+        // to avoid the blank flash that causes layout jank
+        _state.update { it.copy(isLoading = true) }
+
+        val start = (chapterIndex - 1).coerceAtLeast(0)
+        val end = (chapterIndex + 1).coerceAtMost(book.chapters.size - 1)
+
+        firstLoadedChapter = start
+        lastLoadedChapter = end
+
+        val items = mutableListOf<ReaderItem>()
+        for (i in start..end) {
+            items.addAll(parser.getChapterItems(book, i))
+        }
+
+        _state.update {
+            it.copy(
+                items = items,
+                currentChapterIndex = chapterIndex,
+                isLoading = false,
+                // Only increment jumpTrigger if chapter actually changed,
+                // or if this is a fresh load (items were previously empty)
+                jumpTrigger = if (it.currentChapterIndex != chapterIndex || it.items.isEmpty())
+                    (it.jumpTrigger ?: 0) + 1
+                else
+                    it.jumpTrigger,
+                jumpAnchor = fragmentId
+            )
+        }
     }
 
     fun addHighlight(highlight: Highlight) {
@@ -104,33 +143,18 @@ class EpubReaderViewModel : ViewModel() {
     }
 
     fun deleteHighlight(highlight: Highlight) {
-        _state.update { it.copy(highlights = it.highlights.filter { it.id != highlight.id }) }
-    }
-
-    private fun refreshHighlightsOnItems() {
-        // Force refresh of the current visible items by re-applying highlights
-        val currentItems = _state.value.items
-        val updatedItems = currentItems.map { item ->
-            if (item is ReaderItem.Text) {
-                val chapterIndex = item.id.substringBefore("_").toIntOrNull() ?: return@map item
-                // This is a bit inefficient (re-parsing would be better but expensive)
-                // In this case, we just re-run the applyHighlightsToItems for this chapter
-                // For simplicity, we just trigger a state update that rebuilds the list
-                item
-            } else item
+        _state.update { state ->
+            state.copy(highlights = state.highlights.filter { it.id != highlight.id })
         }
-        // Actually, the cleanest way in this infinite scroll is just to re-run jumpToChapter for the current view
-        jumpToChapter(_state.value.currentChapterIndex)
     }
 
     fun loadMoreNext() {
         val book = _state.value.book ?: return
         if (lastLoadedChapter >= book.chapters.size - 1) return
-        
+
         viewModelScope.launch {
             val nextChapter = lastLoadedChapter + 1
-            val rawItems = parser.getChapterItems(book, nextChapter)
-            val newItems = applyHighlightsToItems(nextChapter, rawItems)
+            val newItems = parser.getChapterItems(book, nextChapter)
             lastLoadedChapter = nextChapter
             _state.update { it.copy(items = it.items + newItems) }
         }
@@ -139,11 +163,10 @@ class EpubReaderViewModel : ViewModel() {
     fun loadMorePrevious() {
         val book = _state.value.book ?: return
         if (firstLoadedChapter <= 0) return
-        
+
         viewModelScope.launch {
             val prevChapter = firstLoadedChapter - 1
-            val rawItems = parser.getChapterItems(book, prevChapter)
-            val newItems = applyHighlightsToItems(prevChapter, rawItems)
+            val newItems = parser.getChapterItems(book, prevChapter)
             firstLoadedChapter = prevChapter
             _state.update { it.copy(items = newItems + it.items) }
         }
@@ -167,11 +190,12 @@ class EpubReaderViewModel : ViewModel() {
 
         val book = currentState.book ?: return
         val currentItem = items.getOrNull(visibleItemIndex)
-        val chapterIndex = currentItem?.id?.substringBefore("_")?.toIntOrNull() ?: currentState.currentChapterIndex
-        
+        val chapterIndex = currentItem?.id?.substringBefore("_")?.toIntOrNull()
+            ?: currentState.currentChapterIndex
+
         val chapter = book.chapters.getOrNull(chapterIndex)
         val totalChars = book.totalCharacters
-        
+
         if (chapter != null && totalChars > 0) {
             val itemOffset = when (currentItem) {
                 is ReaderItem.Text -> currentItem.charOffsetInChapter.toLong()
@@ -179,12 +203,16 @@ class EpubReaderViewModel : ViewModel() {
             }
             val absoluteCharOffset = chapter.characterOffset + itemOffset
             val progress = (absoluteCharOffset.toFloat() / totalChars.toFloat()).coerceIn(0f, 1f)
-            _state.update { it.copy(progress = progress, currentChapterIndex = chapterIndex) }
+
+            // Only update state if values actually changed to avoid unnecessary recompositions
+            if (progress != currentState.progress || chapterIndex != currentState.currentChapterIndex) {
+                _state.update { it.copy(progress = progress, currentChapterIndex = chapterIndex) }
+            }
         }
     }
 
     fun consumeJumpTrigger() {
-        _state.update { it.copy(jumpTrigger = null) }
+        _state.update { it.copy(jumpTrigger = null, jumpAnchor = null) }
     }
 
     override fun onCleared() {

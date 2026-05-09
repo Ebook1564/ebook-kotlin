@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -85,7 +86,7 @@ fun SearchScreen(
 ) {
     val colors = BookVerseTheme.colors
     val currentTheme by appViewModel.themeMode
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pagingItems = viewModel.filterResults.collectAsLazyPagingItems()
     var showAuthors by remember { mutableStateOf(false) }
 
@@ -402,7 +403,7 @@ private fun DrawerNavigation(
         contentPadding = PaddingValues(start = 24.dp, end = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(60.dp)
     ) {
-        items(categories) { category ->
+        items(categories, key = { it }) { category ->
             val drawerColor = getDrawerColor(category)
             val isSelected = selectedCategory == category
 
@@ -1104,7 +1105,7 @@ fun AuthorsRevealOverlay(visible: Boolean, onClose: () -> Unit, onAuthorClick: (
     val appViewModel: AppViewModel = viewModel()
     val currentTheme by appViewModel.themeMode
     val isSpaceTheme = currentTheme == AppThemeMode.SPACE
-    val authorUiState by viewModel.uiState.collectAsState()
+    val authorUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val authorItems = viewModel.authorResults.collectAsLazyPagingItems()
     val config = androidx.compose.ui.platform.LocalConfiguration.current
     val density = LocalDensity.current
@@ -1449,8 +1450,17 @@ fun CelestialNavigation(
 }
 
 class SearchCircularRevealShape(private val radius: Float, private val center: Offset) : Shape {
+    private val cachedPath = Path()
+    private var cachedRadius = -1f
+    private var cachedCenter = Offset.Unspecified
+
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val path = Path().apply { addOval(Rect(center, radius)) }
-        return Outline.Generic(path)
+        if (radius != cachedRadius || center != cachedCenter) {
+            cachedPath.reset()
+            cachedPath.addOval(Rect(center, radius))
+            cachedRadius = radius
+            cachedCenter = center
+        }
+        return Outline.Generic(cachedPath)
     }
 }

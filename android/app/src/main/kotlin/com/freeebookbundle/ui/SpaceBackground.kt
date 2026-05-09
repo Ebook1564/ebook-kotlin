@@ -189,21 +189,18 @@ private fun DrawScope.drawNebulaBlobs(pulse: Float) {
         val cy     = blob.cy * size.height
         val radius = blob.radiusFraction * minOf(size.width, size.height) * scaleMod
 
-        drawIntoCanvas { canvas ->
-            val paint = Paint().apply {
-                isAntiAlias = true
-                asFrameworkPaint().apply {
-                    // Soft radial glow via BlurMaskFilter
-                    maskFilter = android.graphics.BlurMaskFilter(
-                        radius * 0.85f,
-                        android.graphics.BlurMaskFilter.Blur.NORMAL
-                    )
-                    color = blob.color.copy(alpha = alphaMod).toArgb()
-                    style = android.graphics.Paint.Style.FILL
-                }
-            }
-            canvas.nativeCanvas.drawCircle(cx, cy, radius, paint.asFrameworkPaint())
-        }
+        // Use radial gradient instead of BlurMaskFilter for much better performance
+        drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to blob.color.copy(alpha = alphaMod),
+                0.85f to blob.color.copy(alpha = alphaMod * 0.4f),
+                1.0f to Color.Transparent,
+                center = Offset(cx, cy),
+                radius = radius
+            ),
+            radius = radius,
+            center = Offset(cx, cy)
+        )
     }
 }
 
