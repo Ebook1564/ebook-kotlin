@@ -54,7 +54,7 @@ interface BookDao {
     fun getBooksByStatusPaging(status: ReadingStatus): PagingSource<Int, BookEntity>
 
     @Query("SELECT * FROM books WHERE reading_status != :ignoredStatus ORDER BY date_added DESC")
-    fun getLibraryBooksFlow(ignoredStatus: ReadingStatus = ReadingStatus.NONE): Flow<List<BookEntity>>
+    fun getLibraryBooksFlow(ignoredStatus: ReadingStatus = ReadingStatus.NONE): Flow<List<BookSummary>>
 
     @Query("SELECT DISTINCT author FROM books WHERE author LIKE '%' || :query || '%' ORDER BY author ASC")
     fun getAuthorsPaging(query: String = ""): PagingSource<Int, String>
@@ -96,7 +96,7 @@ interface BookDao {
     suspend fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float, timestamp: Long = System.currentTimeMillis())
 
     @Query("SELECT * FROM books WHERE reading_status = 'CURRENTLY_READING' AND last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
-    fun getContinueReadingBooks(limit: Int): Flow<List<BookEntity>>
+    fun getContinueReadingBooks(limit: Int): Flow<List<BookSummary>>
 
     @Query("SELECT last_spine_index AS spineIndex, chapter_progression AS progression FROM books WHERE id = :bookId")
     suspend fun getLastPosition(bookId: String): LastPosition?

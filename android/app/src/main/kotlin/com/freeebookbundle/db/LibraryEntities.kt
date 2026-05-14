@@ -6,6 +6,7 @@ import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.TypeConverter
+import androidx.compose.runtime.Immutable
 import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.utils.ServerConfig
 import com.google.gson.Gson
@@ -35,6 +36,7 @@ class Converters {
     fun fromReadingStatus(status: ReadingStatus) = status.name
 }
 
+@Immutable
 @Entity(tableName = "catalog_meta")
 data class CatalogMetaEntity(
     @PrimaryKey val id: Int = 1,
@@ -44,6 +46,7 @@ data class CatalogMetaEntity(
     val bundledAt: Long
 )
 
+@Immutable
 @Entity(tableName = "categories")
 data class CategoryEntity(
     @PrimaryKey val code: String,
@@ -51,6 +54,41 @@ data class CategoryEntity(
     val icon: String,
     val color: String
 )
+
+@Immutable
+data class BookSummary(
+    val id: String,
+    val title: String,
+    val author: String,
+    @ColumnInfo(name = "category_code") val categoryCode: String,
+    @ColumnInfo(name = "reading_status") val readingStatus: ReadingStatus,
+    @ColumnInfo(name = "date_added") val dateAdded: Long?,
+    @ColumnInfo(name = "last_opened") val lastOpened: Long?,
+    @ColumnInfo(name = "last_spine_index") val lastSpineIndex: Int,
+    @ColumnInfo(name = "chapter_progression") val chapterProgression: Float,
+    val subjects: List<String> = emptyList(),
+    @ColumnInfo(name = "external_cover_url") val externalCoverUrl: String? = null
+)
+
+fun BookSummary.toBook(): com.freeebookbundle.models.Book {
+    val serverIp = ServerConfig.getServerIp()
+    val serverPort = ServerConfig.getServerPort()
+    val coversUrl = "http://$serverIp:$serverPort/covers/${id}_cover_image.jpg"
+
+    return com.freeebookbundle.models.Book(
+        id = id,
+        title = title,
+        author = author,
+        coverImageUrl = coversUrl,
+        externalCoverUrl = externalCoverUrl,
+        readingStatus = readingStatus,
+        dateAdded = dateAdded,
+        lastOpened = lastOpened,
+        subjects = subjects,
+        lastSpineIndex = lastSpineIndex,
+        chapterProgression = chapterProgression
+    )
+}
 
 @Entity(
     tableName = "books",

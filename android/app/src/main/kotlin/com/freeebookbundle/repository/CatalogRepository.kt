@@ -9,19 +9,19 @@ import androidx.paging.PagingState
 import com.freeebookbundle.db.BookDao
 import com.freeebookbundle.models.Book
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class CatalogEntry(
     val id: String,
-    val t: String, // title
-    val a: String, // author
-    val s: List<String> // subjects
+    val t: String,
+    val a: String,
+    val s: List<String>
 )
 
 private val audioBooksIds = setOf(
@@ -30,12 +30,10 @@ private val audioBooksIds = setOf(
     "43", "74", "98", "166", "215", "4300", "36", "11339", "135", "100", "219",
     "1080", "19033", "2000", "1497", "1260", "768", "3207", "46", "3825", "10",
     "55", "145", "1533", "1250", "2554", "2593", "2600", "30406", "32325"
-    // ... (truncated for brevity, but logic applies to all 148)
 )
 
 fun CatalogEntry.toBook(): Book {
     val hasAudio = audioBooksIds.contains(id)
-    
     return Book(
         id = id,
         title = t,
@@ -50,139 +48,166 @@ class CatalogRepository(
     private val context: Context,
     private val bookDao: BookDao
 ) {
-    private var cachedCatalog: List<CatalogEntry>? = null
-    private var genreIndex: Map<String, List<CatalogEntry>>? = null
-    private val mutex = Mutex()
+    companion object {
+        // Process-level singleton so multiple CatalogRepository instances
+        // share one parsed catalog — avoids re-parsing on Activity recreate
+        @Volatile private var processCache: List<CatalogEntry>? = null
+        @Volatile private var processGenreIndex: Map<String, List<CatalogEntry>>? = null
+        private val processMutex = Mutex()
+        private val isLoading = AtomicBoolean(false)
+    }
 
-    suspend fun getCatalog(): List<CatalogEntry> = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            cachedCatalog?.let { return@withLock it }
-            
-            val books = mutableListOf<CatalogEntry>()
-            val index = mutableMapOf<String, MutableList<CatalogEntry>>()
-            
-            try {
+    suspend fun getCatalog(): List<CatalogEntry> {
+        // Fast path — already cached, no lock needed
+        processCache?.let { return it }
+
+        // Slow path — parse once, all concurrent callers wait on the same mutex
+        return processMutex.withLock {
+            // Re-check inside lock — another coroutine may have finished while we waited
+            processCache?.let { return@withLock it }
+
+            withContext(Dispatchers.IO) {
+                val startTime = System.currentTimeMillis()
+                val books = ArrayList<CatalogEntry>(50_000)
+                // Pre-size the index map to avoid rehashing
+                val index = HashMap<String, MutableList<CatalogEntry>>(2048)
+
                 context.assets.open("catalog.json").use { inputStream ->
-                    val reader = com.google.gson.stream.JsonReader(InputStreamReader(inputStream, "UTF-8"))
+                    val reader = com.google.gson.stream.JsonReader(
+                        InputStreamReader(inputStream, "UTF-8")
+                    )
                     val gson = Gson()
-                    
+
                     reader.beginArray()
                     while (reader.hasNext()) {
                         val entry: CatalogEntry = gson.fromJson(reader, CatalogEntry::class.java)
                         books.add(entry)
-                        
-                        // Build index for common genres (clean names)
+
                         entry.s.forEach { rawSubject ->
-                            var name = rawSubject
-                            for (prefix in listOf("Category:", "Bookshelf:", "Bookshelves:")) {
-                                if (name.startsWith(prefix)) {
-                                    name = name.removePrefix(prefix).trim()
-                                }
+                            // Strip prefix inline — avoids building a temp string per subject
+                            val name = when {
+                                rawSubject.startsWith("Category:") ->
+                                    rawSubject.removePrefix("Category:").trim()
+                                rawSubject.startsWith("Bookshelf:") ->
+                                    rawSubject.removePrefix("Bookshelf:").trim()
+                                rawSubject.startsWith("Bookshelves:") ->
+                                    rawSubject.removePrefix("Bookshelves:").trim()
+                                else -> rawSubject
                             }
-                            index.getOrPut(name) { mutableListOf() }.add(entry)
+                            index.getOrPut(name) { ArrayList(64) }.add(entry)
                         }
                     }
                     reader.endArray()
-                    reader.close()
                 }
-                cachedCatalog = books
-                genreIndex = index
+
+                android.util.Log.d("PerfTrace",
+                    "Parsed ${books.size} catalog entries in ${System.currentTimeMillis() - startTime}ms")
+
+                processCache = books
+                processGenreIndex = index
                 books
-            } catch (e: Exception) {
-                android.util.Log.e("CatalogRepo", "Error parsing catalog: ${e.message}")
-                emptyList()
             }
         }
     }
 
     private suspend fun getGenreIndex(): Map<String, List<CatalogEntry>> {
-        if (genreIndex == null) getCatalog()
-        return genreIndex ?: emptyMap()
+        if (processGenreIndex == null) getCatalog()
+        return processGenreIndex ?: emptyMap()
     }
 
-    suspend fun getGenreCounts(): Map<String, Int> {
-        return getGenreIndex().mapValues { it.value.size }
-    }
+    suspend fun getGenreCounts(): Map<String, Int> =
+        getGenreIndex().mapValues { it.value.size }
 
-    fun searchBooks(query: String): Flow<PagingData<Book>> {
-        return Pager(
-            config = PagingConfig(pageSize = 30, enablePlaceholders = false),
-            pagingSourceFactory = { StaticCatalogPagingSource { getCatalog() }.apply { this.query = query } }
-        ).flow
-    }
-
-    fun getBooksByAuthor(author: String): Flow<PagingData<Book>> {
-        return Pager(
-            config = PagingConfig(pageSize = 30, enablePlaceholders = false),
-            pagingSourceFactory = { StaticCatalogPagingSource { getCatalog() }.apply { this.query = author } }
-        ).flow
-    }
-
-    suspend fun getBooksByTopic(topic: String): Flow<PagingData<Book>> {
-        return Pager(
-            config = PagingConfig(pageSize = 30, enablePlaceholders = false),
-            pagingSourceFactory = { StaticCatalogPagingSource { getCatalog() }.apply { this.topic = topic } }
-        ).flow
-    }
+    suspend fun getBookDetails(id: String): Book? =
+        getCatalog().find { it.id == id }?.toBook()
 
     suspend fun getStaticBooksByTopic(topic: String, limit: Int): List<Book> {
         val index = getGenreIndex()
         val match = index[topic]
-        
-        if (match != null) {
-            return match.take(limit).map { it.toBook() }
-        }
 
-        // Fallback: search if not in index keys
+        if (match != null) return match.take(limit).map { it.toBook() }
+
         val catalog = getCatalog()
-        val filtered = catalog.filter { 
-            it.s.any { s -> s.contains(topic, true) } || 
-            it.t.contains(topic, true) 
+        val filtered = catalog.filter {
+            it.s.any { s -> s.contains(topic, ignoreCase = true) } ||
+            it.t.contains(topic, ignoreCase = true)
         }
-        
-        val results = if (filtered.isEmpty()) {
-            catalog.take(limit) // avoid shuffled() as it copies 49k list
-        } else {
-            filtered.take(limit)
-        }
-        
-        return results.map { it.toBook() }
+        return (if (filtered.isEmpty()) catalog.take(limit) else filtered.take(limit))
+            .map { it.toBook() }
     }
 
-    suspend fun getBookDetails(id: String): Book? {
-        return getCatalog().find { it.id == id }?.toBook()
-    }
-}
+    // Filtered lists are now cached at the repository level, not inside the
+    // PagingSource. PagingSource instances are short-lived and recreated on
+    // invalidation — caching inside them is pointless.
+    private val filterCache = HashMap<String, List<CatalogEntry>>(16)
+    private val filterMutex = Mutex()
 
-class StaticCatalogPagingSource(
-    private val loader: suspend () -> List<CatalogEntry>
-) : PagingSource<Int, Book>() {
-    var query: String? = null
-    var topic: String? = null
-    
-    private var cachedFilteredList: List<CatalogEntry>? = null
+    private suspend fun getFiltered(query: String?, topic: String?): List<CatalogEntry> {
+        val cacheKey = "q=$query|t=$topic"
+        filterCache[cacheKey]?.let { return it }
 
-    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Book> {
-        val position = params.key ?: 0
-        
-        val filtered = cachedFilteredList ?: run {
-            val catalog = loader()
+        return filterMutex.withLock {
+            filterCache[cacheKey]?.let { return@withLock it }
+            val catalog = getCatalog()
+            val start = System.currentTimeMillis()
             val result = when {
-                query != null -> catalog.filter { it.t.contains(query!!, true) || it.a.contains(query!!, true) }
-                topic != null -> catalog.filter { it.s.any { s -> s.contains(topic!!, true) } || it.t.contains(topic!!, true) }
+                query != null -> catalog.filter {
+                    it.t.contains(query, ignoreCase = true) ||
+                    it.a.contains(query, ignoreCase = true)
+                }
+                topic != null -> catalog.filter {
+                    it.s.any { s -> s.contains(topic, ignoreCase = true) } ||
+                    it.t.contains(topic, ignoreCase = true)
+                }
                 else -> catalog
             }
-            cachedFilteredList = result
+            android.util.Log.d("PerfTrace",
+                "StaticCatalog filter took ${System.currentTimeMillis() - start}ms " +
+                "for query=$query topic=$topic")
+            filterCache[cacheKey] = result
             result
         }
+    }
 
-        val nextKey = if (position + params.loadSize >= filtered.size) null else position + params.loadSize
-        
-        return LoadResult.Page(
-            data = filtered.drop(position).take(params.loadSize).map { it.toBook() },
-            prevKey = if (position == 0) null else position - params.loadSize,
-            nextKey = nextKey
-        )
+    fun searchBooks(query: String): Flow<PagingData<Book>> = Pager(
+        config = PagingConfig(pageSize = 30, enablePlaceholders = false),
+        pagingSourceFactory = { RepoCatalogPagingSource(query = query, topic = null) { q, t -> getFiltered(q, t) } }
+    ).flow
+
+    fun getBooksByAuthor(author: String): Flow<PagingData<Book>> = Pager(
+        config = PagingConfig(pageSize = 30, enablePlaceholders = false),
+        pagingSourceFactory = { RepoCatalogPagingSource(query = author, topic = null) { q, t -> getFiltered(q, t) } }
+    ).flow
+
+    suspend fun getBooksByTopic(topic: String): Flow<PagingData<Book>> = Pager(
+        config = PagingConfig(pageSize = 30, enablePlaceholders = false),
+        pagingSourceFactory = { RepoCatalogPagingSource(query = null, topic = topic) { q, t -> getFiltered(q, t) } }
+    ).flow
+}
+
+// PagingSource is now thin — it delegates filtering to the repository cache
+class RepoCatalogPagingSource(
+    private val query: String?,
+    private val topic: String?,
+    private val filteredLoader: suspend (String?, String?) -> List<CatalogEntry>
+) : PagingSource<Int, Book>() {
+
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Book> {
+        return try {
+            val position = params.key ?: 0
+            val filtered = filteredLoader(query, topic)
+            val pageData = filtered.drop(position).take(params.loadSize).map { it.toBook() }
+            android.util.Log.d("PerfTrace",
+                "StaticCatalog loaded page at $position in ${filtered.size} results")
+            LoadResult.Page(
+                data = pageData,
+                prevKey = if (position == 0) null else position - params.loadSize,
+                nextKey = if (position + params.loadSize >= filtered.size) null
+                          else position + params.loadSize
+            )
+        } catch (e: Exception) {
+            LoadResult.Error(e)
+        }
     }
 
     override fun getRefreshKey(state: PagingState<Int, Book>): Int? = state.anchorPosition

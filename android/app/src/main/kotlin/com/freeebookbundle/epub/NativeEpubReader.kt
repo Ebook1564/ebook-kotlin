@@ -24,14 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
@@ -45,6 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.freeebookbundle.db.Highlight
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 
 @Composable
 fun NativeEpubReader(
@@ -85,10 +86,13 @@ fun NativeEpubReader(
 
     var selectionRect by remember { mutableStateOf<Rect?>(null) }
     var selectedTextInfo by remember { mutableStateOf<SelectionInfo?>(null) }
-    var activeNativeSelection by remember { mutableStateOf<SelectionInfo?>(null) }
     
-    val textLayoutResults = remember { mutableStateMapOf<String, TextLayoutResult>() }
-    val itemPositions = remember { mutableStateMapOf<String, Offset>() }
+    // Performance optimization: Use plain HashMaps for results/positions to avoid scroll snapshot writes
+    val textLayoutResults = remember { HashMap<String, TextLayoutResult>() }
+    val itemPositions = remember { HashMap<String, Offset>() }
+    // Version counter to trigger re-calculation of highlights when maps are updated
+    var layoutVersion by remember { mutableIntStateOf(0) }
+    var containerPositionInWindow by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(filePath) { viewModel.loadBook(filePath, initialChapter) }
     LaunchedEffect(targetChapter, targetAnchor) {
@@ -105,24 +109,21 @@ fun NativeEpubReader(
     var clearSelectionTick by remember { mutableIntStateOf(0) }
     val focusManager = LocalFocusManager.current
 
-    // CRITICAL: Capture current state in refs to avoid stale closures in the toolbar callbacks
     val currentReaderState by rememberUpdatedState(readerState)
     val currentActiveSelections by rememberUpdatedState(activeSelections)
 
-    // Clear stale layout data ONLY when the chapter changes
     LaunchedEffect(readerState.currentChapterIndex) {
         textLayoutResults.clear()
+        itemPositions.clear()
     }
 
     val textToolbar = remember { 
         lateinit var toolbar: EpubTextToolbar
         toolbar = EpubTextToolbar(
             onColorSelected = { color ->
-                android.util.Log.d("NativeEpubReader", "onColorSelected: Processing ${currentActiveSelections.size} selections")
                 if (currentActiveSelections.isNotEmpty()) {
                     val highlightsToSave = mutableListOf<Highlight>()
                     currentActiveSelections.forEach { selection ->
-                        // Use currentReaderState to avoid stale item list
                         val item = currentReaderState.items.find { it.id == selection.itemId } as? ReaderItem.Text
                         if (item != null) {
                             val hl = Highlight(
@@ -136,18 +137,14 @@ fun NativeEpubReader(
                                 createdAt = System.currentTimeMillis()
                             )
                             highlightsToSave.add(hl)
-                        } else {
-                            android.util.Log.e("NativeEpubReader", "onColorSelected: Could not find item ${selection.itemId}")
                         }
                     }
                     if (highlightsToSave.isNotEmpty()) {
-                        android.util.Log.d("NativeEpubReader", "onColorSelected: Saving ${highlightsToSave.size} highlights")
                         viewModel.addHighlights(highlightsToSave)
                         onHighlightsAdded(highlightsToSave)
                     }
                 }
                 selectedTextInfo = null
-                // Force clear selection handles
                 clearSelectionTick++
                 activeSelections.clear()
             },
@@ -178,7 +175,6 @@ fun NativeEpubReader(
                     }
                     context.startActivity(intent)
                 }
-                // Don't clear selection yet as user might want to highlight after dict lookup
             },
             onWikipediaRequested = {
                 val text = currentActiveSelections.firstOrNull()?.text ?: ""
@@ -188,7 +184,6 @@ fun NativeEpubReader(
                     }
                     context.startActivity(intent)
                 }
-                // Don't clear selection yet
             },
             onDismissSelection = {
                 toolbar.dismissedByUser()
@@ -200,19 +195,12 @@ fun NativeEpubReader(
                 val density = context.resources.displayMetrics.density
                 activeSelections.clear()
 
-                android.util.Log.d("NativeEpubReader", "onMenuShown: Window Rect: $rect")
-
                 if (rect.height > 0f && rect.width > 0f) {
                     val handleHeightPx = 25f * density
-                    
-                    val visibleKeys = listState.layoutInfo.visibleItemsInfo
-                        .mapNotNull { it.key as? String }
-                        .toSet()
-                    val layoutInfoReady = visibleKeys.isNotEmpty()
+                    val visibleKeys = listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String }.toSet()
 
                     textLayoutResults.forEach { (itemId, result) ->
-                        if (layoutInfoReady && itemId !in visibleKeys) return@forEach
-
+                        if (visibleKeys.isNotEmpty() && itemId !in visibleKeys) return@forEach
                         val itemPos = itemPositions[itemId] ?: return@forEach
 
                         val localRect = Rect(
@@ -223,27 +211,18 @@ fun NativeEpubReader(
                         )
 
                         if (localRect.bottom < 0f || localRect.top > result.size.height) return@forEach
-
                         val textLength = result.layoutInput.text.length
                         if (textLength == 0) return@forEach
 
-                        // SINGLE PASS — track first/last line and collect chars simultaneously
                         var firstSelectedLine = Int.MAX_VALUE
                         var lastSelectedLine  = Int.MIN_VALUE
                         var currentStart      = -1
-                        var capturedCount     = 0
-
-                        // Cache line metrics to avoid redundant getLineTop/Bottom calls
-                        // for every character on the same line
                         var cachedLine       = -1
                         var cachedLineCenter = 0f
 
                         for (i in 0 until textLength) {
                             val line = result.getLineForOffset(i)
-                            
-                            val lineCenter = if (line == cachedLine) {
-                                cachedLineCenter
-                            } else {
+                            val lineCenter = if (line == cachedLine) cachedLineCenter else {
                                 val c = (result.getLineTop(line) + result.getLineBottom(line)) / 2f
                                 cachedLine = line
                                 cachedLineCenter = c
@@ -251,7 +230,6 @@ fun NativeEpubReader(
                             }
 
                             val lineInSelection = lineCenter in localRect.top..localRect.bottom
-
                             if (lineInSelection) {
                                 if (line < firstSelectedLine) firstSelectedLine = line
                                 if (line > lastSelectedLine)  lastSelectedLine  = line
@@ -259,51 +237,29 @@ fun NativeEpubReader(
 
                             if (!lineInSelection) {
                                 if (currentStart != -1) {
-                                    activeSelections.add(SelectionInfo(
-                                        itemId, currentStart to i,
-                                        result.layoutInput.text.text.substring(currentStart, i)
-                                    ))
+                                    activeSelections.add(SelectionInfo(itemId, currentStart to i, result.layoutInput.text.text.substring(currentStart, i)))
                                     currentStart = -1
                                 }
                                 continue
                             }
 
                             val charBounds = result.getBoundingBox(i)
-                            val effectiveLeft = if (line == firstSelectedLine) localRect.left
-                                                else Float.NEGATIVE_INFINITY
-                            val effectiveRight = if (line == lastSelectedLine) localRect.right
-                                                 else Float.POSITIVE_INFINITY
+                            val effectiveLeft = if (line == firstSelectedLine) localRect.left else Float.NEGATIVE_INFINITY
+                            val effectiveRight = if (line == lastSelectedLine) localRect.right else Float.POSITIVE_INFINITY
+                            val overlapWidth = maxOf(0f, minOf(charBounds.right, effectiveRight) - maxOf(charBounds.left,  effectiveLeft))
 
-                            val overlapWidth = maxOf(0f, minOf(charBounds.right, effectiveRight) - 
-                                                         maxOf(charBounds.left,  effectiveLeft))
-
-                            val isCharSelected = overlapWidth > charBounds.width * 0.5f
-
-                            if (isCharSelected) {
+                            if (overlapWidth > charBounds.width * 0.5f) {
                                 if (currentStart == -1) currentStart = i
-                                capturedCount++
                             } else if (currentStart != -1) {
-                                activeSelections.add(SelectionInfo(
-                                    itemId, currentStart to i,
-                                    result.layoutInput.text.text.substring(currentStart, i)
-                                ))
+                                activeSelections.add(SelectionInfo(itemId, currentStart to i, result.layoutInput.text.text.substring(currentStart, i)))
                                 currentStart = -1
                             }
                         }
-
                         if (currentStart != -1) {
-                            activeSelections.add(SelectionInfo(
-                                itemId, currentStart to textLength,
-                                result.layoutInput.text.text.substring(currentStart, textLength)
-                            ))
-                        }
-
-                        if (capturedCount > 0) {
-                            android.util.Log.d("NativeEpubReader", "Block $itemId: Precision-captured $capturedCount chars across ${lastSelectedLine - firstSelectedLine + 1} line(s). [layoutInfoReady=$layoutInfoReady]")
+                            activeSelections.add(SelectionInfo(itemId, currentStart to textLength, result.layoutInput.text.text.substring(currentStart, textLength)))
                         }
                     }
                 }
-                android.util.Log.d("NativeEpubReader", "onMenuShown: Sweep complete. Total regions: ${activeSelections.size}")
             }
         )
         toolbar
@@ -312,25 +268,21 @@ fun NativeEpubReader(
     LaunchedEffect(readerState.jumpTrigger) {
         if (readerState.jumpTrigger != null && readerState.items.isNotEmpty()) {
             val anchor = readerState.jumpAnchor
-            
-            // 1. Precise Match: Look for specific fragment/anchor
             var targetIndex = if (!anchor.isNullOrEmpty()) {
                 readerState.items.indexOfFirst { item ->
-                    (item is ReaderItem.Text && item.locator == anchor)
+                    (item is ReaderItem.Text && item.locator == anchor) ||
+                    (item is ReaderItem.Heading && item.locator == anchor)
                 }
             } else -1
             
-            // 2. Chapter Match: Fallback to top of chapter
             if (targetIndex == -1) {
                 val targetChapterPrefix = "${readerState.currentChapterIndex}_item_"
                 targetIndex = readerState.items.indexOfFirst { it.id.startsWith(targetChapterPrefix) }
             }
             
-            android.util.Log.d("NativeEpubReader", "Jump Trigger: chapter=${readerState.currentChapterIndex}, anchor=$anchor, targetIndex=$targetIndex")
-            
             if (targetIndex >= 0) {
-                // Yield to let LazyColumn recompose with the new items list first
-                kotlinx.coroutines.yield()
+                yield()
+                delay(50)
                 listState.scrollToItem(targetIndex)
             }
             viewModel.consumeJumpTrigger()
@@ -339,8 +291,10 @@ fun NativeEpubReader(
 
     LaunchedEffect(listState.firstVisibleItemIndex) {
         if (readerState.items.isNotEmpty()) {
-            viewModel.updateProgress(listState.firstVisibleItemIndex)
-            onProgressChange(readerState.progress)
+            val visibleIndex = listState.firstVisibleItemIndex
+            viewModel.updateProgress(visibleIndex)
+            onProgressChange(viewModel.currentProgress.value)
+            onChapterChange(viewModel.currentChapter.value, viewModel.currentProgress.value)
         }
     }
 
@@ -354,10 +308,7 @@ fun NativeEpubReader(
         LocalTextToolbar provides textToolbar
     ) {
         Box(modifier = modifier.fillMaxSize().background(backgroundColor).onGloballyPositioned { 
-            val newPos = it.positionInWindow()
-            if (itemPositions["container"] != newPos) {
-                itemPositions["container"] = newPos
-            }
+            containerPositionInWindow = it.positionInWindow()
         }) {
             textToolbar.Content()
 
@@ -367,127 +318,110 @@ fun NativeEpubReader(
                 }
             }
             
-            SelectionContainer {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(24.dp)
-                ) {
-                        items(items = readerState.items, key = { it.id }) { item ->
-                            when (item) {
-                                is ReaderItem.Text -> {
-                                    val itemTextAlign = when(item.textAlign) {
-                                        "center" -> androidx.compose.ui.text.style.TextAlign.Center
-                                        "justify" -> androidx.compose.ui.text.style.TextAlign.Justify
-                                        "right" -> androidx.compose.ui.text.style.TextAlign.Right
-                                        "left" -> androidx.compose.ui.text.style.TextAlign.Left
-                                        else -> textAlign // fallback to global
-                                    }
-                                    
-                                    val itemStart = item.charOffsetInChapter
-                                    val itemEnd = itemStart + item.text.length
-                                    val chapterIndex = item.id.substringBefore("_").toIntOrNull() ?: -1
-                                    
-                                    val relevantHighlights = remember(readerState.highlights, item.id) {
-                                        readerState.highlights.filter { hl ->
-                                            hl.chapterIndex == chapterIndex &&
-                                            ((hl.startOffset >= itemStart && hl.startOffset < itemEnd) ||
-                                             (hl.endOffset > itemStart && hl.endOffset <= itemEnd) ||
-                                             (hl.startOffset <= itemStart && hl.endOffset >= itemEnd))
-                                        }
-                                    }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(24.dp)
+            ) {
+                if (readerState.items.isEmpty() && !readerState.isLoading) {
+                    item {
+                         Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No content found in this chapter", color = textColor.copy(alpha = 0.5f))
+                         }
+                    }
+                }
 
-                                    Text(
-                                        text = item.text,
-                                        color = textColor,
-                                        fontSize = adjustedFontSize,
-                                        fontFamily = fontFamily,
-                                        textAlign = itemTextAlign,
-                                        lineHeight = lineHeight,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .onGloballyPositioned { layoutCoordinates ->
-                                                val newPos = layoutCoordinates.positionInWindow()
-                                                if (itemPositions[item.id] != newPos) {
-                                                    itemPositions[item.id] = newPos
-                                                }
-                                            }
-                                            .drawWithContent {
-                                                // DRAW HIGHLIGHTS BEFORE CONTENT (so they appear behind text)
-                                                val layout = textLayoutResults[item.id]
-                                                if (layout != null && relevantHighlights.isNotEmpty()) {
-                                                    relevantHighlights.forEach { hl ->
-                                                        val start = (hl.startOffset - itemStart).coerceIn(0, item.text.length)
-                                                        val end = (hl.endOffset - itemStart).coerceIn(0, item.text.length)
-                                                        
-                                                        if (start < end) {
-                                                            try {
-                                                                val path = layout.getPathForRange(start, end)
-                                                                if (!path.isEmpty) {
-                                                                    drawPath(
-                                                                        path = path,
-                                                                        color = Color(hl.color).copy(alpha = 0.5f)
-                                                                    )
-                                                                }
-                                                            } catch (e: Exception) {
-                                                                // Ignore range errors
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                drawContent()
-                                            }
-                                            .pointerInput(item.id) {
-                                                detectTapGestures(
-                                                    onTap = { offset ->
-                                                        val layoutResult = textLayoutResults[item.id] ?: return@detectTapGestures
-                                                        val charOffset = layoutResult.getOffsetForPosition(offset)
-                                                        val absoluteOffset = item.charOffsetInChapter + charOffset
-                                                        
-                                                        val existingHl = relevantHighlights.find { hl ->
-                                                            absoluteOffset >= hl.startOffset && absoluteOffset <= hl.endOffset
-                                                        }
-                                                        
-                                                        if (existingHl != null) {
-                                                            selectedTextInfo = SelectionInfo(item.id, existingHl.startOffset to existingHl.endOffset, existingHl.selectedText, existingHl)
-                                                            selectionRect = layoutResult.getCursorRect(charOffset)
-                                                            activeNativeSelection = null
-                                                        } else {
-                                                            selectedTextInfo = null
-                                                            activeNativeSelection = null
-                                                        }
-                                                    }
-                                                )
-                                            },
-                                        onTextLayout = { result ->
-                                            textLayoutResults[item.id] = result
+                items(
+                    items = readerState.items,
+                    key = { it.id },
+                    contentType = { item ->
+                        when (item) {
+                            is ReaderItem.Text    -> 0
+                            is ReaderItem.Image   -> 1
+                            is ReaderItem.Heading -> 2
+                        }
+                    }
+                ) { item ->
+                    when (item) {
+                        is ReaderItem.Text -> {
+                            SelectionContainer {
+                                TextItemRow(
+                                    item = item,
+                                    highlights = readerState.highlights,
+                                    fontSize = adjustedFontSize,
+                                    fontFamily = fontFamily,
+                                    textAlign = textAlign,
+                                    lineHeight = lineHeight,
+                                    textColor = textColor,
+                                    layoutVersion = layoutVersion,
+                                    onPositioned = { coords ->
+                                        val posInRoot = coords.positionInRoot()
+                                        val windowPos = containerPositionInWindow + posInRoot
+                                        if (itemPositions[item.id] != windowPos) {
+                                            itemPositions[item.id] = windowPos
                                         }
-                                    )
-                                }
-                                is ReaderItem.Heading -> {
-                                    Text(
-                                        text = item.text, 
-                                        color = textColor, 
-                                        fontSize = adjustedFontSize * 1.5f, 
-                                        fontWeight = FontWeight.Bold, 
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 16.dp)
-                                            .onGloballyPositioned { layoutCoordinates ->
-                                                val newPos = layoutCoordinates.positionInWindow()
-                                                if (itemPositions[item.id] != newPos) {
-                                                    itemPositions[item.id] = newPos
-                                                }
-                                            }
-                                    )
-                                }
-                                is ReaderItem.Image -> EpubImageItem(item.path, readerState.loadedImages) { viewModel.loadImage(item.path) }
+                                    },
+                                    onLayoutChange = { layout ->
+                                        textLayoutResults[item.id] = layout
+                                        layoutVersion++ // Trigger highlight paths update
+                                    },
+                                    onTap = { offset ->
+                                        val layoutResult = textLayoutResults[item.id] ?: return@TextItemRow
+                                        val charOffset = layoutResult.getOffsetForPosition(offset)
+                                        val absoluteOffset = item.charOffsetInChapter + charOffset
+                                        val chapterIndex = item.id.substringBefore("_").toIntOrNull() ?: -1
+                                        val existingHl = readerState.highlights.find { hl ->
+                                            hl.chapterIndex == chapterIndex &&
+                                            absoluteOffset >= hl.startOffset && absoluteOffset <= hl.endOffset
+                                        }
+                                        if (existingHl != null) {
+                                            selectedTextInfo = SelectionInfo(item.id, existingHl.startOffset to existingHl.endOffset, existingHl.selectedText, existingHl)
+                                            selectionRect = layoutResult.getCursorRect(charOffset)
+                                        } else {
+                                            selectedTextInfo = null
+                                        }
+                                    }
+                                )
                             }
                         }
+                        is ReaderItem.Heading -> {
+                            HeadingItemRow(
+                                item = item, 
+                                textColor = textColor, 
+                                adjustedFontSize = adjustedFontSize,
+                                onPositioned = { coords ->
+                                    val posInRoot = coords.positionInRoot()
+                                    val windowPos = containerPositionInWindow + posInRoot
+                                    if (itemPositions[item.id] != windowPos) {
+                                        itemPositions[item.id] = windowPos
+                                    }
+                                }
+                            )
+                        }
+                        is ReaderItem.Image -> {
+                            EpubImageItem(
+                                path = item.path, 
+                                loadedImages = readerState.loadedImages,
+                                onPositioned = { coords ->
+                                    val posInRoot = coords.positionInRoot()
+                                    val windowPos = containerPositionInWindow + posInRoot
+                                    if (itemPositions[item.id] != windowPos) {
+                                        itemPositions[item.id] = windowPos
+                                    }
+                                },
+                                onLoad = { viewModel.loadImage(item.path) }
+                            )
+                        }
+                    }
                 }
             }
             
-            // Existing Highlight Toolbar (for editing existing highlights)
+            if (readerState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = textColor)
+                }
+            }
+            
             selectedTextInfo?.let { info ->
                 if (info.existingHighlight != null) {
                     val rect = selectionRect ?: Rect.Zero
@@ -504,18 +438,15 @@ fun NativeEpubReader(
                                         selectedTextInfo = null
                                     })
                                 }
-                                
                                 Box(Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.2f)))
                                 Icon(
                                     imageVector = Icons.Default.EditNote,
                                     contentDescription = "Note",
                                     tint = Color.White,
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clickable { 
-                                            onHighlightNoteClicked(info.existingHighlight)
-                                            selectedTextInfo = null
-                                        }
+                                    modifier = Modifier.size(24.dp).clickable { 
+                                        onHighlightNoteClicked(info.existingHighlight)
+                                        selectedTextInfo = null
+                                    }
                                 )
                                 Icon(
                                     imageVector = Icons.Default.Delete,
@@ -535,6 +466,111 @@ fun NativeEpubReader(
     }
 }
 
+@Composable
+fun TextItemRow(
+    item: ReaderItem.Text,
+    highlights: List<Highlight>,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    fontFamily: androidx.compose.ui.text.font.FontFamily,
+    textAlign: androidx.compose.ui.text.style.TextAlign,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    textColor: Color,
+    layoutVersion: Int,
+    onPositioned: (androidx.compose.ui.layout.LayoutCoordinates) -> Unit,
+    onLayoutChange: (TextLayoutResult) -> Unit,
+    onTap: (Offset) -> Unit
+) {
+    val itemTextAlign = when(item.textAlign) {
+        "center" -> androidx.compose.ui.text.style.TextAlign.Center
+        "justify" -> androidx.compose.ui.text.style.TextAlign.Justify
+        "right" -> androidx.compose.ui.text.style.TextAlign.Right
+        "left" -> androidx.compose.ui.text.style.TextAlign.Left
+        else -> textAlign
+    }
+    
+    val itemStart = item.charOffsetInChapter
+    val itemEnd = itemStart + item.text.length
+    val chapterIndex = remember(item.id) { item.id.substringBefore("_").toIntOrNull() ?: -1 }
+    
+    val chapterHighlightCount = remember(highlights, chapterIndex) {
+        highlights.count { it.chapterIndex == chapterIndex }
+    }
+    val relevantHighlights = remember(chapterHighlightCount, item.id, itemStart, itemEnd) {
+        highlights.filter { hl ->
+            hl.chapterIndex == chapterIndex &&
+            ((hl.startOffset >= itemStart && hl.startOffset < itemEnd) ||
+             (hl.endOffset > itemStart && hl.endOffset <= itemEnd) ||
+             (hl.startOffset <= itemStart && hl.endOffset >= itemEnd))
+        }
+    }
+
+    // Capture layout for highlights - key only on layoutVersion (manual map update)
+    val highlightPaths = remember(relevantHighlights, layoutVersion) {
+        // Find our layout result in the parent's map
+        // We can't observe the map, so we use layoutVersion as a trigger
+        emptyList<Pair<androidx.compose.ui.graphics.Path, Color>>()
+    }
+    
+    // We actually need a way to draw the highlights.
+    // The previous approach with localLayout was better for self-contained drawing.
+    var localLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val localHighlightPaths = remember(relevantHighlights, localLayout) {
+        val layout = localLayout ?: return@remember emptyList()
+        relevantHighlights.mapNotNull { hl ->
+            val start = (hl.startOffset - itemStart).coerceIn(0, item.text.length)
+            val end   = (hl.endOffset   - itemStart).coerceIn(0, item.text.length)
+            if (start < end) {
+                runCatching { layout.getPathForRange(start, end) to Color(hl.color) }.getOrNull()
+            } else null
+        }
+    }
+
+    Text(
+        text = item.text,
+        color = textColor,
+        fontSize = fontSize,
+        fontFamily = fontFamily,
+        textAlign = itemTextAlign,
+        lineHeight = lineHeight,
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { onPositioned(it) }
+            .drawWithContent {
+                localHighlightPaths.forEach { (path, color) ->
+                    if (!path.isEmpty) drawPath(path, color.copy(alpha = 0.5f))
+                }
+                drawContent()
+            }
+            .pointerInput(item.id) {
+                detectTapGestures(onTap = onTap)
+            },
+        onTextLayout = { result ->
+            localLayout = result
+            onLayoutChange(result)
+        }
+    )
+}
+
+@Composable
+fun HeadingItemRow(
+    item: ReaderItem.Heading,
+    textColor: Color,
+    adjustedFontSize: androidx.compose.ui.unit.TextUnit,
+    onPositioned: (androidx.compose.ui.layout.LayoutCoordinates) -> Unit
+) {
+    Text(
+        text = item.text, 
+        color = textColor, 
+        fontSize = adjustedFontSize * 1.5f, 
+        fontWeight = FontWeight.Bold, 
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+            .onGloballyPositioned { onPositioned(it) }
+    )
+}
+
+@Immutable
 data class SelectionInfo(
     val itemId: String,
     val range: Pair<Int, Int>,
@@ -543,9 +579,19 @@ data class SelectionInfo(
 )
 
 @Composable
-fun EpubImageItem(path: String, loadedImages: Map<String, Bitmap?>, onLoad: () -> Unit) {
+fun EpubImageItem(
+    path: String, 
+    loadedImages: Map<String, Bitmap?>, 
+    onPositioned: (androidx.compose.ui.layout.LayoutCoordinates) -> Unit,
+    onLoad: () -> Unit
+) {
     val bitmap = loadedImages[path]
-    Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier
+        .fillMaxWidth()
+        .padding(vertical = 16.dp)
+        .onGloballyPositioned { onPositioned(it) }, 
+        contentAlignment = Alignment.Center
+    ) {
         if (bitmap != null) Image(bitmap.asImageBitmap(), null, Modifier.fillMaxWidth())
         else { LaunchedEffect(path) { onLoad() }; CircularProgressIndicator() }
     }

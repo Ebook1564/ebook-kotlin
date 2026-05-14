@@ -16,6 +16,8 @@ import com.freeebookbundle.utils.ReviewManager
 import com.freeebookbundle.repository.CatalogRepository
 import com.freeebookbundle.utils.ServerConfig
 import com.google.firebase.FirebaseApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -52,6 +54,10 @@ class EbookApp : Application() {
     }
 
     val database by lazy { AppDatabase.getDatabase(this) }
+    val catalogRepo by lazy { CatalogRepository(this, database.bookDao()) }
+
+    // Custom scope for application-level initialization tasks
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
@@ -62,8 +68,8 @@ class EbookApp : Application() {
         ServerConfig.initialize(this)
         GenrePreferences.initialize(this)
 
-        // Everything else goes to background threads
-        GlobalScope.launch(Dispatchers.IO) {
+        // Initializations on IO thread
+        applicationScope.launch(Dispatchers.IO) {
 
             // 1. Build and WARM Coil's disk cache on IO thread.
             // DiskLruCache.initialize() is lazy — it runs on first actual cache access.
@@ -99,7 +105,6 @@ class EbookApp : Application() {
                 val count = bookDao.getBookCount()
                 if (count == 0) {
                     Log.d(TAG, "Database empty, preloading catalog...")
-                    val catalogRepo = CatalogRepository(this@EbookApp, bookDao)
                     val catalog = catalogRepo.getCatalog()
 
                     val entities = catalog.map { entry ->
@@ -128,9 +133,13 @@ class EbookApp : Application() {
                     }
                     
                     // Batch insert to avoid massive DB lock and Daveys
-                    entities.chunked(500).forEach { batch ->
+                    val insertStart = System.currentTimeMillis()
+                    entities.chunked(500).forEachIndexed { index, batch ->
+                        val batchStart = System.currentTimeMillis()
                         bookDao.insertBooks(batch)
+                        android.util.Log.d("PerfTrace", "Inserted batch $index (500 books) in ${System.currentTimeMillis() - batchStart}ms")
                     }
+                    android.util.Log.d("PerfTrace", "Total preload of ${entities.size} books took ${System.currentTimeMillis() - insertStart}ms")
                     Log.d(TAG, "Preloaded ${entities.size} books from catalog.json in chunks")
                 } else {
                     Log.d(TAG, "Database already has $count books, skipping preload")
@@ -141,12 +150,12 @@ class EbookApp : Application() {
         }
 
         // Firebase on main thread (required by SDK) but async token fetch
-        GlobalScope.launch(Dispatchers.Main) {
+        applicationScope.launch(Dispatchers.Main) {
             initializeFirebase()
         }
 
         // Analytics + Review off main thread
-        GlobalScope.launch(Dispatchers.IO) {
+        applicationScope.launch(Dispatchers.IO) {
             Analytics.initialize(this@EbookApp)
             ReviewManager.initialize(this@EbookApp)
             com.freeebookbundle.utils.RemoteConfigManager.initializeAndFetchConfig()

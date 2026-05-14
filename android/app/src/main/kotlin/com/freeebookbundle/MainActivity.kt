@@ -22,7 +22,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -32,20 +31,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Nightlight
-import androidx.compose.material.icons.outlined.AccountTree
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.TravelExplore
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -75,14 +68,10 @@ import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.ui.*
 import com.freeebookbundle.utils.Analytics
 import com.freeebookbundle.utils.ReviewManager
-import com.freeebookbundle.viewmodel.AppThemeMode
-import com.freeebookbundle.viewmodel.AppViewModel
+import com.freeebookbundle.viewmodel.*
 import androidx.compose.ui.res.stringResource
 import com.freeebookbundle.R
-import com.freeebookbundle.viewmodel.HomeViewModel
-import com.freeebookbundle.viewmodel.LibraryViewModel
 import com.freeebookbundle.models.ReadingStatus
-import com.freeebookbundle.viewmodel.InitialBounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
@@ -94,7 +83,6 @@ val PremiumEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 const val PremiumDuration = 1400
 
 class CircularRevealShape(private val radius: Float, private val center: Offset) : Shape {
-    // Path is reused across frames for the same radius/center values
     private val cachedPath = Path()
     private var cachedRadius = -1f
     private var cachedCenter = Offset.Unspecified
@@ -141,9 +129,7 @@ class MainActivity : ComponentActivity() {
                         appViewModel.completeOnboarding(name)
                         appViewModel.setTheme(theme)
                     },
-                    onSyncRequired = {
-                        true
-                    }
+                    onSyncRequired = { true }
                 )
             } else {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -230,14 +216,8 @@ class MainActivity : ComponentActivity() {
                     
                     AnimatedVisibility(
                         visible = showProfile,
-                        enter = slideInHorizontally(
-                            initialOffsetX = { it }, 
-                            animationSpec = tween(700, easing = PremiumEasing)
-                        ) + fadeIn(),
-                        exit = slideOutHorizontally(
-                            targetOffsetX = { it }, 
-                            animationSpec = tween(700, easing = PremiumEasing)
-                        ) + fadeOut()
+                        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(700, easing = PremiumEasing)) + fadeOut()
                     ) {
                         BackHandler { showProfile = false }
                         val database = (androidx.compose.ui.platform.LocalContext.current.applicationContext as? EbookApp)?.database
@@ -268,10 +248,7 @@ class MainActivity : ComponentActivity() {
             when (type) {
                 "reading_reminder", "book_update", "download_complete" -> {
                     bookId?.let { id ->
-                        val repo = com.freeebookbundle.repository.CatalogRepository(
-                            this@MainActivity,
-                            (application as EbookApp).database.bookDao()
-                        )
+                        val repo = (application as EbookApp).catalogRepo
                         repo.getBookDetails(id)?.let { book ->
                             homeViewModel.startReadTransition(book, resumeFromLastPosition = true)
                         }
@@ -279,10 +256,7 @@ class MainActivity : ComponentActivity() {
                 }
                 "new_book" -> {
                     bookId?.let { id ->
-                        val repo = com.freeebookbundle.repository.CatalogRepository(
-                            this@MainActivity,
-                            (application as EbookApp).database.bookDao()
-                        )
+                        val repo = (application as EbookApp).catalogRepo
                         repo.getBookDetails(id)?.let { book ->
                             homeViewModel.startReadTransition(book)
                         }
@@ -298,10 +272,7 @@ class MainActivity : ComponentActivity() {
                 }
                 "book_finished" -> {
                     bookId?.let { id ->
-                        val repo = com.freeebookbundle.repository.CatalogRepository(
-                            this@MainActivity,
-                            (application as EbookApp).database.bookDao()
-                        )
+                        val repo = (application as EbookApp).catalogRepo
                         repo.getBookDetails(id)?.let { book ->
                             homeViewModel.startReadTransition(book)
                         }
@@ -330,28 +301,15 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                 1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
-            AnimatedVisibility(
-                visible = true,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing))
-            ) {
-                if (themeMode == AppThemeMode.SPACE) {
-                    SpaceEasyTouchNav(selectedIndex = currentPage, onTabSelected = { }, forceCollapsed = isTransitioning)
-                } else if (themeMode == AppThemeMode.DAY) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = BookVerseTheme.colors.surface,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 12.dp
-                    ) {
-                        ElegantNavBar(currentPage, themeMode) { }
-                    }
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp)) {
-                        ElegantNavBar(currentPage, themeMode) { }
-                    }
-                }
+            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                AppNavigationBar(
+                    currentPage = currentPage,
+                    themeMode = themeMode,
+                    useSpaceTouchNav = appViewModel.useSpaceTouchNav.value,
+                    isTransitioning = isTransitioning,
+                    isInteractive = true,
+                    onTabSelected = { }
+                )
             }
         }
     }
@@ -359,27 +317,45 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libraryViewModel: LibraryViewModel, pagerState: PagerState, homeScrollState: LazyListState, userName: String, isInteractive: Boolean, onProfileClick: () -> Unit) {
+fun BookVerseApp(
+    homeViewModel: HomeViewModel, 
+    appViewModel: AppViewModel, 
+    libraryViewModel: LibraryViewModel, 
+    pagerState: PagerState, 
+    homeScrollState: LazyListState, 
+    userName: String, 
+    isInteractive: Boolean, 
+    onProfileClick: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    
+    // UI state collection
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val libraryUiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+    
+    // Volatile settings
     val themeMode = appViewModel.themeMode.value
     val useSpaceTouchNav = appViewModel.useSpaceTouchNav.value
     val readerSettingsRepo = remember { ReaderSettingsRepository(context) }
-    val themeColor = readerSettingsRepo.getThemeColor()
-    val textColor = readerSettingsRepo.getTextColor()
-
+    
     var selectedBookForSheet by remember { mutableStateOf<com.freeebookbundle.models.Book?>(null) }
     var showSheet by remember { mutableStateOf(false) }
-    
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    
     var isInspectingByShelf by remember { mutableStateOf(false) }
 
-    fun onReadClick(book: com.freeebookbundle.models.Book, bounds: com.freeebookbundle.viewmodel.InitialBounds?, resumeFromLastPosition: Boolean = false, openAudioPlayer: Boolean = false) {
+    // Optimization: Use derivedStateOf for complex conditions to avoid recomposition
+    val shouldHideNavBar by remember {
+        derivedStateOf {
+            isInspectingByShelf || 
+            libraryUiState.seeAllStatus != null || 
+            homeUiState.currentCollection != null || 
+            homeUiState.currentCuratedCollection != null
+        }
+    }
+
+    fun onReadClick(book: com.freeebookbundle.models.Book, bounds: InitialBounds?, resume: Boolean = false, openAudio: Boolean = false) {
         showSheet = false
-        homeViewModel.startReadTransition(book, bounds, resumeFromLastPosition = resumeFromLastPosition, openAudioPlayer = openAudioPlayer)
+        homeViewModel.startReadTransition(book, bounds, resumeFromLastPosition = resume, openAudioPlayer = openAudio)
     }
 
     fun onBookClick(book: com.freeebookbundle.models.Book) {
@@ -392,188 +368,231 @@ fun BookVerseApp(homeViewModel: HomeViewModel, appViewModel: AppViewModel, libra
         }
     }
 
-    val shouldHideNavBar = isInspectingByShelf || libraryUiState.seeAllStatus != null || homeUiState.currentCollection != null || homeUiState.currentCuratedCollection != null
-
     Box(modifier = Modifier.fillMaxSize().background(BookVerseTheme.colors.background)) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            HorizontalPager(
-                state = pagerState, 
-                modifier = Modifier.fillMaxSize(), 
-                beyondViewportPageCount = 1, 
-                userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
-            ) { page ->
-                when (page) {
-                    0 -> HomeScreen(
-                        viewModel = homeViewModel, 
-                        appViewModel = appViewModel, 
-                        scrollState = homeScrollState,
-                        userName = userName,
-                        onBookClick = { onBookClick(it) },
-                        onReadNowClick = { book ->
-                            homeViewModel.startReadTransition(book)
-                        }
-                    )
-                    1 -> SearchScreen(
-                        viewModel = homeViewModel, 
-                        onBookClick = { onBookClick(it) }
-                    )
-                    2 -> LibraryScreen(
-                        viewModel = libraryViewModel, 
-                        homeViewModel = homeViewModel,
-                        onProfileClick = onProfileClick, 
-                        onBookClick = { onBookClick(it) },
-                        onInspectStateChange = { isInspectingByShelf = it }
-                    )
-                }
-            }
-            
-            AnimatedVisibility(
-                visible = !shouldHideNavBar && !appViewModel.isTransitioning.value,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing)),
-                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing))
-            ) {
-                if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
-                    Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
-                        SpaceEasyTouchNav(selectedIndex = pagerState.currentPage, onTabSelected = { index ->
-                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                        })
-                    }
-                } else if (themeMode == AppThemeMode.SPACE) {
-                    SpaceElegantNavBar(pagerState.currentPage) { index ->
-                        if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                    }
-                } else if (themeMode == AppThemeMode.DAY) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = BookVerseTheme.colors.surface,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 12.dp
-                    ) {
-                        ElegantNavBar(pagerState.currentPage, themeMode) { index ->
-                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                        }
-                    }
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp)) {
-                        ElegantNavBar(pagerState.currentPage, themeMode) { index ->
-                            if (isInteractive) scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
-                        }
-                    }
-                }
+        HorizontalPager(
+            state = pagerState, 
+            modifier = Modifier.fillMaxSize(), 
+            beyondViewportPageCount = 1, 
+            userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
+        ) { page ->
+            when (page) {
+                0 -> HomeScreen(
+                    viewModel = homeViewModel, 
+                    appViewModel = appViewModel, 
+                    scrollState = homeScrollState,
+                    userName = userName,
+                    onBookClick = { onBookClick(it) },
+                    onReadNowClick = { book -> homeViewModel.startReadTransition(book) }
+                )
+                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { onBookClick(it) })
+                2 -> LibraryScreen(
+                    viewModel = libraryViewModel, 
+                    homeViewModel = homeViewModel,
+                    onProfileClick = onProfileClick, 
+                    onBookClick = { onBookClick(it) },
+                    onInspectStateChange = { isInspectingByShelf = it }
+                )
             }
         }
         
-        if (showSheet && selectedBookForSheet != null) {
-            ModalBottomSheet(
-                onDismissRequest = { showSheet = false },
-                sheetState = sheetState,
-                containerColor = Color.Transparent, 
-                contentColor = BookVerseTheme.colors.textPrimary,
-                dragHandle = null 
-            ) {
-                BookDetailContent(
-                    book = selectedBookForSheet!!,
-                    isLoading = homeUiState.isMetadataLoading,
-                    onReadClick = { bounds, resume -> onReadClick(selectedBookForSheet!!, bounds, resume) },
-                    onCategoryClick = { tag ->
-                        showSheet = false
-                        homeViewModel.openCollection(tag)
-                    },
-                    onAddToReadingList = { status ->
-                        libraryViewModel.updateReadingStatus(selectedBookForSheet!!, status)
-                    },
-                    onClose = { showSheet = false },
-                    onAuthorClick = { author ->
-                        showSheet = false
-                        homeViewModel.setAuthorFilter(author)
-                        if (isInteractive) {
-                            scope.launch { pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing)) }
-                        }
-                    },
-                    onAudioClick = { book ->
-                        onReadClick(book, null, openAudioPlayer = true)
-                    }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = homeUiState.currentCollection != null,
-            enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-        ) {
-            homeUiState.currentCollection?.let { collection ->
-                val books = homeViewModel.curatedCollectionBooks.collectAsLazyPagingItems()
-                BackHandler { homeViewModel.closeCollection() }
-                CollectionPage(
-                    collection = collection,
-                    books = books,
-                    onBack = { homeViewModel.closeCollection() },
-                    onBookClick = { onBookClick(it) }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = homeUiState.currentCuratedCollection != null,
-            enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-        ) {
-            homeUiState.currentCuratedCollection?.let { collection ->
-                val books = homeViewModel.curatedCollectionBooksByTag.collectAsLazyPagingItems()
-                BackHandler { homeViewModel.closeCollection() }
-                CollectionPage(
-                    title = collection.title,
-                    description = collection.description,
-                    accentColor = collection.accentColor,
-                    books = books,
-                    onBack = { homeViewModel.closeCollection() },
-                    onBookClick = { onBookClick(it) }
-                )
-            }
-        }
-
-        if (homeUiState.transitionBook != null) {
-            BookTransitionOverlay(
-                book = homeUiState.transitionBook!!, 
-                initialBounds = homeUiState.initialBounds, 
-                themeColor = themeColor, 
-                textColor = textColor, 
-                onAnimationFinished = { file ->
-                    val book = homeUiState.transitionBook
-                    if (book != null) {
-                        scope.launch {
-                            val existing = (context.applicationContext as EbookApp).database.bookDao().getBook(book.id)
-                            if (existing == null || existing.readingStatus == ReadingStatus.NONE || existing.readingStatus == ReadingStatus.WISHLIST) {
-                                libraryViewModel.updateReadingStatus(book, ReadingStatus.CURRENTLY_READING)
-                            } else {
-                                (context.applicationContext as EbookApp).database.bookDao().updateLastOpened(book.id, System.currentTimeMillis())
-                            }
-                        }
-                    }
-                    
-                    val bookForAnalytics = homeUiState.transitionBook
-                    if (bookForAnalytics != null) {
-                        Analytics.trackBookOpened(bookForAnalytics.id, bookForAnalytics.categories.firstOrNull() ?: "")
-                        ReviewManager.onBookOpened(context)
-                        if (ReviewManager.shouldRequestReview(context) && context is Activity) {
-                            scope.launch {
-                                ReviewManager.requestReview(context)
-                            }
-                        }
-                    }
-
-                    val intent = Intent(context, ReaderActivity::class.java).apply {
-                        putExtra("FILE_PATH", file.absolutePath)
-                        putExtra("BOOK", homeUiState.transitionBook!!)
-                        putExtra("OPEN_AUDIO_PLAYER", homeUiState.openAudioPlayer)
-                    }
-                    val options = ActivityOptions.makeCustomAnimation(context, 0, 0)
-                    context.startActivity(intent, options.toBundle())
-                }, 
-                onDismiss = { homeViewModel.endReadTransition() }
+        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+            AppNavigationBar(
+                currentPage = pagerState.currentPage,
+                themeMode = themeMode,
+                useSpaceTouchNav = useSpaceTouchNav,
+                isTransitioning = appViewModel.isTransitioning.value,
+                isVisible = !shouldHideNavBar,
+                isInteractive = isInteractive,
+                onTabSelected = { index ->
+                    scope.launch { pagerState.animateScrollToPage(index, animationSpec = tween(800, easing = PremiumEasing)) }
+                }
             )
+        }
+
+        // Overlay Manager (extracted logic)
+        ReaderOverlayManager(
+            homeViewModel = homeViewModel,
+            libraryViewModel = libraryViewModel,
+            homeUiState = homeUiState,
+            readerSettingsRepo = readerSettingsRepo,
+            onBookClick = { onBookClick(it) },
+            onReadClick = { book, bounds, resume, openAudio -> onReadClick(book, bounds, resume, openAudio) }
+        )
+
+        BookDetailSheet(
+            book = selectedBookForSheet,
+            isVisible = showSheet,
+            isLoading = homeUiState.isMetadataLoading,
+            onDismiss = { showSheet = false },
+            onReadClick = { book, bounds, resume, openAudio -> onReadClick(book, bounds, resume, openAudio) },
+            onCategoryClick = { tag -> showSheet = false; homeViewModel.openCollection(tag) },
+            onAddToReadingList = { book, status -> libraryViewModel.updateReadingStatus(book, status) },
+            onAuthorClick = { author ->
+                showSheet = false
+                homeViewModel.setAuthorFilter(author)
+                if (isInteractive) scope.launch { pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing)) }
+            }
+        )
+    }
+}
+
+@Composable
+fun ReaderOverlayManager(
+    homeViewModel: HomeViewModel,
+    libraryViewModel: LibraryViewModel,
+    homeUiState: HomeUiState,
+    readerSettingsRepo: ReaderSettingsRepository,
+    onBookClick: (com.freeebookbundle.models.Book) -> Unit,
+    onReadClick: (com.freeebookbundle.models.Book, InitialBounds?, resume: Boolean, openAudio: Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // 1. Collection Overlays
+    val currentCollection = homeUiState.currentCollection
+    AnimatedVisibility(
+        visible = currentCollection != null,
+        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+        exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+    ) {
+        if (currentCollection != null) {
+            val books = homeViewModel.curatedCollectionBooks.collectAsLazyPagingItems()
+            BackHandler { homeViewModel.closeCollection() }
+            CollectionPage(
+                collection = currentCollection,
+                books = books,
+                onBack = { homeViewModel.closeCollection() },
+                onBookClick = onBookClick
+            )
+        }
+    }
+
+    val currentCurated = homeUiState.currentCuratedCollection
+    AnimatedVisibility(
+        visible = currentCurated != null,
+        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+        exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+    ) {
+        if (currentCurated != null) {
+            val books = homeViewModel.curatedCollectionBooksByTag.collectAsLazyPagingItems()
+            BackHandler { homeViewModel.closeCollection() }
+            CollectionPage(
+                title = currentCurated.title,
+                description = currentCurated.description,
+                accentColor = currentCurated.accentColor,
+                books = books,
+                onBack = { homeViewModel.closeCollection() },
+                onBookClick = onBookClick
+            )
+        }
+    }
+
+    // 2. Transition Overlay
+    val transitionBook = homeUiState.transitionBook
+    if (transitionBook != null) {
+        BookTransitionOverlay(
+            book = transitionBook, 
+            initialBounds = homeUiState.initialBounds, 
+            themeColor = readerSettingsRepo.getThemeColor(), 
+            textColor = readerSettingsRepo.getTextColor(), 
+            onAnimationFinished = { file ->
+                scope.launch {
+                    val dao = (context.applicationContext as EbookApp).database.bookDao()
+                    val existing = dao.getBook(transitionBook.id)
+                    if (existing == null || existing.readingStatus == ReadingStatus.NONE || existing.readingStatus == ReadingStatus.WISHLIST) {
+                        libraryViewModel.updateReadingStatus(transitionBook, ReadingStatus.CURRENTLY_READING)
+                    } else {
+                        dao.updateLastOpened(transitionBook.id, System.currentTimeMillis())
+                    }
+                }
+                Analytics.trackBookOpened(transitionBook.id, transitionBook.categories.firstOrNull() ?: "")
+                ReviewManager.onBookOpened(context)
+                if (ReviewManager.shouldRequestReview(context) && context is Activity) {
+                    scope.launch { ReviewManager.requestReview(context) }
+                }
+
+                val intent = Intent(context, ReaderActivity::class.java).apply {
+                    putExtra("FILE_PATH", file.absolutePath)
+                    putExtra("BOOK", transitionBook)
+                    putExtra("OPEN_AUDIO_PLAYER", homeUiState.openAudioPlayer)
+                }
+                context.startActivity(intent, ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle())
+            }, 
+            onDismiss = { homeViewModel.endReadTransition() }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BookDetailSheet(
+    book: com.freeebookbundle.models.Book?,
+    isVisible: Boolean,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onReadClick: (com.freeebookbundle.models.Book, InitialBounds?, resume: Boolean, openAudio: Boolean) -> Unit,
+    onCategoryClick: (String) -> Unit,
+    onAddToReadingList: (com.freeebookbundle.models.Book, ReadingStatus) -> Unit,
+    onAuthorClick: (String) -> Unit
+) {
+    if (!isVisible || book == null) return
+    
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.Transparent, 
+        contentColor = BookVerseTheme.colors.textPrimary,
+        dragHandle = null 
+    ) {
+        BookDetailContent(
+            book = book,
+            isLoading = isLoading,
+            onReadClick = { bounds, resume -> onReadClick(book, bounds, resume, false) },
+            onCategoryClick = onCategoryClick,
+            onAddToReadingList = { status -> onAddToReadingList(book, status) },
+            onClose = onDismiss,
+            onAuthorClick = onAuthorClick,
+            onAudioClick = { b -> onReadClick(b, null, false, true) }
+        )
+    }
+}
+
+@Composable
+fun AppNavigationBar(
+    currentPage: Int,
+    themeMode: AppThemeMode,
+    useSpaceTouchNav: Boolean,
+    isTransitioning: Boolean,
+    isVisible: Boolean = true,
+    isInteractive: Boolean = true,
+    onTabSelected: (Int) -> Unit
+) {
+    AnimatedVisibility(
+        visible = isVisible && !isTransitioning,
+        enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing)),
+        exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400, easing = PremiumEasing))
+    ) {
+        if (themeMode == AppThemeMode.SPACE && useSpaceTouchNav) {
+            Box(modifier = Modifier.fillMaxSize().navigationBarsPadding().zIndex(1f)) {
+                SpaceEasyTouchNav(selectedIndex = currentPage, onTabSelected = { if (isInteractive) onTabSelected(it) })
+            }
+        } else if (themeMode == AppThemeMode.SPACE) {
+            SpaceElegantNavBar(currentPage) { if (isInteractive) onTabSelected(it) }
+        } else if (themeMode == AppThemeMode.DAY) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = BookVerseTheme.colors.surface,
+                tonalElevation = 4.dp,
+                shadowElevation = 12.dp
+            ) {
+                ElegantNavBar(currentPage, themeMode) { if (isInteractive) onTabSelected(it) }
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp).height(64.dp)) {
+                ElegantNavBar(currentPage, themeMode) { if (isInteractive) onTabSelected(it) }
+            }
         }
     }
 }
@@ -588,7 +607,8 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 val isSelected = selectedIndex == index
                 val color by animateColorAsState(
                     targetValue = if (isSelected) Color(0xFFE50914) else Color.White.copy(alpha = 0.5f),
-                    animationSpec = tween(600, easing = PremiumEasing)
+                    animationSpec = tween(600, easing = PremiumEasing),
+                    label = "nav_color"
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -604,7 +624,8 @@ fun ElegantNavBar(selectedIndex: Int, themeMode: AppThemeMode, onTabSelected: (I
                 val isSelected = selectedIndex == index
                 val color by animateColorAsState(
                     targetValue = if (isSelected) Color(0xFF5B4636) else Color(0xFF8D7A66).copy(alpha = 0.6f),
-                    animationSpec = tween(600, easing = PremiumEasing)
+                    animationSpec = tween(600, easing = PremiumEasing),
+                    label = "nav_color"
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTabSelected(index) }, contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -633,7 +654,8 @@ fun SpaceElegantNavBar(selectedIndex: Int, onTabSelected: (Int) -> Unit) {
                 val isSelected = selectedIndex == index
                 val navColor by animateColorAsState(
                     targetValue = if (isSelected) Color(0xFF4A90D9) else Color.White.copy(alpha = 0.5f),
-                    animationSpec = tween(600, easing = PremiumEasing)
+                    animationSpec = tween(600, easing = PremiumEasing),
+                    label = "nav_color"
                 )
 
                 Box(
@@ -925,7 +947,8 @@ private fun EasyTouchNavItem(
 ) {
     val color by animateColorAsState(
         targetValue = if (isSelected) BookVerseTheme.colors.primary else Color.White,
-        animationSpec = tween(600, easing = PremiumEasing)
+        animationSpec = tween(600, easing = PremiumEasing),
+        label = "nav_color"
     )
     
     Column(

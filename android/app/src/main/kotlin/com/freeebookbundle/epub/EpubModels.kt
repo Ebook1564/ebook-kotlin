@@ -2,7 +2,9 @@ package com.freeebookbundle.epub
 
 import android.graphics.Bitmap
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class EpubBook(
     val fileName: String,
     val title: String,
@@ -15,6 +17,7 @@ data class EpubBook(
     val totalCharacters: Long = 0
 )
 
+@Immutable
 data class EpubChapter(
     val chapterIndex: Int,
     val title: String,
@@ -24,9 +27,11 @@ data class EpubChapter(
     val characterCount: Int = 0
 )
 
+@Immutable
 sealed class ReaderItem {
     abstract val id: String
 
+    @Immutable
     data class Text(
         override val id: String,
         val text: AnnotatedString,
@@ -35,14 +40,17 @@ sealed class ReaderItem {
         val locator: String? = null // e.g. "p[2]" or unique id
     ) : ReaderItem()
 
+    @Immutable
     data class Image(
         override val id: String,
         val path: String
     ) : ReaderItem()
 
+    @Immutable
     data class Heading(
         override val id: String,
         val text: String,
-        val level: Int
+        val level: Int,
+        val locator: String? = null
     ) : ReaderItem()
 }

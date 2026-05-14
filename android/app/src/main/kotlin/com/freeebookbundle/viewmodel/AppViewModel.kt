@@ -2,6 +2,7 @@ package com.freeebookbundle.viewmodel
 
 import android.app.Application
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
@@ -13,6 +14,7 @@ enum class AppThemeMode {
     DAY, NIGHT, SPACE
 }
 
+@Immutable
 data class UserProfile(
     val name: String = "Guest",
     val isOnboarded: Boolean = false

@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeebookbundle.db.Highlight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -34,12 +36,19 @@ class EpubReaderViewModel : ViewModel() {
     private val _state = MutableStateFlow(EpubReaderState())
     val state: StateFlow<EpubReaderState> = _state
 
+    // Separate Flow for progress to avoid triggering full UI recomposition
+    private val _currentProgress = MutableStateFlow(0f)
+    val currentProgress: StateFlow<Float> = _currentProgress
+
+    private val _currentChapter = MutableStateFlow(0)
+    val currentChapter: StateFlow<Int> = _currentChapter
+
     private val TAG = "EpubReaderVM"
     private val loadingImagePaths = ConcurrentHashMap.newKeySet<String>()
     private var lastLoadedChapter = -1
     private var firstLoadedChapter = -1
 
-    // Guard against duplicate loadBook calls (e.g. from both Fragment and NativeEpubReader)
+    // Guard against duplicate loadBook calls
     private var loadedFilePath: String? = null
     private val isLoadInProgress = AtomicBoolean(false)
 
@@ -54,7 +63,6 @@ class EpubReaderViewModel : ViewModel() {
             return
         }
 
-        // Deduplicate: if this exact file is already loaded or loading, skip
         if (filePath == loadedFilePath && _state.value.book != null) {
             Log.d(TAG, "loadBook: $filePath already loaded, skipping duplicate call")
             return
@@ -67,6 +75,7 @@ class EpubReaderViewModel : ViewModel() {
         loadedFilePath = filePath
 
         viewModelScope.launch {
+            Log.d(TAG, "loadBook: Starting load for $filePath")
             _state.update {
                 it.copy(
                     isLoading = true,
@@ -77,11 +86,12 @@ class EpubReaderViewModel : ViewModel() {
             }
             try {
                 val book = parser.createEpubBook(filePath)
-                _state.update { it.copy(book = book, isLoading = false) }
-                // Single internal jump — callers must NOT call jumpToChapter separately
-                // for the initial load. Use targetChapter state for subsequent jumps.
+                Log.d(TAG, "loadBook: Book created successfully. Title: ${book.title}")
+                _state.update { it.copy(book = book) }
+                
                 jumpToChapterInternal(book, initialChapter, fragmentId = null)
             } catch (e: Exception) {
+                Log.e(TAG, "loadBook: Failed to load $filePath", e)
                 _state.update { it.copy(isLoading = false, error = e.message) }
             } finally {
                 isLoadInProgress.set(false)
@@ -96,40 +106,45 @@ class EpubReaderViewModel : ViewModel() {
         }
     }
 
-    // Internal version — avoids launching a new coroutine when already inside one
     private suspend fun jumpToChapterInternal(
         book: EpubBook,
         chapterIndex: Int,
         fragmentId: String?
     ) {
-        // Don't clear items immediately — keep old content visible while loading
-        // to avoid the blank flash that causes layout jank
+        Log.d(TAG, "jumpToChapterInternal: chapter=$chapterIndex, anchor=$fragmentId")
         _state.update { it.copy(isLoading = true) }
 
         val start = (chapterIndex - 1).coerceAtLeast(0)
         val end = (chapterIndex + 1).coerceAtMost(book.chapters.size - 1)
+        Log.d(TAG, "jumpToChapterInternal: loading range $start..$end")
 
         firstLoadedChapter = start
         lastLoadedChapter = end
 
-        val items = mutableListOf<ReaderItem>()
-        for (i in start..end) {
-            items.addAll(parser.getChapterItems(book, i))
-        }
+        try {
+            val items = (start..end).map { i ->
+                viewModelScope.async(Dispatchers.IO) {
+                    Log.d(TAG, "jumpToChapterInternal: parsing chapter $i")
+                    parser.getChapterItems(book, i)
+                }
+            }.awaitAll().flatten()
 
-        _state.update {
-            it.copy(
-                items = items,
-                currentChapterIndex = chapterIndex,
-                isLoading = false,
-                // Only increment jumpTrigger if chapter actually changed,
-                // or if this is a fresh load (items were previously empty)
-                jumpTrigger = if (it.currentChapterIndex != chapterIndex || it.items.isEmpty())
-                    (it.jumpTrigger ?: 0) + 1
-                else
-                    it.jumpTrigger,
-                jumpAnchor = fragmentId
-            )
+            Log.d(TAG, "jumpToChapterInternal: successfully loaded ${items.size} items total")
+
+            _state.update {
+                it.copy(
+                    items = items,
+                    currentChapterIndex = chapterIndex,
+                    isLoading = false,
+                    jumpTrigger = (it.jumpTrigger ?: 0) + 1,
+                    jumpAnchor = fragmentId
+                )
+            }
+            _currentChapter.value = chapterIndex
+        } catch (e: Exception) {
+            Log.e(TAG, "jumpToChapterInternal: Failed to load chapters", e)
+            _state.update { it.copy(isLoading = false, error = e.message) }
+            throw e
         }
     }
 
@@ -204,9 +219,12 @@ class EpubReaderViewModel : ViewModel() {
             val absoluteCharOffset = chapter.characterOffset + itemOffset
             val progress = (absoluteCharOffset.toFloat() / totalChars.toFloat()).coerceIn(0f, 1f)
 
-            // Only update state if values actually changed to avoid unnecessary recompositions
-            if (progress != currentState.progress || chapterIndex != currentState.currentChapterIndex) {
-                _state.update { it.copy(progress = progress, currentChapterIndex = chapterIndex) }
+            if (progress != _currentProgress.value) {
+                _currentProgress.value = progress
+            }
+            if (chapterIndex != _currentChapter.value) {
+                _currentChapter.value = chapterIndex
+                _state.update { it.copy(currentChapterIndex = chapterIndex, progress = progress) }
             }
         }
     }

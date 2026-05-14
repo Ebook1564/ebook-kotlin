@@ -197,7 +197,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()
     private val metadataRepo = ExternalMetadataRepository(bookDao)
-    private val catalogRepo = CatalogRepository(application, bookDao)
+    private val catalogRepo = (application as EbookApp).catalogRepo
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -220,17 +220,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val filterResults: Flow<PagingData<Book>> = _searchRequest
         .debounce { request ->
-            if (request.filter is SearchFilter.None) 300L else 0L
+            // Only debounce search queries, not category/author filter clicks
+            if (request.filter is SearchFilter.None && request.query.isNotEmpty()) 300L else 0L
         }
         .flatMapLatest { request ->
             when (val filter = request.filter) {
                 is SearchFilter.Author -> catalogRepo.getBooksByAuthor(filter.name)
                 is SearchFilter.Category -> catalogRepo.getBooksByTopic(filter.code)
-                else -> {
-                    // Trigger a generic search if query is empty to show "Explore All"
-                    val query = if (request.query.isEmpty()) "" else request.query
-                    catalogRepo.searchBooks(query)
-                }
+                else -> catalogRepo.searchBooks(request.query)
             }
         }.cachedIn(viewModelScope)
 

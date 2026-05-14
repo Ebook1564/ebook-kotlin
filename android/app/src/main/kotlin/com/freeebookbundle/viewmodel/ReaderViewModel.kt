@@ -68,9 +68,19 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     fun getHighlights(bookId: String): Flow<List<Highlight>> = dao.getHighlightsForBook(bookId)
 
+    private var lastProgressUpdate = 0L
+
     fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float) {
+        val now = System.currentTimeMillis()
+        if (now - lastProgressUpdate < 2000) {
+            android.util.Log.d("PerfTrace", "Throttled progress update for $bookId (last update was ${now - lastProgressUpdate}ms ago)")
+            return // Throttle to 2 seconds
+        }
+        
+        lastProgressUpdate = now
+        android.util.Log.d("PerfTrace", "Executing progress update for $bookId at spine=$spineIndex progress=$progression")
         viewModelScope.launch {
-            bookDao.updateReadingProgress(bookId, spineIndex, progression, System.currentTimeMillis())
+            bookDao.updateReadingProgress(bookId, spineIndex, progression, now)
         }
     }
 

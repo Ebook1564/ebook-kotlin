@@ -1,5 +1,6 @@
 package com.freeebookbundle.reader
 
+import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeebookbundle.db.Bookmark
 import com.freeebookbundle.epub.EpubReaderViewModel
 import com.freeebookbundle.epub.NativeEpubReader
@@ -46,6 +48,7 @@ import com.freeebookbundle.viewmodel.ReaderViewModel
 import com.freeebookbundle.ui.ReaderTutorialOverlay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 private const val TAG = "NativeReaderFragment"
 
@@ -66,7 +69,7 @@ class NativeReaderFragment : Fragment() {
                     filePath = filePath,
                     bookId = bookId,
                     themeMode = appViewModel.themeMode.value,
-                    onBack = { requireActivity().finish() },
+                    onBack = { (context as? Activity)?.finish() },
                     onExit = { chapter, progress ->
                         if (bookId != null) {
                             val settingsRepo = ReaderSettingsRepository(requireContext())
@@ -88,8 +91,10 @@ fun NativeReaderScreen(
     onBack: () -> Unit = {},
     onExit: (chapter: Int, progress: Float) -> Unit = { _, _ -> }
 ) {
-    var currentChapter by remember { mutableIntStateOf(0) }
-    var currentProgress by remember { mutableStateOf(0f) }
+    val epubViewModel: EpubReaderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    
+    // volatile progress/chapter is now collected only in leaf composables to prevent global recomposition
+    
     var targetChapter by remember { mutableStateOf<Int?>(null) }
     var targetAnchor by remember { mutableStateOf<String?>(null) }
     
@@ -109,9 +114,27 @@ fun NativeReaderScreen(
     
     var showTutorial by remember { mutableStateOf(!settingsRepo.hasSeenReaderTutorial()) }
     
-    val epubViewModel: EpubReaderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val readerState by epubViewModel.state.collectAsState()
     
+    // Throttled DB write state
+    var lastSavedProgress by remember { mutableFloatStateOf(-1f) }
+    var lastSavedChapter by remember { mutableIntStateOf(-1) }
+    val progressSaveScope = rememberCoroutineScope()
+    var pendingSaveJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    fun scheduleSave(chapter: Int, progress: Float) {
+        pendingSaveJob?.cancel()
+        pendingSaveJob = progressSaveScope.launch {
+            delay(3000) // write at most once per 3s during reading
+            if (bookId != null && (chapter != lastSavedChapter || 
+                kotlin.math.abs(progress - lastSavedProgress) > 0.01f)) {
+                readerViewModel.updateReadingProgress(bookId, chapter, progress)
+                lastSavedChapter = chapter
+                lastSavedProgress = progress
+            }
+        }
+    }
+
     val backgroundColor = when (readerSettings.theme) {
         ReaderTheme.WHITE -> Color.White
         ReaderTheme.DARK -> Color(0xFF121212)
@@ -131,10 +154,8 @@ fun NativeReaderScreen(
 
     LaunchedEffect(Unit) {
         bookId?.let { bId ->
-            // Load saved position
             val savedPos = settingsRepo.getNativeReaderPosition(bId)
             val initialChapter = savedPos?.first ?: 0
-            
             val highlights = readerViewModel.getHighlightsSync(bId)
             epubViewModel.loadBook(filePath, initialChapter = initialChapter, bookId = bId, savedHighlights = highlights)
         } ?: epubViewModel.loadBook(filePath, 0)
@@ -164,7 +185,16 @@ fun NativeReaderScreen(
                 )
             },
             navigationIcon = {
-                IconButton(onClick = { onExit(currentChapter, currentProgress); onBack() }) {
+                IconButton(onClick = { 
+                    pendingSaveJob?.cancel()
+                    val chapter = epubViewModel.currentChapter.value
+                    val progress = epubViewModel.currentProgress.value
+                    if (bookId != null) {
+                        readerViewModel.updateReadingProgress(bookId, chapter, progress)
+                    }
+                    onExit(chapter, progress)
+                    onBack() 
+                }) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textColor)
                 }
             },
@@ -183,7 +213,7 @@ fun NativeReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = backgroundColor.copy(alpha = 0.8f) // Frosted glass effect
+                containerColor = backgroundColor.copy(alpha = 0.8f) 
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -193,28 +223,22 @@ fun NativeReaderScreen(
                 NativeEpubReader(
                     filePath = filePath,
                     bookId = bookId,
-                    initialChapter = 0, // already loaded in LaunchedEffect
+                    initialChapter = 0, 
                     targetChapter = targetChapter,
                     targetAnchor = targetAnchor,
                     settings = readerSettings,
                     backgroundColor = backgroundColor,
                     textColor = textColor,
                     onProgressChange = { fraction ->
-                        currentProgress = fraction
                         targetChapter = null
                         targetAnchor = null
-                        if (bookId != null) {
-                            readerViewModel.updateReadingProgress(bookId, currentChapter, fraction)
-                        }
+                        scheduleSave(epubViewModel.currentChapter.value, fraction)
                     },
                     onJumpToChapter = { index, fragmentId ->
                         epubViewModel.jumpToChapter(index, fragmentId)
                     },
-                    onChapterChange = { chapterIndex, _ ->
-                        currentChapter = chapterIndex
-                        if (bookId != null) {
-                            readerViewModel.updateReadingProgress(bookId, chapterIndex, currentProgress)
-                        }
+                    onChapterChange = { chapterIndex, fraction ->
+                        scheduleSave(chapterIndex, fraction)
                     },
                     onHighlightsAdded = { highlights ->
                         scope.launch {
@@ -258,29 +282,10 @@ fun NativeReaderScreen(
             }
         }
 
-        LinearProgressIndicator(
-            progress = { currentProgress },
-            modifier = Modifier.fillMaxWidth().height(4.dp),
-            color = accentColor,
-            trackColor = accentColor.copy(alpha = 0.2f)
-        )
+        ReaderProgressBar(epubViewModel, accentColor)
         
         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
-            val rawTitle = readerState.book?.chapters?.getOrNull(currentChapter)?.title ?: "Chapter ${currentChapter + 1}"
-            val displayTitle = if (rawTitle.startsWith("Chapter", ignoreCase = true)) {
-                rawTitle
-            } else {
-                "Chapter ${currentChapter + 1}: $rawTitle"
-            }
-            
-            Text(
-                text = "$displayTitle • ${(currentProgress * 100).toInt()}%",
-                color = textColor.copy(alpha = 0.5f),
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+            ReaderChapterProgressText(epubViewModel, textColor)
         }
     }
 
@@ -290,7 +295,9 @@ fun NativeReaderScreen(
                 Text("Table of Contents", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(16.dp))
                 LazyColumn(modifier = Modifier.fillMaxHeight(0.7f)) {
-                    itemsIndexed(readerState.book?.chapters ?: emptyList()) { index, chapter ->
+                    val chapters = readerState.book?.chapters ?: emptyList()
+                    itemsIndexed(chapters) { index, chapter ->
+                        val isCurrent = epubViewModel.currentChapter.collectAsStateWithLifecycle().value == index
                         Surface(
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -298,7 +305,7 @@ fun NativeReaderScreen(
                                 targetAnchor = chapter.fragmentId
                                 showTOC = false
                             },
-                            color = if (currentChapter == index) accentColor.copy(alpha = 0.1f) else Color.Transparent,
+                            color = if (isCurrent) accentColor.copy(alpha = 0.1f) else Color.Transparent,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             val rawTitle = chapter.title
@@ -310,10 +317,10 @@ fun NativeReaderScreen(
                             
                             Text(
                                 text = displayTitle,
-                                color = if (currentChapter == index) accentColor else textColor,
+                                color = if (isCurrent) accentColor else textColor,
                                 modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp),
                                 fontSize = 16.sp,
-                                fontWeight = if (currentChapter == index) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -400,7 +407,7 @@ fun NativeReaderScreen(
                         val hl = selectedHighlight!!
                         scope.launch {
                             readerViewModel.insertHighlight(bookId ?: "", hl.chapterIndex, hl.startOffset, hl.endOffset, hl.selectedText, hl.color, noteText)
-                            epubViewModel.jumpToChapter(currentChapter)
+                            epubViewModel.jumpToChapter(epubViewModel.currentChapter.value)
                             showNoteEditor = false
                             Toast.makeText(context, "Note saved", Toast.LENGTH_SHORT).show()
                         }
@@ -418,13 +425,15 @@ fun NativeReaderScreen(
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Text("Save Bookmark", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Chapter ${currentChapter + 1}, ${(currentProgress * 100).toInt()}%", color = textColor.copy(alpha = 0.7f))
+                val chapter = epubViewModel.currentChapter.collectAsStateWithLifecycle().value
+                val progress = epubViewModel.currentProgress.collectAsStateWithLifecycle().value
+                Text(text = "Chapter ${chapter + 1}, ${(progress * 100).toInt()}%", color = textColor.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
                         readerViewModel.insertBookmark(
-                            bookId ?: "", currentChapter, (currentProgress * 1000).toInt(), currentProgress,
-                            readerState.book?.chapters?.getOrNull(currentChapter)?.title ?: "Chapter ${currentChapter + 1}"
+                            bookId ?: "", chapter, (progress * 1000).toInt(), progress,
+                            readerState.book?.chapters?.getOrNull(chapter)?.title ?: "Chapter ${chapter + 1}"
                         )
                         showBookmarkInput = false
                         Toast.makeText(context, "Bookmark saved", Toast.LENGTH_SHORT).show()
@@ -450,7 +459,7 @@ fun NativeReaderScreen(
                     Text("No bookmarks yet", color = textColor.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 20.dp))
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxHeight(0.6f)) {
-                        itemsIndexed(bookmarks) { index, bookmark ->
+                        itemsIndexed(bookmarks) { _, bookmark ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable { targetChapter = bookmark.chapterIndex; showBookmarks = false }.padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -470,6 +479,42 @@ fun NativeReaderScreen(
             }
         }
     }
+}
+
+@Composable
+fun ReaderProgressBar(viewModel: EpubReaderViewModel, accentColor: Color) {
+    val progress by viewModel.currentProgress.collectAsStateWithLifecycle()
+    LinearProgressIndicator(
+        progress = { progress },
+        modifier = Modifier.fillMaxWidth().height(4.dp),
+        color = accentColor,
+        trackColor = accentColor.copy(alpha = 0.2f)
+    )
+}
+
+@Composable
+fun ReaderChapterProgressText(viewModel: EpubReaderViewModel, textColor: Color) {
+    val chapter by viewModel.currentChapter.collectAsStateWithLifecycle()
+    val progress by viewModel.currentProgress.collectAsStateWithLifecycle()
+    val readerState by viewModel.state.collectAsStateWithLifecycle()
+    
+    val bookChapters = readerState.book?.chapters
+    val currentChapterData = bookChapters?.getOrNull(chapter)
+    val rawTitle = currentChapterData?.title ?: "Chapter ${chapter + 1}"
+    val displayTitle = if (rawTitle.startsWith("Chapter", ignoreCase = true)) {
+        rawTitle
+    } else {
+        "Chapter ${chapter + 1}: $rawTitle"
+    }
+    
+    Text(
+        text = "$displayTitle • ${(progress * 100).toInt()}%",
+        color = textColor.copy(alpha = 0.5f),
+        fontSize = 10.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(horizontal = 24.dp)
+    )
 }
 
 @Composable

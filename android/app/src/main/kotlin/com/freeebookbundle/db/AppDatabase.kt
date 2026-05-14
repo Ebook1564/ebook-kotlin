@@ -97,18 +97,15 @@ private fun migrateFromOldSchema(db: SupportSQLiteDatabase) {
                     AppDatabase::class.java,
                     "library.db"
                 )
+                .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .fallbackToDestructiveMigration()
                 .addCallback(object : Callback() {
-                    override fun onCreate(db: SupportSQLiteDatabase) {
-                        super.onCreate(db)
-                    }
-                    
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
-                        // Disable foreign keys to prevent crashes with dynamic categories
                         db.execSQL("PRAGMA foreign_keys = OFF;")
                         
                         // Check if migration already ran by checking for old schema
+                        // USE THE PASSED 'db' INSTANCE, NOT AppDatabase.getDatabase() to avoid recursion
                         val needsMigration = try {
                             db.query("SELECT * FROM bookmarks LIMIT 1").use { cursor ->
                                 cursor.getColumnIndex("locator") != -1
