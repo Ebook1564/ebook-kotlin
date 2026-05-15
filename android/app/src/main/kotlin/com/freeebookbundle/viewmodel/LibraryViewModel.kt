@@ -57,16 +57,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedAuthor = MutableStateFlow<String?>(null)
     private val _seeAllStatus  = MutableStateFlow<ReadingStatus?>(null)
 
+    private val libraryBooksFlow = bookDao.getLibraryBooksFlow()
+        .distinctUntilChanged()
+
     val uiState: StateFlow<LibraryUiState> = combine(
         _sortOrder,
         _selectedTag,
         _selectedAuthor,
         _seeAllStatus,
-        bookDao.getLibraryBooksFlow()
+        libraryBooksFlow
     ) { sortOrder, tag, author, seeAll, summaries ->
         DataBundle(summaries, sortOrder, tag, author, seeAll)
     }
-    .debounce(300) // Increase debounce to absorb sequential writes (like status + lastOpened)
+    .debounce(500)
     .flowMap { bundle ->
         val startTime = System.currentTimeMillis()
         val summaries = bundle.summaries

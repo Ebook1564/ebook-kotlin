@@ -372,7 +372,7 @@ fun BookVerseApp(
         HorizontalPager(
             state = pagerState, 
             modifier = Modifier.fillMaxSize(), 
-            beyondViewportPageCount = 1, 
+            beyondViewportPageCount = 0, 
             userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
         ) { page ->
             when (page) {
@@ -772,23 +772,17 @@ fun SpaceEasyTouchNav(
     val offsetX = remember { Animatable(screenWidthPx / 2f) }
     val offsetY = remember { Animatable(offsetYMax - buttonSizePx * 1.5f) }
 
-    val driftAnimatableX = remember { Animatable(0f) }
-    val driftAnimatableY = remember { Animatable(0f) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            if (!expanded) {
-                val targetX = (Random.nextFloat() * 0.1f - 0.05f) * screenWidthPx
-                val targetY = (Random.nextFloat() * 0.1f - 0.05f) * screenHeightPx
-                driftAnimatableX.animateTo(targetX, animationSpec = tween(2000, easing = LinearEasing))
-                driftAnimatableY.animateTo(targetY, animationSpec = tween(2000, easing = LinearEasing))
-            } else {
-                driftAnimatableX.snapTo(0f)
-                driftAnimatableY.snapTo(0f)
-                delay(100) 
-            }
-        }
-    }
+    val driftAnimation = rememberInfiniteTransition(label = "space_nav_drift")
+    val driftX by driftAnimation.animateFloat(
+        initialValue = -1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift_x"
+    )
+    val driftY by driftAnimation.animateFloat(
+        initialValue = -1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift_y"
+    )
 
     LaunchedEffect(expanded) {
         if (expanded) {
@@ -821,8 +815,8 @@ fun SpaceEasyTouchNav(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .offset { IntOffset(
-                (offsetX.value - currentWidthPx / 2 + (if (!expanded) driftAnimatableX.value else 0f)).roundToInt(),
-                (offsetY.value - currentHeightPx / 2 + (if (!expanded) driftAnimatableY.value else 0f)).roundToInt()
+                (offsetX.value - currentWidthPx / 2 + (if (!expanded) driftX * 0.05f * screenWidthPx else 0f)).roundToInt(),
+                (offsetY.value - currentHeightPx / 2 + (if (!expanded) driftY * 0.05f * screenHeightPx else 0f)).roundToInt()
             )}
             .then(
                 if (!expanded) {
@@ -845,8 +839,6 @@ fun SpaceEasyTouchNav(
                         ) { change, dragAmount ->
                             change.consume()
                             scope.launch {
-                                driftAnimatableX.stop()
-                                driftAnimatableY.stop()
                                 val newX = (offsetX.value + dragAmount.x).coerceIn(buttonSizePx / 2f, screenWidthPx - buttonSizePx / 2f)
                                 val newY = (offsetY.value + dragAmount.y).coerceIn(buttonSizePx / 2f, offsetYMax - buttonSizePx / 2f)
                                 offsetX.snapTo(newX)

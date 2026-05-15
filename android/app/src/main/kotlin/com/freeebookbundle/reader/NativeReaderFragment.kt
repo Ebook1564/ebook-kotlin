@@ -119,18 +119,20 @@ fun NativeReaderScreen(
     // Throttled DB write state
     var lastSavedProgress by remember { mutableFloatStateOf(-1f) }
     var lastSavedChapter by remember { mutableIntStateOf(-1) }
-    val progressSaveScope = rememberCoroutineScope()
-    var pendingSaveJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
+    var lastSavedTime by remember { mutableLongStateOf(0L) }
+    val PROGRESS_SAVE_THROTTLE = 1000L // 1 second
+    
     fun scheduleSave(chapter: Int, progress: Float) {
-        pendingSaveJob?.cancel()
-        pendingSaveJob = progressSaveScope.launch {
-            delay(3000) // write at most once per 3s during reading
-            if (bookId != null && (chapter != lastSavedChapter || 
-                kotlin.math.abs(progress - lastSavedProgress) > 0.01f)) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastSavedTime < PROGRESS_SAVE_THROTTLE) return
+        
+        if (bookId != null && (chapter != lastSavedChapter || 
+            kotlin.math.abs(progress - lastSavedProgress) > 0.01f)) {
+            scope.launch {
                 readerViewModel.updateReadingProgress(bookId, chapter, progress)
                 lastSavedChapter = chapter
                 lastSavedProgress = progress
+                lastSavedTime = currentTime
             }
         }
     }
@@ -186,7 +188,6 @@ fun NativeReaderScreen(
             },
             navigationIcon = {
                 IconButton(onClick = { 
-                    pendingSaveJob?.cancel()
                     val chapter = epubViewModel.currentChapter.value
                     val progress = epubViewModel.currentProgress.value
                     if (bookId != null) {

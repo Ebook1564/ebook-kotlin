@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -314,6 +315,14 @@ private fun DayNightSearchContent(
                 label = "overlay_alpha"
             )
 
+            val showOverlay = selectedCategory?.isNotEmpty() == true
+            val overlayProgress by animateFloatAsState(
+                targetValue = if (showOverlay) 1f else 0f,
+                animationSpec = tween(600, easing = PremiumEasing),
+                label = "overlay_progress"
+            )
+            val blockInputs = !showOverlay
+
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
@@ -353,7 +362,7 @@ private fun DayNightSearchContent(
                     }
                 }
 
-                if (selectedCategory?.isNotEmpty() == true) {
+                if (showOverlay) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -362,29 +371,36 @@ private fun DayNightSearchContent(
                     )
                 }
 
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = selectedCategory?.isNotEmpty() == true,
-                    enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-                ) {
-                    selectedCategory?.let { category ->
-                        CategoryOverlay(
-                            category = category,
-                            bookCount = pagingItems.itemCount,
-                            accentColor = animatedColor,
-                            onClose = { viewModel.clearFilters() },
-                            onSeeAll = { viewModel.openCollection(category) },
-                            onBookClick = onBookClick,
-                            viewModel = viewModel,
-                            pagingItems = pagingItems,
-                            categories = allCategories,
-                            onCategoryChange = { newCategory ->
-                                if (selectedCategory != newCategory) {
-                                    viewModel.navigateToCategory(newCategory)
-                                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = overlayProgress
+                            translationY = size.height * (1f - overlayProgress)
+                        }
+                        .pointerInput(blockInputs) {
+                            if (blockInputs) {
+                                awaitPointerEventScope { while (true) { awaitPointerEvent() } }
                             }
-                        )
-                    }
+                        }
+                ) {
+                    val activeCategory = selectedCategory ?: allCategories.firstOrNull() ?: "Fiction"
+                    CategoryOverlay(
+                        category = activeCategory,
+                        bookCount = pagingItems.itemCount,
+                        accentColor = animatedColor,
+                        onClose = { viewModel.clearFilters() },
+                        onSeeAll = { viewModel.openCollection(activeCategory) },
+                        onBookClick = onBookClick,
+                        viewModel = viewModel,
+                        pagingItems = pagingItems,
+                        categories = allCategories,
+                        onCategoryChange = { newCategory ->
+                            if (selectedCategory != null && selectedCategory != newCategory) {
+                                viewModel.navigateToCategory(newCategory)
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -397,6 +413,18 @@ private fun DrawerNavigation(
     onCategoryClick: (String) -> Unit
 ) {
     val colors = BookVerseTheme.colors
+
+    val sharedTransition = rememberInfiniteTransition(label = "drawer_scribble")
+    val globalRotation by sharedTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing), RepeatMode.Restart),
+        label = "rotation"
+    )
+    val globalPulse by sharedTransition.animateFloat(
+        initialValue = 0.85f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulse"
+    )
 
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -427,6 +455,8 @@ private fun DrawerNavigation(
                         category = category,
                         color = drawerColor,
                         isSelected = isSelected,
+                        rotation = globalRotation,
+                        pulse = globalPulse,
                         modifier = Modifier.fillMaxSize()
                     )
                     Text(
@@ -455,33 +485,13 @@ private fun ScribbleDrawer(
     category: String,
     color: Color,
     isSelected: Boolean,
+    rotation: Float,
+    pulse: Float,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "scribble")
-    
     val animatedAlpha by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0.7f,
         animationSpec = tween(400)
-    )
-    
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "scribble_rotation"
-    )
-    
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scribble_pulse"
     )
 
     Canvas(modifier = modifier) {
@@ -636,7 +646,8 @@ private fun CategoryOverlay(
 
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 0
         ) { page ->
             val currentCategory = categories[page]
             val currentColor = getDrawerColor(currentCategory)
@@ -727,9 +738,8 @@ private fun SpaceSearchContent(
         else -> null
     }
 
-    val planet = if (selectedCategory != null) planetForCategory(selectedCategory) else null
     val animatedColor by animateColorAsState(
-        targetValue = planet?.mainColor ?: Color.White,
+        targetValue = if (selectedCategory != null) planetForCategory(selectedCategory).mainColor else Color.White,
         animationSpec = tween(durationMillis = 600, easing = PremiumEasing)
     )
 
@@ -740,6 +750,14 @@ private fun SpaceSearchContent(
                 animationSpec = tween(400),
                 label = "space_overlay_alpha"
             )
+
+            val showOverlay = selectedCategory?.isNotEmpty() == true
+            val overlayProgress by animateFloatAsState(
+                targetValue = if (showOverlay) 1f else 0f,
+                animationSpec = tween(600, easing = PremiumEasing),
+                label = "space_overlay_progress"
+            )
+            val blockInputs = !showOverlay
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -789,7 +807,7 @@ private fun SpaceSearchContent(
                     }
                 }
 
-                if (selectedCategory?.isNotEmpty() == true) {
+                if (showOverlay) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -798,31 +816,37 @@ private fun SpaceSearchContent(
                     )
                 }
 
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = selectedCategory?.isNotEmpty() == true,
-                    enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-                ) {
-                    selectedCategory?.let { category ->
-                        planet?.let { currentPlanet ->
-                            SpaceCategoryOverlay(
-                                category = category,
-                                planet = currentPlanet,
-                                bookCount = pagingItems.itemCount,
-                                accentColor = animatedColor,
-                                onClose = { viewModel.clearFilters() },
-                                onSeeAll = { viewModel.openCollection(category) },
-                                onBookClick = onBookClick,
-                                pagingItems = pagingItems,
-                                categories = allCategories,
-                                onCategoryChange = { newCategory ->
-                                    if (selectedCategory != newCategory) {
-                                        viewModel.navigateToCategory(newCategory)
-                                    }
-                                }
-                            )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = overlayProgress
+                            translationY = size.height * (1f - overlayProgress)
                         }
-                    }
+                        .pointerInput(blockInputs) {
+                            if (blockInputs) {
+                                awaitPointerEventScope { while (true) { awaitPointerEvent() } }
+                            }
+                        }
+                ) {
+                    val activeCategory = selectedCategory ?: allCategories.firstOrNull() ?: "Fiction"
+                    val activePlanet = planetForCategory(activeCategory)
+                    SpaceCategoryOverlay(
+                        category = activeCategory,
+                        planet = activePlanet,
+                        bookCount = pagingItems.itemCount,
+                        accentColor = animatedColor,
+                        onClose = { viewModel.clearFilters() },
+                        onSeeAll = { viewModel.openCollection(activeCategory) },
+                        onBookClick = onBookClick,
+                        pagingItems = pagingItems,
+                        categories = allCategories,
+                        onCategoryChange = { newCategory ->
+                            if (selectedCategory != null && selectedCategory != newCategory) {
+                                viewModel.navigateToCategory(newCategory)
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -924,7 +948,8 @@ private fun SpaceCategoryOverlay(
 
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 0
         ) { page ->
             val currentCategory = categories[page]
             val currentPlanet = planetForCategory(currentCategory)
@@ -1021,24 +1046,17 @@ fun ArchiveCardItem(book: Book, onClick: () -> Unit) {
                 else -> ""
             }
 
-            SubcomposeAsyncImage(
+            AsyncImage(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                loading = {
-                    Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
-                },
-                error = {
+                onError = {
                     if (fallbackStage < 2) {
-                        LaunchedEffect(imageUrl) { fallbackStage++ }
-                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface))
-                    } else {
-                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = BookVerseTheme.colors.textSecondary.copy(0.3f))
-                        }
+                        fallbackStage++
                     }
-                }
+                },
+                error = painterResource(id = R.drawable.ic_book)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

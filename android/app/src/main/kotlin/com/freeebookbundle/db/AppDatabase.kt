@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Bookmark::class, Highlight::class, BookEntity::class, CategoryEntity::class, CatalogMetaEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -90,6 +90,14 @@ private fun migrateFromOldSchema(db: SupportSQLiteDatabase) {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_books_reading_status ON books(reading_status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_books_author ON books(author)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_books_last_opened ON books(last_opened)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -119,7 +127,7 @@ private fun migrateFromOldSchema(db: SupportSQLiteDatabase) {
                         }
                     }
                 })
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_7_8)
                 .build()
                 INSTANCE = instance
                 instance

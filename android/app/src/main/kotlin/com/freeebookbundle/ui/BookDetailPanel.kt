@@ -22,12 +22,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -60,11 +61,8 @@ fun BookDetailContent(
     onAuthorClick: (String) -> Unit = {},
     onAudioClick: (Book) -> Unit = {}
 ) {
-    var displayBook by remember { mutableStateOf(book) }
-    
-    LaunchedEffect(book) {
-        displayBook = book
-    }
+    val coverUrl = book.getBestCoverUrl()
+    val serverCoverUrl = book.getServerCoverUrl()
 
     var coverBounds by remember { mutableStateOf<InitialBounds?>(null) }
     var coverCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
@@ -72,7 +70,7 @@ fun BookDetailContent(
     val typography = BookVerseTheme.typography
     var showStatusMenu by remember { mutableStateOf(false) }
 
-    val isDescriptionLoading = displayBook.description.isBlank() && isLoading
+    val isDescriptionLoading = book.description.isBlank() && isLoading
 
     LaunchedEffect(coverCoordinates) {
         coverCoordinates?.let { coords ->
@@ -99,26 +97,13 @@ fun BookDetailContent(
             
             // 1. BACKDROP
             Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
-                var backdropFallback by remember { mutableStateOf(false) }
-                val serverCoverUrl = displayBook.getServerCoverUrl()
-                val bestCoverUrl = displayBook.getBestCoverUrl()
-                val backdropUrl = if (backdropFallback) serverCoverUrl else bestCoverUrl
-                AsyncImage(
-                    model = backdropUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(60.dp).alpha(0.3f),
-                    onError = {
-                        backdropFallback = true
-                    }
-                )
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, colors.surface),
-                                startY = 200f
+                                colors = listOf(colors.primary.copy(alpha = 0.15f), colors.surface),
+                                startY = 0f
                             )
                         )
                 )
@@ -155,13 +140,13 @@ fun BookDetailContent(
                         shadowElevation = 24.dp
                     ) {
                         var useFallback by remember { mutableStateOf(false) }
-                        val serverCoverUrl = displayBook.getServerCoverUrl()
-                        val bestCoverUrl = displayBook.getBestCoverUrl()
+                        val serverCoverUrl = book.getServerCoverUrl()
+                        val bestCoverUrl = book.getBestCoverUrl()
                         val finalCoverUrl = if (useFallback) serverCoverUrl else bestCoverUrl
                         
                         AsyncImage(
                             model = finalCoverUrl,
-                            contentDescription = displayBook.title,
+                            contentDescription = book.title,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -176,7 +161,7 @@ fun BookDetailContent(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = displayBook.title,
+                            text = book.title,
                             style = typography.headline,
                             color = colors.textPrimary,
                             fontSize = 20.sp,
@@ -186,7 +171,7 @@ fun BookDetailContent(
                             overflow = TextOverflow.Ellipsis
                         )
                         Surface(
-                            onClick = { onAuthorClick(displayBook.author) },
+                            onClick = { onAuthorClick(book.author) },
                             shape = RoundedCornerShape(16.dp),
                             color = colors.primary.copy(alpha = 0.15f)
                         ) {
@@ -203,7 +188,7 @@ fun BookDetailContent(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = displayBook.author.uppercase(),
+                                    text = book.author.uppercase(),
                                     style = typography.label,
                                     color = colors.primary,
                                     fontSize = 11.sp,
@@ -219,7 +204,7 @@ fun BookDetailContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val hasProgress = displayBook.hasReadingProgress()
+                            val hasProgress = book.hasReadingProgress()
                             
                             if (hasProgress) {
                                 // Continue Reading + Start Over buttons
@@ -284,7 +269,7 @@ fun BookDetailContent(
                             }
                             
                             FilledTonalButton(
-                                onClick = { onAudioClick(displayBook) },
+                                onClick = { onAudioClick(book) },
                                 modifier = Modifier
                                     .height(48.dp)
                                     .shadow(4.dp, RoundedCornerShape(12.dp)),
@@ -311,13 +296,13 @@ fun BookDetailContent(
                                 border = BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth().height(44.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (displayBook.readingStatus != ReadingStatus.NONE) colors.primary else colors.textPrimary
+                                    contentColor = if (book.readingStatus != ReadingStatus.NONE) colors.primary else colors.textPrimary
                                 )
                             ) {
-                                Icon(if (displayBook.readingStatus != ReadingStatus.NONE) Icons.Default.Check else Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                                Icon(if (book.readingStatus != ReadingStatus.NONE) Icons.Default.Check else Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = when(displayBook.readingStatus) {
+                                    text = when(book.readingStatus) {
                                         ReadingStatus.CURRENTLY_READING -> stringResource(R.string.book_detail_reading)
                                         ReadingStatus.COMPLETED -> stringResource(R.string.book_detail_finished)
                                         ReadingStatus.WISHLIST -> stringResource(R.string.book_detail_wishlist)
@@ -343,7 +328,7 @@ fun BookDetailContent(
                                             color = colors.textPrimary
                                         ) },
                                         onClick = { onAddToReadingList(status); showStatusMenu = false },
-                                        leadingIcon = { Icon(if (status == ReadingStatus.CURRENTLY_READING) Icons.Default.PlayArrow else Icons.Default.Add, null, tint = if (displayBook.readingStatus == status) colors.primary else colors.textSecondary) }
+                                        leadingIcon = { Icon(if (status == ReadingStatus.CURRENTLY_READING) Icons.Default.PlayArrow else Icons.Default.Add, null, tint = if (book.readingStatus == status) colors.primary else colors.textSecondary) }
                                     )
                                 }
                             }
@@ -355,8 +340,8 @@ fun BookDetailContent(
 
                 // CURATED COLLECTIONS (if book matches any)
                 // Also check categoryCode from database as fallback
-                val bookTags = remember(displayBook.subjects, displayBook.categories) {
-                    displayBook.subjects + displayBook.categories
+                val bookTags = remember(book.subjects, book.categories) {
+                    book.subjects + book.categories
                 }
                 
                 val matchingCollections = remember(bookTags) {
@@ -386,7 +371,7 @@ fun BookDetailContent(
                             contentPadding = PaddingValues(horizontal = 24.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(matchingCollections) { collection ->
+                            items(matchingCollections, key = { it.title }) { collection ->
                                 CuratedCollectionChip(
                                     collection = collection,
                                     onClick = { onCategoryClick(collection.tags.first()) }
@@ -396,10 +381,10 @@ fun BookDetailContent(
                         }
 
                         // Audiobook available button
-                        if (displayBook.audioUrl != null) {
+                        if (book.audioUrl != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
-                            onClick = { onAudioClick(displayBook) },
+                            onClick = { onAudioClick(book) },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90D9))
@@ -420,8 +405,8 @@ fun BookDetailContent(
                     contentPadding = PaddingValues(horizontal = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val tags = if (displayBook.subjects.isNotEmpty()) displayBook.subjects else listOf("Public Domain", "Classic")
-                    items(tags) { tag -> 
+                    val tags = if (book.subjects.isNotEmpty()) book.subjects else listOf("Public Domain", "Classic")
+                    items(tags, key = { it }) { tag -> 
                         DetailChip(label = tag, onClick = { onCategoryClick(tag) }) 
                     }
                 }
@@ -441,7 +426,7 @@ fun BookDetailContent(
                         }
                     } else {
                         Text(
-                            text = displayBook.description,
+                            text = book.description,
                             style = typography.body,
                             color = colors.textSecondary.copy(alpha = 0.9f),
                             lineHeight = 22.sp,
@@ -461,10 +446,12 @@ fun BookDetailContent(
                     )
                 }
 
-                LaunchedEffect(displayBook.id) {
-                    val topic = displayBook.subjects.firstOrNull() ?: displayBook.categories.firstOrNull()
+                LaunchedEffect(book.id) {
+                    val topic = book.subjects.firstOrNull() ?: book.categories.firstOrNull()
                     if (topic != null) {
-                        similarBooks.value = catalogRepo.getStaticBooksByTopic(topic, 10).filter { it.id != displayBook.id }
+                        similarBooks.value = withContext(Dispatchers.IO) {
+                            catalogRepo.getStaticBooksByTopic(topic, 10).filter { it.id != book.id }
+                        }
                     }
                 }
 
@@ -482,7 +469,7 @@ fun BookDetailContent(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
-                        items(similarBooks.value) { sBook ->
+                        items(similarBooks.value, key = { it.id }) { sBook ->
                             Column(
                                 modifier = Modifier.width(100.dp).clickable { 
                                     // Navigation to another book detail would be better, but for now we close and let user pick

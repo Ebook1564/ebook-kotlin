@@ -5,6 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -146,7 +147,11 @@ fun HomeScreen(
 }
 
 @Composable
-fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush {
+fun shimmerBrush(
+    showShimmer: Boolean = true, 
+    targetValue: Float = 1000f,
+    shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "shimmer")
+): Brush {
     return if (showShimmer) {
         val shimmerColors = listOf(
             Color.LightGray.copy(alpha = 0.6f),
@@ -154,8 +159,7 @@ fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush
             Color.LightGray.copy(alpha = 0.6f),
         )
 
-        val transition = rememberInfiniteTransition(label = "shimmer")
-        val translateAnimation = transition.animateFloat(
+        val translateAnimation = shimmerTransition.animateFloat(
             initialValue = 0f,
             targetValue = targetValue,
             animationSpec = infiniteRepeatable(
@@ -180,10 +184,10 @@ fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush
 }
 
 @Composable
-fun BillboardSkeleton() {
-    val brush = shimmerBrush()
-    val infiniteTransition = rememberInfiniteTransition(label = "skeleton")
-    val floatAnim by infiniteTransition.animateFloat(
+fun BillboardSkeleton(shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "skeleton")) {
+    val brush = shimmerBrush(shimmerTransition = shimmerTransition)
+    val floatTransition = rememberInfiniteTransition(label = "skeleton_float")
+    val floatAnim by floatTransition.animateFloat(
         initialValue = -8f, 
         targetValue = 8f, 
         animationSpec = infiniteRepeatable(
@@ -254,8 +258,8 @@ fun BillboardSkeleton() {
 }
 
 @Composable
-fun CategorySkeleton(title: String) {
-    val brush = shimmerBrush()
+fun CategorySkeleton(title: String, shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "category_shimmer")) {
+    val brush = shimmerBrush(shimmerTransition = shimmerTransition)
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -313,11 +317,11 @@ fun ContinueReadingSection(
             contentPadding = PaddingValues(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(books.size) { index ->
+            items(books, key = { it.id }) { book ->
                 ContinueReadingBookCard(
-                    book = books[index],
-                    onClick = { onBookClick(books[index]) },
-                    onReadClick = { onReadClick(books[index]) }
+                    book = book,
+                    onClick = { onBookClick(book) },
+                    onReadClick = { onReadClick(book) }
                 )
             }
         }
@@ -463,26 +467,43 @@ fun DynamicGreeting(userName: String) {
 @Composable
 fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onReadClick: (Book) -> Unit, onInfoClick: (Book) -> Unit) {
     val pagerState = rememberPagerState(pageCount = { books.size })
-    LaunchedEffect(Unit) {
-        while (true) {
-            yield()
+
+    // Simplified auto-scroll logic, decoupled from scroll state
+    LaunchedEffect(books.size) {
+        while (books.isNotEmpty()) {
             delay(5000)
-            if (pagerState.pageCount > 0) {
-                val nextNextPage = (pagerState.currentPage + 1) % pagerState.pageCount
-                pagerState.animateScrollToPage(nextNextPage)
+            if (!pagerState.isScrollInProgress) {
+                val nextPage = (pagerState.currentPage + 1) % books.size
+                pagerState.animateScrollToPage(nextPage)
             }
         }
     }
+
+    val continueReadingIds = remember(continueReadingBooks) {
+        continueReadingBooks.map { it.id }.toHashSet()
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().height(480.dp), contentPadding = PaddingValues(horizontal = 0.dp)) { page ->
+        HorizontalPager(
+            state = pagerState, 
+            modifier = Modifier.fillMaxWidth().height(480.dp), 
+            contentPadding = PaddingValues(horizontal = 0.dp)
+        ) { page ->
             val book = books[page]
-            val isContinueReading = continueReadingBooks.any { it.id == book.id }
-            BillboardItem(book = book, isContinueReading = isContinueReading, onReadClick = { onReadClick(book) }, onInfoClick = { onReadClick(book) }, pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction)
+            val isContinueReading = continueReadingIds.contains(book.id)
+            BillboardItem(
+                book = book, 
+                isContinueReading = isContinueReading, 
+                onReadClick = { onReadClick(book) }, 
+                onInfoClick = { onReadClick(book) }, 
+                pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction
+            )
         }
         Row(Modifier.height(20.dp).fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.Center) {
             repeat(books.size) { iteration ->
-                val color = if (pagerState.currentPage == iteration) BookVerseTheme.colors.primary else BookVerseTheme.colors.primary.copy(alpha = 0.3f)
-                val size by animateDpAsState(if (pagerState.currentPage == iteration) 8.dp else 6.dp, label = "dot")
+                val isSelected = pagerState.currentPage == iteration
+                val color = if (isSelected) BookVerseTheme.colors.primary else BookVerseTheme.colors.primary.copy(alpha = 0.3f)
+                val size by animateDpAsState(if (isSelected) 8.dp else 6.dp, label = "dot")
                 Box(modifier = Modifier.padding(2.dp).clip(CircleShape).background(color).size(size))
             }
         }
@@ -491,13 +512,6 @@ fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onRea
 
 @Composable
 fun BillboardItem(book: Book, isContinueReading: Boolean, onReadClick: () -> Unit, onInfoClick: () -> Unit, pagerOffset: Float) {
-    var displayBook by remember { mutableStateOf(book) }
-    LaunchedEffect(book) { 
-        if (displayBook.externalCoverUrl != book.externalCoverUrl || displayBook.description != book.description) {
-            displayBook = book 
-        }
-    }
-
     val infiniteTransition = rememberInfiniteTransition(label = "infinite")
     val floatAnim by infiniteTransition.animateFloat(initialValue = -8f, targetValue = 8f, animationSpec = infiniteRepeatable(animation = tween(2000, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse), label = "float")
     
@@ -509,35 +523,20 @@ fun BillboardItem(book: Book, isContinueReading: Boolean, onReadClick: () -> Uni
                 Box(modifier = Modifier.width(180.dp).height(270.dp).graphicsLayer { rotationY = -25f + (pagerOffset * 10f); rotationX = 10f; rotationZ = floatAnim / 4f; translationY = floatAnim; cameraDistance = 12f * density }.shadow(24.dp, RoundedCornerShape(4.dp))) {
                     
                     // Priority: External API > Server cover (via getBestCoverUrl)
-                    val imageUrl = displayBook.getBestCoverUrl()
+                    val imageUrl = book.getBestCoverUrl()
                     
-                    // BLOOM ANIMATION
-                    AnimatedContent(
-                        targetState = imageUrl,
-                        transitionSpec = { fadeIn(tween(1000)) + scaleIn(initialScale = 0.95f) togetherWith fadeOut(tween(600)) },
-                        label = "bloom"
-                    ) { targetUrl ->
-                        SubcomposeAsyncImage(
-                            model = targetUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)).border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(4.dp)),
-                            error = {
-                                SubcomposeAsyncImage(
-                                    model = displayBook.coverImageUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                    error = { ClassicEditionCover(displayBook.title, displayBook.author, Modifier.fillMaxSize()) }
-                                )
-                            }
-                        )
-                    }
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(4.dp)).border(0.5.dp, Color.White.copy(0.2f), RoundedCornerShape(4.dp)),
+                        error = painterResource(id = R.drawable.ic_book)
+                    )
                     Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color.White.copy(0.1f), Color.Transparent, Color.Black.copy(0.2f)))))
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
-            Text(text = displayBook.title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(text = book.title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp), fontSize = 24.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
@@ -593,41 +592,19 @@ fun CategoryRow(title: String, books: List<Book>, onBookClick: (Book) -> Unit) {
 
 @Composable
 fun BookPoster(book: Book, onClick: () -> Unit) {
-    var displayBook by remember { mutableStateOf(book) }
-    LaunchedEffect(book) { 
-        if (displayBook.externalCoverUrl != book.externalCoverUrl) {
-            displayBook = book 
-        }
-    }
-
     val isDark = BookVerseTheme.colors.isDark
     
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(modifier = Modifier.height(180.dp).fillMaxWidth().then(if (!isDark) Modifier.shadow(8.dp, RoundedCornerShape(8.dp)) else Modifier).clip(RoundedCornerShape(8.dp)).then(if (!isDark) Modifier.border(0.5.dp, Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp)) else Modifier).background(BookVerseTheme.colors.surface)) {
-            val imageUrl = displayBook.getBestCoverUrl()
+            val imageUrl = book.getBestCoverUrl()
             
-            // BLOOM ANIMATION
-            AnimatedContent(
-                targetState = imageUrl,
-                transitionSpec = { fadeIn(tween(1000)) + scaleIn(initialScale = 0.95f) togetherWith fadeOut(tween(600)) },
-                label = "bloom"
-            ) { targetUrl ->
-                SubcomposeAsyncImage(
-                    model = targetUrl, 
-                    contentDescription = displayBook.title, 
-                    contentScale = ContentScale.Crop, 
-                    modifier = Modifier.fillMaxSize(),
-                    error = {
-                        SubcomposeAsyncImage(
-                            model = displayBook.coverImageUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                            error = { ClassicEditionCover(displayBook.title, displayBook.author, Modifier.fillMaxSize()) }
-                        )
-                    }
-                )
-            }
+            AsyncImage(
+                model = imageUrl, 
+                contentDescription = book.title, 
+                contentScale = ContentScale.Crop, 
+                modifier = Modifier.fillMaxSize(),
+                error = painterResource(id = R.drawable.ic_book)
+            )
         }
     }
 }

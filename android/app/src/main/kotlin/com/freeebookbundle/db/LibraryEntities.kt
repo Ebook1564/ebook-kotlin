@@ -94,7 +94,10 @@ fun BookSummary.toBook(): com.freeebookbundle.models.Book {
     tableName = "books",
     indices = [
         Index(value = ["title"], name = "idx_book_title"),
-        Index(value = ["category_code"], name = "idx_book_category")
+        Index(value = ["category_code"], name = "idx_book_category"),
+        Index(value = ["reading_status"], name = "idx_book_reading_status"),
+        Index(value = ["author"], name = "idx_book_author"),
+        Index(value = ["last_opened"], name = "idx_book_last_opened")
     ]
 )
 data class BookEntity(

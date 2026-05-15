@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.first
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import android.app.Activity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -325,34 +327,35 @@ fun StatisticsContent(
         if (database != null) {
             isLoading = true
             try {
-                val allBooks = database.bookDao().getAllBooks().first()
-                val totalBooks = allBooks.size
-                val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
-                val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
-                val wishlistCount = allBooks.count { it.readingStatus == ReadingStatus.WISHLIST }
-                
-                // Get category breakdown
-                val categoryCounts = allBooks
-                    .groupBy { it.categoryCode }
-                    .mapNotNull { (code, books) -> 
-                        if (code.isNotEmpty()) CategoryStat(code, books.size) else null
-                    }
-                    .sortedByDescending { it.count }
-                    .take(5)
-                
-                // Get last activity
-                val lastOpened = allBooks
-                    .mapNotNull { it.lastOpened }
-                    .maxOrNull()
-                
-                stats = ReadingStats(
-                    totalBooks = totalBooks,
-                    completedBooks = completedBooks,
-                    currentlyReading = currentlyReading,
-                    wishlistCount = wishlistCount,
-                    lastActivityTime = lastOpened,
-                    categoryBreakdown = categoryCounts
-                )
+                val statsResult = withContext(Dispatchers.Default) {
+                    val allBooks = database.bookDao().getAllBooks().first()
+                    val totalBooks = allBooks.size
+                    val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
+                    val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
+                    val wishlistCount = allBooks.count { it.readingStatus == ReadingStatus.WISHLIST }
+
+                    val categoryCounts = allBooks
+                        .groupBy { it.categoryCode }
+                        .mapNotNull { (code, books) ->
+                            if (code.isNotEmpty()) CategoryStat(code, books.size) else null
+                        }
+                        .sortedByDescending { it.count }
+                        .take(5)
+
+                    val lastOpened = allBooks
+                        .mapNotNull { it.lastOpened }
+                        .maxOrNull()
+
+                    ReadingStats(
+                        totalBooks = totalBooks,
+                        completedBooks = completedBooks,
+                        currentlyReading = currentlyReading,
+                        wishlistCount = wishlistCount,
+                        lastActivityTime = lastOpened,
+                        categoryBreakdown = categoryCounts
+                    )
+                }
+                stats = statsResult
             } catch (e: Exception) {
                 stats = ReadingStats()
             }

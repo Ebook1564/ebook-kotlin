@@ -17,10 +17,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -28,6 +27,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.graphicsLayer
@@ -208,56 +209,86 @@ fun LibraryScreen(
                 val isFiltered = uiState.selectedAuthor != null || uiState.selectedTag != "All"
                 
                 if (!isFiltered) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(bottom = 140.dp)
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(bottom = 140.dp)
                     ) {
-                        ShelfTier(
-                            title = stringResource(R.string.library_currently_reading),
-                            books = uiState.currentlyReading,
-                            themeMode = currentTheme,
-                            isExpanded = expandedTier == "current",
-                            onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
-                            onInspectBook = { inspectedBook = it },
-                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.CURRENTLY_READING) }
-                        )
+                        item(key = "shelf_current") {
+                            ShelfTier(
+                                title = stringResource(R.string.library_currently_reading),
+                                books = uiState.currentlyReading,
+                                themeMode = currentTheme,
+                                isExpanded = expandedTier == "current",
+                                onToggle = { expandedTier = if (expandedTier == "current") null else "current" },
+                                onInspectBook = { inspectedBook = it },
+                                onSeeAll = { viewModel.setSeeAll(ReadingStatus.CURRENTLY_READING) }
+                            )
+                        }
+                        if (expandedTier == "current") {
+                            items(uiState.currentlyReading, key = { "exp_current_${it.id}" }) { book ->
+                                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                                    LibraryBookItem(book) { inspectedBook = it }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                        }
                         
-                        Spacer(modifier = Modifier.height(40.dp))
+                        item(key = "spacer_1") { Spacer(modifier = Modifier.height(40.dp)) }
                         
-                        ShelfTier(
-                            title = stringResource(R.string.library_finished),
-                            books = uiState.completed,
-                            themeMode = currentTheme,
-                            isExpanded = expandedTier == "finished",
-                            onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
-                            onInspectBook = { inspectedBook = it },
-                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.COMPLETED) }
-                        )
+                        item(key = "shelf_finished") {
+                            ShelfTier(
+                                title = stringResource(R.string.library_finished),
+                                books = uiState.completed,
+                                themeMode = currentTheme,
+                                isExpanded = expandedTier == "finished",
+                                onToggle = { expandedTier = if (expandedTier == "finished") null else "finished" },
+                                onInspectBook = { inspectedBook = it },
+                                onSeeAll = { viewModel.setSeeAll(ReadingStatus.COMPLETED) }
+                            )
+                        }
+                        if (expandedTier == "finished") {
+                            items(uiState.completed, key = { "exp_finished_${it.id}" }) { book ->
+                                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                                    LibraryBookItem(book) { inspectedBook = it }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                        }
                         
-                        Spacer(modifier = Modifier.height(40.dp))
+                        item(key = "spacer_2") { Spacer(modifier = Modifier.height(40.dp)) }
                         
-                        ShelfTier(
-                            title = stringResource(R.string.library_want_to_read),
-                            books = uiState.wishlist,
-                            themeMode = currentTheme,
-                            isExpanded = expandedTier == "wishlist",
-                            onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
-                            onInspectBook = { inspectedBook = it },
-                            onSeeAll = { viewModel.setSeeAll(ReadingStatus.WISHLIST) }
-                        )
+                        item(key = "shelf_wishlist") {
+                            ShelfTier(
+                                title = stringResource(R.string.library_want_to_read),
+                                books = uiState.wishlist,
+                                themeMode = currentTheme,
+                                isExpanded = expandedTier == "wishlist",
+                                onToggle = { expandedTier = if (expandedTier == "wishlist") null else "wishlist" },
+                                onInspectBook = { inspectedBook = it },
+                                onSeeAll = { viewModel.setSeeAll(ReadingStatus.WISHLIST) }
+                            )
+                        }
+                        if (expandedTier == "wishlist") {
+                            items(uiState.wishlist, key = { "exp_wish_${it.id}" }) { book ->
+                                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                                    LibraryBookItem(book) { inspectedBook = it }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                        }
                     }
                 } else {
                     val filterTitle = uiState.selectedAuthor ?: uiState.selectedTag
-                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+                    Column(modifier = Modifier.weight(1f).padding(horizontal = 24.dp)) {
                         Text(filterTitle.uppercase(), color = BookVerseTheme.colors.primary, fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontSize = 14.sp)
                         Spacer(Modifier.height(24.dp))
                         
-                        val filteredBooks = (uiState.currentlyReading + uiState.wishlist + uiState.completed).filter {
-                            if (uiState.selectedAuthor != null) it.author == uiState.selectedAuthor
-                            else it.subjects.contains(uiState.selectedTag) || it.categories.contains(uiState.selectedTag)
-                        }.distinctBy { it.id }
+                        val filteredBooks = remember(uiState.currentlyReading, uiState.wishlist, uiState.completed, uiState.selectedAuthor, uiState.selectedTag) {
+                            (uiState.currentlyReading + uiState.wishlist + uiState.completed).filter {
+                                if (uiState.selectedAuthor != null) it.author == uiState.selectedAuthor
+                                else it.subjects.contains(uiState.selectedTag) || it.categories.contains(uiState.selectedTag)
+                            }.distinctBy { it.id }
+                        }
 LazyVerticalGrid(
     columns = GridCells.Fixed(3),
     verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -322,31 +353,18 @@ LazyVerticalGrid(
 
 @Composable
 fun LibraryBookPoster(book: Book, modifier: Modifier = Modifier) {
-    val serverCoverUrl = book.getServerCoverUrl()
     Surface(
         modifier = modifier.aspectRatio(0.7f),
         shape = RoundedCornerShape(4.dp),
         shadowElevation = 8.dp
     ) {
         val coverUrl = book.getBestCoverUrl()
-        SubcomposeAsyncImage(
+        AsyncImage(
             model = coverUrl,
             contentDescription = book.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
-            error = {
-                SubcomposeAsyncImage(
-                    model = serverCoverUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    error = { 
-                        Box(Modifier.fillMaxSize().background(BookVerseTheme.colors.surface), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Book, null, tint = BookVerseTheme.colors.textSecondary.copy(0.3f))
-                        }
-                    }
-                )
-            }
+            error = painterResource(id = R.drawable.ic_book)
         )
     }
 }
@@ -389,6 +407,8 @@ fun ShelfTier(
     }
 
     val pathMeasure = remember { PathMeasure() }
+    var lastSize by remember { mutableStateOf(Size.Zero) }
+    val cachedPath = remember { Path() }
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
         Row(
@@ -426,15 +446,17 @@ fun ShelfTier(
                         drawContent()
 
                         if (themeMode == AppThemeMode.SPACE) {
-                            val path = Path().apply {
-                                addRoundRect(
+                            if (size != lastSize) {
+                                lastSize = size
+                                cachedPath.rewind()
+                                cachedPath.addRoundRect(
                                     RoundRect(
                                         rect = Rect(Offset.Zero, size),
                                         cornerRadius = CornerRadius(cornerRadius.toPx())
                                     )
                                 )
+                                pathMeasure.setPath(cachedPath, false)
                             }
-                            pathMeasure.setPath(path, false)
                             val distance = pathMeasure.length * starshipProgress.value
                             val offset = pathMeasure.getPosition(distance)
                             
@@ -491,19 +513,6 @@ fun ShelfTier(
                 }
             }
         }
-
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
-            exit = shrinkVertically(animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
-        ) {
-            Column(modifier = Modifier.padding(top = 24.dp)) {
-                books.forEach { book ->
-                    LibraryBookItem(book, onInspectBook)
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-            }
-        }
     }
 }
 
@@ -535,6 +544,7 @@ fun TransitioningShelfBooks(
     onBookClick: (Book) -> Unit
 ) {
     val expansionProgress by animateFloatAsState(if (isExpanded) 1f else 0f, animationSpec = tween(1000, easing = PremiumEasing), label = "expand")
+    val needsTransform = expansionProgress > 0f
     val infiniteTransition = rememberInfiniteTransition(label = "infinite")
     val floatAnim by infiniteTransition.animateFloat(initialValue = -1f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
 
@@ -545,33 +555,29 @@ fun TransitioningShelfBooks(
     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.BottomCenter) {
         displayBooks.forEachIndexed { index, book ->
             val relativeIndex = index - (total - 1) / 2f
-            val openRotationZ = relativeIndex * 12f
-            val openXOffset = relativeIndex * 40.dp.value
-            val openYOffset = -20.dp.value 
             val leanAngle = when(index % 3) { 0 -> -4f; 1 -> 3f; else -> 0f }
-            val currentRotationZ = lerp(leanAngle, openRotationZ, expansionProgress)
-            val currentXOffset = lerp(relativeIndex * 50.dp.value, openXOffset, expansionProgress)
-            val currentYOffset = lerp(0f, openYOffset, expansionProgress)
-            
+            val currentRotationZ = lerp(leanAngle, relativeIndex * 12f, expansionProgress)
+            val currentXOffset = lerp(relativeIndex * 50.dp.value, relativeIndex * 40.dp.value, expansionProgress)
+            val currentYOffset = lerp(0f, -20.dp.value, expansionProgress)
+
             val staggeredFloat = if (expansionProgress > 0.8f) {
-                val animValue = floatAnim * (index % 3 + 1).toFloat() * 20f * (expansionProgress - 0.8f)
-                animValue.dp
+                (floatAnim * (index % 3 + 1) * 20f * (expansionProgress - 0.8f)).dp
             } else 0.dp
 
-            val localDensity = LocalDensity.current
-            val shadowSize = localDensity.run { androidx.compose.ui.util.lerp(6.dp.toPx(), 12.dp.toPx(), expansionProgress).toDp() }
+            val shadowSize = if (expansionProgress > 0.5f) 12.dp else 6.dp
+            val borderAlpha = if (expansionProgress > 0.5f) 0.25f else 0.1f
 
             Box(
                 modifier = Modifier
                     .offset(x = currentXOffset.dp, y = (currentYOffset + staggeredFloat.value).dp)
                     .width(85.dp).height(125.dp)
-                    .graphicsLayer {
+                    .then(if (needsTransform) Modifier.graphicsLayer {
                         rotationY = -20f; rotationZ = currentRotationZ; cameraDistance = 15f * density; transformOrigin = TransformOrigin(0.5f, 1f)
-                    }
-                    .shadow(shadowSize, RoundedCornerShape(2.dp))
+                    } else Modifier)
+                    .then(if (needsTransform) Modifier.shadow(shadowSize, RoundedCornerShape(2.dp)) else Modifier)
                     .clickable(enabled = isExpanded) { onBookClick(book) }.zIndex(10f - relativeIndex.absoluteValue)
             ) {
-                AsyncImage(model = book.getBestCoverUrl(), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, Color.White.copy(alpha = androidx.compose.ui.util.lerp(0.1f, 0.25f, expansionProgress)), RoundedCornerShape(2.dp)))
+                AsyncImage(model = book.getBestCoverUrl(), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp)).border(0.5.dp, Color.White.copy(alpha = borderAlpha), RoundedCornerShape(2.dp)))
             }
         }
     }
@@ -581,22 +587,17 @@ fun TransitioningShelfBooks(
 fun PickedBookInspection(book: Book, onDismiss: () -> Unit, onReadNow: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "inspect")
     val autoRotation by infiniteTransition.animateFloat(initialValue = -45f, targetValue = 45f, animationSpec = infiniteRepeatable(tween(8000, easing = LinearOutSlowInEasing), RepeatMode.Reverse), label = "rotate")
-    val breatheAnim by infiniteTransition.animateFloat(initialValue = 0.8f, targetValue = 1.2f, animationSpec = infiniteRepeatable(tween(3000, easing = EaseInOutSine), RepeatMode.Reverse), label = "breathe")
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.96f)).clickable { onDismiss() }, contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(colors = listOf(Color.White.copy(alpha = 0.12f * breatheAnim), Color.Transparent), center = Offset.Unspecified, radius = 1400f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             LibraryBookPoster(
                 book = book, 
                 modifier = Modifier
                     .width(200.dp)
                     .graphicsLayer {
-                        // Levitating effect
-                        translationY = (breatheAnim - 1f) * 20.dp.toPx()
-                        // Rotating effect (Resident Evil style)
                         rotationY = autoRotation
-                        rotationZ = autoRotation * 0.1f // Subtle tilt
+                        rotationZ = autoRotation * 0.1f
                         cameraDistance = 12f * density
                     }
             )
