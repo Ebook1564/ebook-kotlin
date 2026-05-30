@@ -35,6 +35,12 @@
             android:exported="false"
             android:theme="@style/Theme.EbookBundle"
             android:label="@string/app_name" />
+
+        <activity
+            android:name=".audio.AudiobookPlayerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EbookBundle"
+            android:label="@string/app_name" />
     </application>
 
     <queries>

@@ -12,8 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Bookmark::class, Highlight::class, BookEntity::class, CategoryEntity::class, CatalogMetaEntity::class],
-    version = 8,
+    entities = [Bookmark::class, Highlight::class, BookEntity::class, CategoryEntity::class, CatalogMetaEntity::class, BookProgressEntity::class],
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -21,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun locatorDao(): LocatorDao
     abstract fun bookDao(): BookDao
     abstract fun catalogMetaDao(): CatalogMetaDao
+    abstract fun bookProgressDao(): BookProgressDao
 
     companion object {
         @Volatile
@@ -98,6 +99,26 @@ private fun migrateFromOldSchema(db: SupportSQLiteDatabase) {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS book_progress (
+                        book_id TEXT NOT NULL PRIMARY KEY,
+                        last_spine_index INTEGER NOT NULL DEFAULT 0,
+                        chapter_progression REAL NOT NULL DEFAULT 0.0,
+                        last_opened INTEGER,
+                        tts_spine_index INTEGER NOT NULL DEFAULT 0,
+                        tts_sentence_index INTEGER NOT NULL DEFAULT 0,
+                        tts_paragraph_index INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                db.execSQL("""
+                    INSERT OR IGNORE INTO book_progress (book_id, last_spine_index, chapter_progression, last_opened, tts_spine_index, tts_sentence_index, tts_paragraph_index)
+                    SELECT id, last_spine_index, chapter_progression, last_opened, tts_spine_index, tts_sentence_index, tts_paragraph_index FROM books
+                """)
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -105,29 +126,10 @@ private fun migrateFromOldSchema(db: SupportSQLiteDatabase) {
                     AppDatabase::class.java,
                     "library.db"
                 )
+                .createFromAsset("library.db")
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .fallbackToDestructiveMigration()
-                .addCallback(object : Callback() {
-                    override fun onOpen(db: SupportSQLiteDatabase) {
-                        super.onOpen(db)
-                        db.execSQL("PRAGMA foreign_keys = OFF;")
-                        
-                        // Check if migration already ran by checking for old schema
-                        // USE THE PASSED 'db' INSTANCE, NOT AppDatabase.getDatabase() to avoid recursion
-                        val needsMigration = try {
-                            db.query("SELECT * FROM bookmarks LIMIT 1").use { cursor ->
-                                cursor.getColumnIndex("locator") != -1
-                            }
-                        } catch (e: Exception) {
-                            false
-                        }
-
-                        if (needsMigration) {
-                            migrateFromOldSchema(db)
-                        }
-                    }
-                })
-                .addMigrations(MIGRATION_3_4, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
                 INSTANCE = instance
                 instance

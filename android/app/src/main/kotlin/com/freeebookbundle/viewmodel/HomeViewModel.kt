@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Immutable
 data class InitialBounds(
@@ -192,6 +193,22 @@ data class HomeUiState(
     val resumeFromLastPosition: Boolean = false
 )
 
+@Immutable
+data class HomeNavigationState(
+    val currentCollection: BookCollection? = null,
+    val currentCuratedCollection: CuratedCollection? = null,
+    val selectedCategoryForSearch: String? = null
+)
+
+@Immutable
+data class HomeTransitionState(
+    val transitionBook: Book? = null,
+    val initialBounds: InitialBounds? = null,
+    val isMetadataLoading: Boolean = false,
+    val openAudioPlayer: Boolean = false,
+    val resumeFromLastPosition: Boolean = false
+)
+
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
@@ -201,6 +218,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    // Split navigation state to avoid recomposing BookVerseApp on every uiState change
+    private val _navigationState = MutableStateFlow(HomeNavigationState())
+    val navigationState: StateFlow<HomeNavigationState> = _navigationState.asStateFlow()
+
+    // Split transition state to avoid recomposing BookVerseApp on metadata/transition changes
+    private val _transitionState = MutableStateFlow(HomeTransitionState())
+    val transitionState: StateFlow<HomeTransitionState> = _transitionState.asStateFlow()
 
     private val _searchRequest = MutableStateFlow(SearchRequest())
     
@@ -283,8 +308,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 selectedGenres.toList()
             }
             
-            // 1. Load Billboard first (High priority)
-            val billboard = catalogRepo.getStaticBooksByTopic(topicsToLoad.first(), 6)
+            // 1. Load Billboard first (High priority) — IO thread to avoid blocking main
+            val billboard = withContext(Dispatchers.IO) {
+                catalogRepo.getStaticBooksByTopic(topicsToLoad.first(), 6)
+            }
             _billboardBooks.value = billboard
             _uiState.value = _uiState.value.copy(isCatalogLoading = false)
 
@@ -320,7 +347,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun openCollection(tag: String) = viewModelScope.launch {
         val curatedCollection = CuratedCollections.findCollectionForTag(tag)
         if (curatedCollection != null) {
-            _uiState.value = _uiState.value.copy(currentCuratedCollection = curatedCollection, currentCollection = null)
+            _navigationState.value = _navigationState.value.copy(currentCuratedCollection = curatedCollection, currentCollection = null)
             return@launch
         }
 
@@ -331,22 +358,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             tag.contains("Mystery", ignoreCase = true) -> BookCollection("Detective Noir", "Classic whodunnits and complex investigations.", Color(0xFF263238), "Mystery")
             else -> BookCollection(tag, "A curated selection of books.", Color(0xFFE50914), tag)
         }
-        _uiState.value = _uiState.value.copy(currentCollection = collection, currentCuratedCollection = null)
+        _navigationState.value = _navigationState.value.copy(currentCollection = collection, currentCuratedCollection = null)
     }
 
     fun openCuratedCollection(collection: CuratedCollection) {
-        _uiState.value = _uiState.value.copy(currentCuratedCollection = collection, currentCollection = null)
+        _navigationState.value = _navigationState.value.copy(currentCuratedCollection = collection, currentCollection = null)
     }
 
     fun closeCollection() { 
-        _uiState.value = _uiState.value.copy(currentCollection = null, currentCuratedCollection = null) 
+        _navigationState.value = _navigationState.value.copy(currentCollection = null, currentCuratedCollection = null) 
     }
 
     fun fetchMetadataForBook(book: Book, onUpdated: (Book) -> Unit) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isMetadataLoading = true)
+            _transitionState.value = _transitionState.value.copy(isMetadataLoading = true)
             val updated = metadataRepo.fetchAndCacheMetadata(book)
-            _uiState.value = _uiState.value.copy(isMetadataLoading = false)
+            _transitionState.value = _transitionState.value.copy(isMetadataLoading = false)
             onUpdated(updated)
         }
     }
@@ -368,6 +395,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun navigateToCategory(cat: String) {
         val f = if (cat.isEmpty()) SearchFilter.None else SearchFilter.Category(cat)
         _searchRequest.value = SearchRequest(query = "", filter = f)
+        _navigationState.value = _navigationState.value.copy(selectedCategoryForSearch = cat)
         _uiState.value = _uiState.value.copy(selectedCategoryForSearch = cat, activeFilter = f, searchQuery = "")
     }
 
@@ -381,12 +409,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startReadTransition(b: Book, bounds: InitialBounds? = null, resumeFromLastPosition: Boolean = false, openAudioPlayer: Boolean = false) { 
-        _uiState.value = _uiState.value.copy(
+        _transitionState.value = HomeTransitionState(
             transitionBook = b, 
             initialBounds = bounds, 
             resumeFromLastPosition = resumeFromLastPosition,
             openAudioPlayer = openAudioPlayer
-        ) 
+        )
     }
-    fun endReadTransition() { _uiState.value = _uiState.value.copy(transitionBook = null, initialBounds = null, openAudioPlayer = false) }
+    fun endReadTransition() { _transitionState.value = HomeTransitionState() }
 }

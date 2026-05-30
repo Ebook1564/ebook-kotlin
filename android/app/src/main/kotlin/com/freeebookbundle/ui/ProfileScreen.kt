@@ -35,7 +35,6 @@ import com.freeebookbundle.R
 import com.freeebookbundle.db.AppDatabase
 import com.freeebookbundle.models.ReadingStatus
 import com.freeebookbundle.utils.ReviewManager
-import kotlinx.coroutines.flow.first
 import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import android.app.Activity
@@ -328,23 +327,17 @@ fun StatisticsContent(
             isLoading = true
             try {
                 val statsResult = withContext(Dispatchers.Default) {
-                    val allBooks = database.bookDao().getAllBooks().first()
-                    val totalBooks = allBooks.size
-                    val completedBooks = allBooks.count { it.readingStatus == ReadingStatus.COMPLETED }
-                    val currentlyReading = allBooks.count { it.readingStatus == ReadingStatus.CURRENTLY_READING }
-                    val wishlistCount = allBooks.count { it.readingStatus == ReadingStatus.WISHLIST }
+                    val bookDao = database.bookDao()
+                    val totalBooks = bookDao.getBookCount()
+                    val completedBooks = bookDao.getBookCountByStatus(ReadingStatus.COMPLETED)
+                    val currentlyReading = bookDao.getBookCountByStatus(ReadingStatus.CURRENTLY_READING)
+                    val wishlistCount = bookDao.getBookCountByStatus(ReadingStatus.WISHLIST)
 
-                    val categoryCounts = allBooks
-                        .groupBy { it.categoryCode }
-                        .mapNotNull { (code, books) ->
-                            if (code.isNotEmpty()) CategoryStat(code, books.size) else null
-                        }
-                        .sortedByDescending { it.count }
-                        .take(5)
+                    val categoryCounts = bookDao.getCategoryCounts(5).map {
+                        CategoryStat(it.categoryCode, it.count)
+                    }
 
-                    val lastOpened = allBooks
-                        .mapNotNull { it.lastOpened }
-                        .maxOrNull()
+                    val lastOpened = bookDao.getLastActivityTime()
 
                     ReadingStats(
                         totalBooks = totalBooks,

@@ -215,31 +215,31 @@ fun BookDetailContent(
                                         .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = colors.primary),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = stringResource(R.string.home_continue),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 12.sp,
-                                        letterSpacing = 0.5.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = stringResource(R.string.home_continue),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 
                                 OutlinedButton(
                                     onClick = { onReadClick(coverBounds, false) },
-                                    modifier = Modifier.weight(0.5f),
+                                    modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = stringResource(R.string.home_start_over),
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
-                                        letterSpacing = 0.5.sp,
+                                        fontSize = 8.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -268,22 +268,24 @@ fun BookDetailContent(
                                 }
                             }
                             
-                            FilledTonalButton(
-                                onClick = { onAudioClick(book) },
-                                modifier = Modifier
-                                    .height(48.dp)
-                                    .shadow(4.dp, RoundedCornerShape(12.dp)),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = colors.primary.copy(alpha = 0.15f)
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Headset, 
-                                    null, 
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primary
-                                )
+                            if (book.audioUrl != null) {
+                                FilledTonalButton(
+                                    onClick = { onAudioClick(book) },
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .shadow(4.dp, RoundedCornerShape(12.dp)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = colors.primary.copy(alpha = 0.15f)
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Headset, 
+                                        null, 
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primary
+                                    )
+                                }
                             }
                         }
 

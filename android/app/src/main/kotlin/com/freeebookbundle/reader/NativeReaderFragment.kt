@@ -97,6 +97,7 @@ fun NativeReaderScreen(
     
     var targetChapter by remember { mutableStateOf<Int?>(null) }
     var targetAnchor by remember { mutableStateOf<String?>(null) }
+    var targetScrollOffset by remember { mutableIntStateOf(0) }
     
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -160,6 +161,7 @@ fun NativeReaderScreen(
             val initialChapter = savedPos?.first ?: 0
             val highlights = readerViewModel.getHighlightsSync(bId)
             epubViewModel.loadBook(filePath, initialChapter = initialChapter, bookId = bId, savedHighlights = highlights)
+            readerViewModel.recordBookOpened(bId)
         } ?: epubViewModel.loadBook(filePath, 0)
     }
 
@@ -192,6 +194,7 @@ fun NativeReaderScreen(
                     val progress = epubViewModel.currentProgress.value
                     if (bookId != null) {
                         readerViewModel.updateReadingProgress(bookId, chapter, progress)
+                        readerViewModel.recordBookOpened(bookId)
                     }
                     onExit(chapter, progress)
                     onBack() 
@@ -227,12 +230,14 @@ fun NativeReaderScreen(
                     initialChapter = 0, 
                     targetChapter = targetChapter,
                     targetAnchor = targetAnchor,
+                    targetScrollOffset = targetScrollOffset,
                     settings = readerSettings,
                     backgroundColor = backgroundColor,
                     textColor = textColor,
                     onProgressChange = { fraction ->
                         targetChapter = null
                         targetAnchor = null
+                        targetScrollOffset = 0
                         scheduleSave(epubViewModel.currentChapter.value, fraction)
                     },
                     onJumpToChapter = { index, fragmentId ->
@@ -462,7 +467,7 @@ fun NativeReaderScreen(
                     LazyColumn(modifier = Modifier.fillMaxHeight(0.6f)) {
                         itemsIndexed(bookmarks) { _, bookmark ->
                             Row(
-                                modifier = Modifier.fillMaxWidth().clickable { targetChapter = bookmark.chapterIndex; showBookmarks = false }.padding(vertical = 12.dp),
+                                modifier = Modifier.fillMaxWidth().clickable { targetChapter = bookmark.chapterIndex; targetScrollOffset = bookmark.scrollOffset; showBookmarks = false }.padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.Star, null, tint = accentColor, modifier = Modifier.size(20.dp))

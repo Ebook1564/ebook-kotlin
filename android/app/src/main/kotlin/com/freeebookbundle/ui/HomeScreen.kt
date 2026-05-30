@@ -88,6 +88,7 @@ fun HomeScreen(
     appViewModel: AppViewModel = viewModel(),
     scrollState: LazyListState = rememberLazyListState(),
     userName: String,
+    isSpaceActive: Boolean = true,
     onBookClick: (Book) -> Unit,
     onReadNowClick: (Book) -> Unit
 ) {
@@ -98,9 +99,12 @@ fun HomeScreen(
     val backgroundColor = BookVerseTheme.colors.background
     val themeMode by appViewModel.themeMode
     
+    // Shared skeleton transition to avoid creating multiple InfiniteTransitions
+    val skeletonTransition = rememberInfiniteTransition(label = "home_skeleton")
+
     Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
         if (themeMode == AppThemeMode.SPACE) {
-            SpaceBackground()
+            SpaceBackground(isActive = isSpaceActive)
         }
         
         if (uiState.isLoading && homeSections.isEmpty() && continueReadingBooks.isEmpty()) {
@@ -121,7 +125,7 @@ fun HomeScreen(
                     if (billboardBooks.isNotEmpty()) {
                         BillboardCarousel(books = billboardBooks, continueReadingBooks = continueReadingBooks, onReadClick = onReadNowClick, onInfoClick = onBookClick)
                     } else if (uiState.isCatalogLoading) {
-                        BillboardSkeleton()
+                        BillboardSkeleton(shimmerTransition = skeletonTransition)
                     }
                 }
 
@@ -137,7 +141,7 @@ fun HomeScreen(
                         if (section.books.isNotEmpty()) {
                             CategoryRow(title = displayTitle, books = section.books, onBookClick = onBookClick)
                         } else {
-                            CategorySkeleton(title = displayTitle)
+                            CategorySkeleton(title = displayTitle, shimmerTransition = skeletonTransition)
                         }
                     }
                 }
@@ -148,9 +152,9 @@ fun HomeScreen(
 
 @Composable
 fun shimmerBrush(
+    shimmerTransition: InfiniteTransition,
     showShimmer: Boolean = true, 
-    targetValue: Float = 1000f,
-    shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    targetValue: Float = 1000f
 ): Brush {
     return if (showShimmer) {
         val shimmerColors = listOf(
@@ -184,17 +188,16 @@ fun shimmerBrush(
 }
 
 @Composable
-fun BillboardSkeleton(shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "skeleton")) {
+fun BillboardSkeleton(shimmerTransition: InfiniteTransition) {
     val brush = shimmerBrush(shimmerTransition = shimmerTransition)
-    val floatTransition = rememberInfiniteTransition(label = "skeleton_float")
-    val floatAnim by floatTransition.animateFloat(
+    val floatAnim by shimmerTransition.animateFloat(
         initialValue = -8f, 
         targetValue = 8f, 
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = EaseInOutSine), 
             repeatMode = RepeatMode.Reverse
         ), 
-        label = "float"
+        label = "skeleton_float"
     )
 
     Box(modifier = Modifier.fillMaxWidth().height(480.dp), contentAlignment = Alignment.Center) {
@@ -258,7 +261,7 @@ fun BillboardSkeleton(shimmerTransition: InfiniteTransition = rememberInfiniteTr
 }
 
 @Composable
-fun CategorySkeleton(title: String, shimmerTransition: InfiniteTransition = rememberInfiniteTransition(label = "category_shimmer")) {
+fun CategorySkeleton(title: String, shimmerTransition: InfiniteTransition) {
     val brush = shimmerBrush(shimmerTransition = shimmerTransition)
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text(text = title, style = BookVerseTheme.typography.headline, color = BookVerseTheme.colors.textPrimary, fontSize = 20.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
@@ -487,7 +490,8 @@ fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onRea
         HorizontalPager(
             state = pagerState, 
             modifier = Modifier.fillMaxWidth().height(480.dp), 
-            contentPadding = PaddingValues(horizontal = 0.dp)
+            contentPadding = PaddingValues(horizontal = 0.dp),
+            beyondViewportPageCount = 0
         ) { page ->
             val book = books[page]
             val isContinueReading = continueReadingIds.contains(book.id)
@@ -495,7 +499,7 @@ fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onRea
                 book = book, 
                 isContinueReading = isContinueReading, 
                 onReadClick = { onReadClick(book) }, 
-                onInfoClick = { onReadClick(book) }, 
+                onInfoClick = { onInfoClick(book) }, 
                 pagerOffset = pagerState.currentPage - page + pagerState.currentPageOffsetFraction
             )
         }
@@ -512,8 +516,10 @@ fun BillboardCarousel(books: List<Book>, continueReadingBooks: List<Book>, onRea
 
 @Composable
 fun BillboardItem(book: Book, isContinueReading: Boolean, onReadClick: () -> Unit, onInfoClick: () -> Unit, pagerOffset: Float) {
-    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
-    val floatAnim by infiniteTransition.animateFloat(initialValue = -8f, targetValue = 8f, animationSpec = infiniteRepeatable(animation = tween(2000, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse), label = "float")
+    val isCurrentPage = kotlin.math.abs(pagerOffset) < 0.5f
+    val floatAnim by if (isCurrentPage) {
+        rememberInfiniteTransition(label = "infinite").animateFloat(initialValue = -8f, targetValue = 8f, animationSpec = infiniteRepeatable(animation = tween(2000, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse), label = "float")
+    } else remember { mutableStateOf(0f) }
     
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(listOf(Color.Transparent, BookVerseTheme.colors.background))))

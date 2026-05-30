@@ -31,7 +31,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
@@ -49,6 +48,8 @@ import com.freeebookbundle.db.Highlight
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 private fun TextLayoutResult.getWordRange(offset: Int): IntRange {
     val text = layoutInput.text.text
@@ -69,6 +70,7 @@ fun NativeEpubReader(
     initialChapter: Int = 0,
     targetChapter: Int? = null,
     targetAnchor: String? = null,
+    targetScrollOffset: Int = 0,
     settings: com.freeebookbundle.viewmodel.ReaderSettings = com.freeebookbundle.viewmodel.ReaderSettings(),
     backgroundColor: Color = Color(0xFFFDFCF0),
     textColor: Color = Color(0xFF5B4636),
@@ -101,7 +103,6 @@ fun NativeEpubReader(
 
     val textLayoutResults = remember { HashMap<String, TextLayoutResult>() }
     val itemPositions = remember { HashMap<String, Offset>() }
-    var containerPositionInWindow by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(filePath) { viewModel.loadBook(filePath, initialChapter) }
     LaunchedEffect(targetChapter, targetAnchor) {
@@ -113,15 +114,18 @@ fun NativeEpubReader(
     val clipboardManager = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val ttsManager = remember { com.freeebookbundle.voice.TtsVoiceManager(context) }
+    LaunchedEffect(Unit) { ttsManager.initialize { } }
 
     val selStartItemId: MutableState<String?> = remember { mutableStateOf(null) }
     val selStartOffset: MutableIntState = remember { mutableIntStateOf(0) }
     val selEndItemId: MutableState<String?> = remember { mutableStateOf(null) }
     val selEndOffset: MutableIntState = remember { mutableIntStateOf(0) }
     val isSelecting: MutableState<Boolean> = remember { mutableStateOf(false) }
-    val activeSelectionText = remember(selStartItemId.value, selStartOffset.intValue, selEndItemId.value, selEndOffset.intValue, isSelecting.value, readerState.items) {
-        if (selStartItemId.value == null || selEndItemId.value == null || !isSelecting.value) ""
-        else buildSelectedText(selStartItemId.value!!, selStartOffset.intValue, selEndItemId.value!!, selEndOffset.intValue, readerState.items)
+    val activeSelectionText by remember {
+        derivedStateOf {
+            if (selStartItemId.value == null || selEndItemId.value == null || !isSelecting.value) ""
+            else buildSelectedText(selStartItemId.value!!, selStartOffset.intValue, selEndItemId.value!!, selEndOffset.intValue, readerState.items)
+        }
     }
 
     var selectedTextInfoOld by remember { mutableStateOf<SelectionInfo?>(null) }
@@ -153,23 +157,37 @@ fun NativeEpubReader(
                 yield()
                 delay(50)
                 listState.scrollToItem(targetIndex)
+                if (targetScrollOffset > 0) {
+                    delay(100)
+                    val progress = targetScrollOffset / 1000f
+                    val targetChapterPrefix2 = "${readerState.currentChapterIndex}_item_"
+                    val itemsInChapter = readerState.items.count { it.id.startsWith(targetChapterPrefix2) }
+                    if (itemsInChapter > 0) {
+                        val extraItems = (itemsInChapter * progress).toInt().coerceAtMost(itemsInChapter - 1)
+                        val itemIndex = (targetIndex + extraItems).coerceAtMost(readerState.items.lastIndex)
+                        if (itemIndex > targetIndex) {
+                            listState.animateScrollToItem(itemIndex)
+                        }
+                    }
+                }
             }
             viewModel.consumeJumpTrigger()
         }
     }
 
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        if (readerState.items.isNotEmpty()) {
-            val visibleIndex = listState.firstVisibleItemIndex
-            viewModel.updateProgress(visibleIndex)
-            onProgressChange(viewModel.currentProgress.value)
-            onChapterChange(viewModel.currentChapter.value, viewModel.currentProgress.value)
-        }
+    LaunchedEffect(Unit) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { visibleIndex ->
+                if (readerState.items.isNotEmpty()) {
+                    viewModel.updateProgress(visibleIndex)
+                    onProgressChange(viewModel.currentProgress.value)
+                    onChapterChange(viewModel.currentChapter.value, viewModel.currentProgress.value)
+                }
+            }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(backgroundColor).onGloballyPositioned { 
-        containerPositionInWindow = it.positionInWindow()
-    }) {
+    Box(modifier = modifier.fillMaxSize().background(backgroundColor)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -205,8 +223,7 @@ fun NativeEpubReader(
                             lineHeight = lineHeight,
                             textColor = textColor,
                             onPositioned = { coords ->
-                                val posInRoot = coords.positionInRoot()
-                                val windowPos = containerPositionInWindow + posInRoot
+                                val windowPos = coords.positionInWindow()
                                 if (itemPositions[item.id] != windowPos) {
                                     itemPositions[item.id] = windowPos
                                 }
@@ -255,8 +272,7 @@ fun NativeEpubReader(
                             textColor = textColor, 
                             adjustedFontSize = adjustedFontSize,
                             onPositioned = { coords ->
-                                val posInRoot = coords.positionInRoot()
-                                val windowPos = containerPositionInWindow + posInRoot
+                                val windowPos = coords.positionInWindow()
                                 if (itemPositions[item.id] != windowPos) {
                                     itemPositions[item.id] = windowPos
                                 }
@@ -268,8 +284,7 @@ fun NativeEpubReader(
                             path = item.path, 
                             loadedImages = readerState.loadedImages,
                             onPositioned = { coords ->
-                                val posInRoot = coords.positionInRoot()
-                                val windowPos = containerPositionInWindow + posInRoot
+                                val windowPos = coords.positionInWindow()
                                 if (itemPositions[item.id] != windowPos) {
                                     itemPositions[item.id] = windowPos
                                 }
@@ -298,8 +313,11 @@ fun NativeEpubReader(
                         Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             listOf(0xFFFFF176, 0xFFAED581, 0xFF81D4FA, 0xFFF06292).forEach { color ->
                                 Box(Modifier.size(32.dp).background(Color(color), CircleShape).clickable {
-                                    val hl = info.existingHighlight.copy(color = color.toInt())
+                                    val hl = info.existingHighlight.copy(color = color.toInt(), id = System.nanoTime() and Long.MAX_VALUE)
+                                    onHighlightDeleted(info.existingHighlight)
+                                    viewModel.deleteHighlight(info.existingHighlight)
                                     viewModel.addHighlight(hl)
+                                    onHighlightsAdded(listOf(hl))
                                     selectedTextInfoOld = null
                                 })
                             }

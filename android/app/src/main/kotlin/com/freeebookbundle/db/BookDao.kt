@@ -65,7 +65,12 @@ interface BookDao {
     @Query("SELECT * FROM books")
     fun getAllBooks(): Flow<List<BookEntity>>
 
-    @Query("SELECT * FROM books WHERE last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
+    @Query("""
+        SELECT b.* FROM books b
+        INNER JOIN book_progress bp ON b.id = bp.book_id
+        WHERE bp.last_opened IS NOT NULL
+        ORDER BY bp.last_opened DESC LIMIT :limit
+    """)
     suspend fun getRecentlyOpenedBooks(limit: Int = 10): List<BookEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -89,31 +94,17 @@ interface BookDao {
     @Query("UPDATE books SET date_finished = :dateFinished, reading_status = :status WHERE id = :bookId")
     suspend fun markAsCompleted(bookId: String, status: ReadingStatus = ReadingStatus.COMPLETED, dateFinished: Long)
 
-    @Query("UPDATE books SET tts_spine_index = :spineIndex, tts_sentence_index = :sentenceIndex, tts_paragraph_index = :paragraphIndex WHERE id = :bookId")
-    suspend fun updateTtsPosition(bookId: String, spineIndex: Int, sentenceIndex: Int, paragraphIndex: Int)
-
-    @Query("UPDATE books SET last_spine_index = :spineIndex, chapter_progression = :progression, last_opened = :timestamp WHERE id = :bookId")
-    suspend fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float, timestamp: Long = System.currentTimeMillis())
-
-    @Query("SELECT * FROM books WHERE reading_status = 'CURRENTLY_READING' AND last_opened IS NOT NULL ORDER BY last_opened DESC LIMIT :limit")
+    @Query("""
+        SELECT b.id, b.title, b.author, b.category_code, b.reading_status, b.date_added,
+               COALESCE(bp.last_opened, b.last_opened) AS last_opened,
+               bp.last_spine_index, bp.chapter_progression,
+               b.subjects, b.external_cover_url
+        FROM books b
+        LEFT JOIN book_progress bp ON b.id = bp.book_id
+        WHERE b.reading_status = 'CURRENTLY_READING' AND bp.last_opened IS NOT NULL
+        ORDER BY bp.last_opened DESC LIMIT :limit
+    """)
     fun getContinueReadingBooks(limit: Int): Flow<List<BookSummary>>
-
-    @Query("SELECT last_spine_index AS spineIndex, chapter_progression AS progression FROM books WHERE id = :bookId")
-    suspend fun getLastPosition(bookId: String): LastPosition?
-
-    @Query("SELECT tts_spine_index AS spineIndex, tts_sentence_index AS sentenceIndex, tts_paragraph_index AS paragraphIndex FROM books WHERE id = :bookId")
-    suspend fun getTtsPosition(bookId: String): TtsPosition?
-
-    data class LastPosition(
-        val spineIndex: Int,
-        val progression: Float
-    )
-
-    data class TtsPosition(
-        val spineIndex: Int,
-        val sentenceIndex: Int,
-        val paragraphIndex: Int
-    )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
@@ -123,4 +114,13 @@ interface BookDao {
 
     @Query("SELECT COUNT(*) FROM books")
     suspend fun getBookCount(): Int
+
+    @Query("SELECT COUNT(*) FROM books WHERE reading_status = :status")
+    suspend fun getBookCountByStatus(status: ReadingStatus): Int
+
+    @Query("SELECT category_code, COUNT(*) AS count FROM books WHERE category_code != '' GROUP BY category_code ORDER BY count DESC LIMIT :limit")
+    suspend fun getCategoryCounts(limit: Int = 5): List<CategoryCount>
+
+    @Query("SELECT MAX(last_opened) FROM books WHERE last_opened IS NOT NULL")
+    suspend fun getLastActivityTime(): Long?
 }

@@ -29,6 +29,9 @@ import com.freeebookbundle.db.CategoryEntity
 import com.freeebookbundle.db.toBook
 import com.freeebookbundle.models.Book
 import com.freeebookbundle.viewmodel.AppViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 data class SearchResult(
     val books: List<Book> = emptyList(),
@@ -48,22 +51,25 @@ fun ExploreAllScreen(
     var searchResults by remember { mutableStateOf(SearchResult()) }
     var isSearching by remember { mutableStateOf(false) }
 
-    // Real-time search
+    // Real-time search — debounced, runs on IO to avoid blocking main thread
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank()) {
+            delay(300) // debounce
             isSearching = true
-            val database = (appViewModel.getApplication() as EbookApp).database
-            val bookDao = database.bookDao()
+            val results = withContext(Dispatchers.IO) {
+                val database = (appViewModel.getApplication() as EbookApp).database
+                val bookDao = database.bookDao()
 
-            val books = bookDao.searchBooks(searchQuery).map { it.toBook() }
-            val authors = bookDao.searchAuthors(searchQuery).map { authorName ->
-                authorName to bookDao.getBookCountByAuthor(authorName)
+                val books = bookDao.searchBooks(searchQuery).map { it.toBook() }
+                val authors = bookDao.searchAuthors(searchQuery).map { authorName ->
+                    authorName to bookDao.getBookCountByAuthor(authorName)
+                }
+                val categories = bookDao.searchCategories(searchQuery).map { category ->
+                    category.name to getCategoryColor(category.name)
+                }
+                SearchResult(books = books, authors = authors, genres = categories)
             }
-            val categories = bookDao.searchCategories(searchQuery).map { category ->
-                category.name to getCategoryColor(category.name)
-            }
-
-            searchResults = SearchResult(books = books, authors = authors, genres = categories)
+            searchResults = results
             isSearching = false
         } else {
             searchResults = SearchResult()

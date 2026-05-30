@@ -99,53 +99,13 @@ class EbookApp : Application() {
 
             Coil.setImageLoader(imageLoader)
 
-            // 2. Catalog preload
+            // 2. Verify database is populated (library.db is pre-built via createFromAsset)
             try {
                 val bookDao = database.bookDao()
                 val count = bookDao.getBookCount()
-                if (count == 0) {
-                    Log.d(TAG, "Database empty, preloading catalog...")
-                    val catalog = catalogRepo.getCatalog()
-
-                    val entities = catalog.map { entry ->
-                        var rawCat = entry.s.firstOrNull { it.startsWith("Category:") }
-                            ?: entry.s.firstOrNull() ?: "Uncategorized"
-                        for (prefix in listOf("Category:", "Bookshelf:", "Bookshelves:")) {
-                            if (rawCat.startsWith(prefix)) {
-                                rawCat = rawCat.removePrefix(prefix).trim()
-                            }
-                        }
-                        val code = rawCat.lowercase()
-                            .replace(Regex("[^a-z0-9]+"), "_").trim('_')
-
-                        com.freeebookbundle.db.BookEntity(
-                            id = entry.id,
-                            title = entry.t,
-                            author = entry.a,
-                            description = "",
-                            categoryCode = code,
-                            sourceFolder = "",
-                            coverImageName = "${entry.id}_cover_image.jpg",
-                            epubFileName = "${entry.t}.${entry.id}.epub",
-                            subjects = entry.s,
-                            dateAdded = System.currentTimeMillis()
-                        )
-                    }
-                    
-                    // Batch insert to avoid massive DB lock and Daveys
-                    val insertStart = System.currentTimeMillis()
-                    entities.chunked(500).forEachIndexed { index, batch ->
-                        val batchStart = System.currentTimeMillis()
-                        bookDao.insertBooks(batch)
-                        android.util.Log.d("PerfTrace", "Inserted batch $index (500 books) in ${System.currentTimeMillis() - batchStart}ms")
-                    }
-                    android.util.Log.d("PerfTrace", "Total preload of ${entities.size} books took ${System.currentTimeMillis() - insertStart}ms")
-                    Log.d(TAG, "Preloaded ${entities.size} books from catalog.json in chunks")
-                } else {
-                    Log.d(TAG, "Database already has $count books, skipping preload")
-                }
+                Log.d(TAG, "Database has $count books (pre-built from asset)")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to preload catalog", e)
+                Log.e(TAG, "Failed to verify database", e)
             }
         }
 

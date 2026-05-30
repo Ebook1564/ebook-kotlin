@@ -40,7 +40,8 @@ class ReaderActivity : AppCompatActivity() {
         val file = File(filePath)
         if (!file.exists()) return
 
-        val useNativeReader = intent.getBooleanExtra("USE_NATIVE_READER", false) || settingsRepo.isNativeReaderEnabled()
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val useNativeReader = intent.getBooleanExtra("USE_NATIVE_READER", false) || prefs.getBoolean("use_new_reader", true)
 
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -80,7 +81,7 @@ class ReaderActivity : AppCompatActivity() {
     private fun loadWithReadium(filePath: String, book: Book, openAudioPlayer: Boolean) {
         val app = application as EbookApp
         val file = File(filePath)
-        val url = file.toUrl()
+        val url = file.toUrl(isDirectory = false)
 
         lifecycleScope.launch {
             try {

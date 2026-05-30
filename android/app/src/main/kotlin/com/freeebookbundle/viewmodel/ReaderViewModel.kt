@@ -31,6 +31,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private val database = AppDatabase.getDatabase(application)
     private val dao = database.locatorDao()
     private val bookDao = database.bookDao()
+    private val bookProgressDao = database.bookProgressDao()
     private val prefs = application.getSharedPreferences("reader_prefs", Context.MODE_PRIVATE)
 
     private val _settings = MutableStateFlow(loadSettings())
@@ -70,6 +71,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private var lastProgressUpdate = 0L
 
+    fun recordBookOpened(bookId: String) {
+        viewModelScope.launch {
+            bookDao.updateLastOpened(bookId, System.currentTimeMillis())
+        }
+    }
+
     fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float) {
         val now = System.currentTimeMillis()
         if (now - lastProgressUpdate < 2000) {
@@ -80,7 +87,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         lastProgressUpdate = now
         android.util.Log.d("PerfTrace", "Executing progress update for $bookId at spine=$spineIndex progress=$progression")
         viewModelScope.launch {
-            bookDao.updateReadingProgress(bookId, spineIndex, progression, now)
+            bookProgressDao.upsertProgress(
+                com.freeebookbundle.db.BookProgressEntity(
+                    bookId = bookId,
+                    lastSpineIndex = spineIndex,
+                    chapterProgression = progression,
+                    lastOpened = now
+                )
+            )
         }
     }
 

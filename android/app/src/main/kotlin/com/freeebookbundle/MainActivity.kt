@@ -66,6 +66,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.freeebookbundle.reader.ReaderActivity
 import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.ui.*
+import com.freeebookbundle.audio.AudiobookPlayerActivity
 import com.freeebookbundle.utils.Analytics
 import com.freeebookbundle.utils.ReviewManager
 import com.freeebookbundle.viewmodel.*
@@ -154,22 +155,18 @@ class MainActivity : ComponentActivity() {
 
                 val pagerState = rememberPagerState(pageCount = { 3 })
                 val homeScrollState = rememberLazyListState()
-                val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+                val homeNavState by homeViewModel.navigationState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(homeUiState.selectedCategoryForSearch) {
-                    homeUiState.selectedCategoryForSearch?.let {
+                LaunchedEffect(homeNavState.selectedCategoryForSearch) {
+                    homeNavState.selectedCategoryForSearch?.let {
                         pagerState.animateScrollToPage(1, animationSpec = tween(800, easing = PremiumEasing))
                     }
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (previousTheme != null) {
-                        val dummyScrollState = rememberLazyListState(
-                            initialFirstVisibleItemIndex = homeScrollState.firstVisibleItemIndex,
-                            initialFirstVisibleItemScrollOffset = homeScrollState.firstVisibleItemScrollOffset
-                        )
                         BookVerseTheme(previousTheme!!) {
-                            StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, dummyScrollState, userProfile.name, onProfileClick = { showProfile = true })
+                            StaticAppLayout(homeViewModel, appViewModel, libraryViewModel, pagerState.currentPage, homeScrollState, userProfile.name, onProfileClick = { showProfile = true })
                         }
                     }
 
@@ -330,8 +327,9 @@ fun BookVerseApp(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // UI state collection
-    val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    // UI state collection — split into separate flows to avoid cascade recomposition
+    val homeNavState by homeViewModel.navigationState.collectAsStateWithLifecycle()
+    val homeTransitionState by homeViewModel.transitionState.collectAsStateWithLifecycle()
     val libraryUiState by libraryViewModel.uiState.collectAsStateWithLifecycle()
     
     // Volatile settings
@@ -348,8 +346,8 @@ fun BookVerseApp(
         derivedStateOf {
             isInspectingByShelf || 
             libraryUiState.seeAllStatus != null || 
-            homeUiState.currentCollection != null || 
-            homeUiState.currentCuratedCollection != null
+            homeNavState.currentCollection != null || 
+            homeNavState.currentCuratedCollection != null
         }
     }
 
@@ -375,16 +373,18 @@ fun BookVerseApp(
             beyondViewportPageCount = 0, 
             userScrollEnabled = isInteractive && !shouldHideNavBar && !showSheet
         ) { page ->
+            val isSpaceActive = page == pagerState.currentPage
             when (page) {
                 0 -> HomeScreen(
                     viewModel = homeViewModel, 
                     appViewModel = appViewModel, 
                     scrollState = homeScrollState,
                     userName = userName,
+                    isSpaceActive = isSpaceActive,
                     onBookClick = { onBookClick(it) },
                     onReadNowClick = { book -> homeViewModel.startReadTransition(book) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { onBookClick(it) })
+                1 -> SearchScreen(viewModel = homeViewModel, isSpaceActive = isSpaceActive, onBookClick = { onBookClick(it) })
                 2 -> LibraryScreen(
                     viewModel = libraryViewModel, 
                     homeViewModel = homeViewModel,
@@ -413,7 +413,8 @@ fun BookVerseApp(
         ReaderOverlayManager(
             homeViewModel = homeViewModel,
             libraryViewModel = libraryViewModel,
-            homeUiState = homeUiState,
+            navigationState = homeNavState,
+            transitionState = homeTransitionState,
             readerSettingsRepo = readerSettingsRepo,
             onBookClick = { onBookClick(it) },
             onReadClick = { book, bounds, resume, openAudio -> onReadClick(book, bounds, resume, openAudio) }
@@ -422,7 +423,7 @@ fun BookVerseApp(
         BookDetailSheet(
             book = selectedBookForSheet,
             isVisible = showSheet,
-            isLoading = homeUiState.isMetadataLoading,
+            isLoading = homeTransitionState.isMetadataLoading,
             onDismiss = { showSheet = false },
             onReadClick = { book, bounds, resume, openAudio -> onReadClick(book, bounds, resume, openAudio) },
             onCategoryClick = { tag -> showSheet = false; homeViewModel.openCollection(tag) },
@@ -440,7 +441,8 @@ fun BookVerseApp(
 fun ReaderOverlayManager(
     homeViewModel: HomeViewModel,
     libraryViewModel: LibraryViewModel,
-    homeUiState: HomeUiState,
+    navigationState: HomeNavigationState,
+    transitionState: HomeTransitionState,
     readerSettingsRepo: ReaderSettingsRepository,
     onBookClick: (com.freeebookbundle.models.Book) -> Unit,
     onReadClick: (com.freeebookbundle.models.Book, InitialBounds?, resume: Boolean, openAudio: Boolean) -> Unit
@@ -449,7 +451,7 @@ fun ReaderOverlayManager(
     val scope = rememberCoroutineScope()
 
     // 1. Collection Overlays
-    val currentCollection = homeUiState.currentCollection
+    val currentCollection = navigationState.currentCollection
     AnimatedVisibility(
         visible = currentCollection != null,
         enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
@@ -467,7 +469,7 @@ fun ReaderOverlayManager(
         }
     }
 
-    val currentCurated = homeUiState.currentCuratedCollection
+    val currentCurated = navigationState.currentCuratedCollection
     AnimatedVisibility(
         visible = currentCurated != null,
         enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
@@ -488,11 +490,11 @@ fun ReaderOverlayManager(
     }
 
     // 2. Transition Overlay
-    val transitionBook = homeUiState.transitionBook
+    val transitionBook = transitionState.transitionBook
     if (transitionBook != null) {
         BookTransitionOverlay(
             book = transitionBook, 
-            initialBounds = homeUiState.initialBounds, 
+            initialBounds = transitionState.initialBounds, 
             themeColor = readerSettingsRepo.getThemeColor(), 
             textColor = readerSettingsRepo.getTextColor(), 
             onAnimationFinished = { file ->
@@ -514,7 +516,7 @@ fun ReaderOverlayManager(
                 val intent = Intent(context, ReaderActivity::class.java).apply {
                     putExtra("FILE_PATH", file.absolutePath)
                     putExtra("BOOK", transitionBook)
-                    putExtra("OPEN_AUDIO_PLAYER", homeUiState.openAudioPlayer)
+                    putExtra("OPEN_AUDIO_PLAYER", transitionState.openAudioPlayer)
                 }
                 context.startActivity(intent, ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle())
             }, 
@@ -538,6 +540,7 @@ fun BookDetailSheet(
     if (!isVisible || book == null) return
     
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val context = LocalContext.current
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -554,7 +557,11 @@ fun BookDetailSheet(
             onAddToReadingList = { status -> onAddToReadingList(book, status) },
             onClose = onDismiss,
             onAuthorClick = onAuthorClick,
-            onAudioClick = { b -> onReadClick(b, null, false, true) }
+            onAudioClick = { b ->
+                context.startActivity(Intent(context, AudiobookPlayerActivity::class.java).apply {
+                    putExtra("BOOK", b)
+                })
+            }
         )
     }
 }

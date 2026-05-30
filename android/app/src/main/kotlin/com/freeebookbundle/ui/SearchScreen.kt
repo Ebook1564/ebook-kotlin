@@ -81,6 +81,7 @@ import kotlin.math.hypot
 fun SearchScreen(
     viewModel: HomeViewModel = viewModel(),
     appViewModel: AppViewModel = viewModel(),
+    isSpaceActive: Boolean = true,
     onBookClick: (Book) -> Unit,
     onAuthorClick: (String) -> Unit = {},
     onExploreAllClick: () -> Unit = {}
@@ -130,7 +131,7 @@ fun SearchScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         if (currentTheme == AppThemeMode.SPACE) {
-            SpaceBackground()
+            SpaceBackground(isActive = isSpaceActive)
         }
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -309,12 +310,6 @@ private fun DayNightSearchContent(
                 }
             )
 
-            val overlayAlpha by animateFloatAsState(
-                targetValue = if (selectedCategory != null) 0.3f else 1f,
-                animationSpec = tween(400),
-                label = "overlay_alpha"
-            )
-
             val showOverlay = selectedCategory?.isNotEmpty() == true
             val overlayProgress by animateFloatAsState(
                 targetValue = if (showOverlay) 1f else 0f,
@@ -325,37 +320,36 @@ private fun DayNightSearchContent(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        stringResource(R.string.search_explore_all),
-                        modifier = Modifier
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
-                            .alpha(overlayAlpha),
-                        style = BookVerseTheme.typography.label,
-                        color = colors.textSecondary,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp
-                    )
+                    if (hasFilter || uiState.searchQuery.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.search_explore_all),
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            style = BookVerseTheme.typography.label,
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
 
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(overlayAlpha),
-                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(
-                            count = pagingItems.itemCount,
-                            key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
-                        ) { index ->
-                            pagingItems[index]?.let { book ->
-                                SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(
+                                count = pagingItems.itemCount,
+                                key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
+                            ) { index ->
+                                pagingItems[index]?.let { book ->
+                                    SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
+                                }
                             }
-                        }
-                        
-                        if (pagingItems.loadState.append is androidx.paging.LoadState.Loading) {
-                            item {
-                                Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(24.dp))
+                            
+                            if (pagingItems.loadState.append is androidx.paging.LoadState.Loading) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(24.dp))
+                                    }
                                 }
                             }
                         }
@@ -745,12 +739,6 @@ private fun SpaceSearchContent(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.weight(1f)) {
-            val overlayAlpha by animateFloatAsState(
-                targetValue = if (selectedCategory != null) 0.3f else 1f,
-                animationSpec = tween(400),
-                label = "space_overlay_alpha"
-            )
-
             val showOverlay = selectedCategory?.isNotEmpty() == true
             val overlayProgress by animateFloatAsState(
                 targetValue = if (showOverlay) 1f else 0f,
@@ -761,45 +749,44 @@ private fun SpaceSearchContent(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        stringResource(R.string.search_explore_all),
-                        modifier = Modifier
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
-                            .alpha(overlayAlpha),
-                        style = BookVerseTheme.typography.label,
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp
-                    )
+                    if (showOverlay || uiState.searchQuery.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.search_explore_all),
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            style = BookVerseTheme.typography.label,
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
 
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(overlayAlpha),
-                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(
-                            count = pagingItems.itemCount,
-                            key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
-                        ) { index ->
-                            pagingItems[index]?.let { book ->
-                                SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
-                            }
-                        }
-
-                        when {
-                            pagingItems.loadState.refresh is LoadState.Loading -> {
-                                item {
-                                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(color = Color.White)
-                                    }
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 140.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(
+                                count = pagingItems.itemCount,
+                                key = { index -> "${pagingItems[index]?.id ?: "null"}_$index" }
+                            ) { index ->
+                                pagingItems[index]?.let { book ->
+                                    SearchResultItem(book, onClick = onBookClick, onAuthorClick = onAuthorClick)
                                 }
                             }
-                            pagingItems.loadState.append is LoadState.Loading -> {
-                                item {
-                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+
+                            when {
+                                pagingItems.loadState.refresh is LoadState.Loading -> {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(color = Color.White)
+                                        }
+                                    }
+                                }
+                                pagingItems.loadState.append is LoadState.Loading -> {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                                        }
                                     }
                                 }
                             }

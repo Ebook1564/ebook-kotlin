@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map as flowMap
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class LibrarySortOrder {
     RECENTLY_OPENED, DATE_ADDED, TITLE, AUTHOR, PROGRESS
@@ -49,6 +50,7 @@ data class LibraryUiState(
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
     private val database = (application as EbookApp).database
     private val bookDao = database.bookDao()
+    private val bookProgressDao = database.bookProgressDao()
     private val catalogRepo = (application as EbookApp).catalogRepo
 
     private val _sortOrder     = MutableStateFlow(LibrarySortOrder.RECENTLY_OPENED)
@@ -83,7 +85,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             LibrarySortOrder.DATE_ADDED      -> libraryBooks.sortedByDescending { it.dateAdded ?: 0L }
             LibrarySortOrder.TITLE           -> libraryBooks.sortedBy { it.title }
             LibrarySortOrder.AUTHOR          -> libraryBooks.sortedBy { it.author }
-            LibrarySortOrder.PROGRESS        -> libraryBooks.sortedByDescending { it.getReadingProgressPercent() }
+            LibrarySortOrder.PROGRESS        -> {
+                val progressMap = withContext(Dispatchers.IO) {
+                    bookProgressDao.getAllProgressSync().associateBy { it.bookId }
+                }
+                libraryBooks.sortedByDescending { book ->
+                    progressMap[book.id]?.let { prog ->
+                        (prog.lastSpineIndex + prog.chapterProgression).toDouble()
+                    } ?: 0.0
+                }
+            }
         }
 
         val duration = System.currentTimeMillis() - startTime

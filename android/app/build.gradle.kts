@@ -1,15 +1,14 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp") version "2.0.21-1.0.25"
+    id("com.google.devtools.ksp") version "2.3.7"
     id("kotlin-parcelize")
     id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.freeebookbundle"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.freeebookbundle"
@@ -38,8 +37,8 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        jvmToolchain(17)
     }
 
     buildFeatures {
@@ -56,7 +55,7 @@ android {
 
 dependencies {
     // Desugaring for Java 8+ features used by Readium 3.x
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     
     // Joda Time - required for Readium
     implementation("joda-time:joda-time:2.12.7")
@@ -90,19 +89,25 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
 
     // Local Storage (Room - replacement for Hive)
-    val roomVersion = "2.6.1"
+    val roomVersion = "2.8.4"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     implementation("androidx.room:room-paging:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
-    // Readium
-    val readiumVersion = "3.1.2"
+    // Readium — new navigator from develop branch (mavenLocal)
+    val readiumVersion = "3.2.0"
     implementation("org.readium.kotlin-toolkit:readium-shared:$readiumVersion")
     implementation("org.readium.kotlin-toolkit:readium-streamer:$readiumVersion")
     implementation("org.readium.kotlin-toolkit:readium-navigator:$readiumVersion")
-    implementation("org.readium.kotlin-toolkit:readium-opds:$readiumVersion")
-    implementation("org.readium.kotlin-toolkit:readium-lcp:$readiumVersion")
+    implementation("org.readium.kotlin-toolkit:readium-navigator-common:$readiumVersion")
+    implementation("org.readium.kotlin-toolkit:readium-navigator-web-common:$readiumVersion")
+    implementation("org.readium.kotlin-toolkit:readium-navigator-web-internals:$readiumVersion")
+    implementation("org.readium.kotlin-toolkit:readium-navigator-web-reflowable:$readiumVersion")
+    
+    // Additional Readium dependencies
+    implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
+    implementation("com.jakewharton.timber:timber:5.0.1")
 
     // HTML Parsing
     implementation("org.jsoup:jsoup:1.18.1")
@@ -121,7 +126,7 @@ dependencies {
     implementation("com.google.firebase:firebase-config-ktx")
 
     // Play Core for In-App Reviews
-    implementation("com.google.android.play:review-ktx:2.0.0")
+    implementation("com.google.android.play:review-ktx:2.0.2")
 
     // Local Server (used by some reader components)
     implementation("org.nanohttpd:nanohttpd:2.3.1")

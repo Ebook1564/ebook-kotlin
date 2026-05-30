@@ -13,12 +13,16 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 class Converters {
+    companion object {
+        private val gson = Gson()
+        private val stringListType = object : TypeToken<List<String>>() {}.type
+    }
+
     @TypeConverter
     fun fromString(value: String?): List<String> {
         if (value == null || value == "undefined") return emptyList()
-        val listType = object : TypeToken<List<String>>() {}.type
         return try {
-            Gson().fromJson(value, listType) ?: emptyList()
+            gson.fromJson(value, stringListType) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -26,7 +30,7 @@ class Converters {
 
     @TypeConverter
     fun fromList(list: List<String>?): String {
-        return Gson().toJson(list ?: emptyList<String>())
+        return gson.toJson(list ?: emptyList<String>())
     }
 
     @TypeConverter
@@ -63,9 +67,9 @@ data class BookSummary(
     @ColumnInfo(name = "category_code") val categoryCode: String,
     @ColumnInfo(name = "reading_status") val readingStatus: ReadingStatus,
     @ColumnInfo(name = "date_added") val dateAdded: Long?,
-    @ColumnInfo(name = "last_opened") val lastOpened: Long?,
-    @ColumnInfo(name = "last_spine_index") val lastSpineIndex: Int,
-    @ColumnInfo(name = "chapter_progression") val chapterProgression: Float,
+    @ColumnInfo(name = "last_opened") val lastOpened: Long? = null,
+    @ColumnInfo(name = "last_spine_index") val lastSpineIndex: Int? = 0,
+    @ColumnInfo(name = "chapter_progression") val chapterProgression: Float? = 0f,
     val subjects: List<String> = emptyList(),
     @ColumnInfo(name = "external_cover_url") val externalCoverUrl: String? = null
 )
@@ -85,8 +89,8 @@ fun BookSummary.toBook(): com.freeebookbundle.models.Book {
         dateAdded = dateAdded,
         lastOpened = lastOpened,
         subjects = subjects,
-        lastSpineIndex = lastSpineIndex,
-        chapterProgression = chapterProgression
+        lastSpineIndex = lastSpineIndex ?: 0,
+        chapterProgression = chapterProgression ?: 0f
     )
 }
 
@@ -123,6 +127,22 @@ data class BookEntity(
     @ColumnInfo(name = "tts_sentence_index", defaultValue = "0") val ttsSentenceIndex: Int = 0,
     @ColumnInfo(name = "tts_paragraph_index", defaultValue = "0") val ttsParagraphIndex: Int = 0,
     @ColumnInfo(name = "audio_url") val audioUrl: String? = null
+)
+
+@Entity(tableName = "book_progress")
+data class BookProgressEntity(
+    @PrimaryKey @ColumnInfo(name = "book_id") val bookId: String,
+    @ColumnInfo(name = "last_spine_index", defaultValue = "0") val lastSpineIndex: Int = 0,
+    @ColumnInfo(name = "chapter_progression", defaultValue = "0.0") val chapterProgression: Float = 0f,
+    @ColumnInfo(name = "last_opened") val lastOpened: Long? = null,
+    @ColumnInfo(name = "tts_spine_index", defaultValue = "0") val ttsSpineIndex: Int = 0,
+    @ColumnInfo(name = "tts_sentence_index", defaultValue = "0") val ttsSentenceIndex: Int = 0,
+    @ColumnInfo(name = "tts_paragraph_index", defaultValue = "0") val ttsParagraphIndex: Int = 0,
+)
+
+data class CategoryCount(
+    @ColumnInfo(name = "category_code") val categoryCode: String,
+    val count: Int
 )
 
 fun BookEntity.toBook(): com.freeebookbundle.models.Book {

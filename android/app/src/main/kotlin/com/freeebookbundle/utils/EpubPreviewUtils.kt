@@ -14,7 +14,7 @@ object EpubPreviewUtils {
     suspend fun getFirstChapterHtmlReadium(app: EbookApp, epubFile: File): String? = withContext(Dispatchers.IO) {
         var publication: Publication? = null
         try {
-            val url = epubFile.toUrl()
+            val url = epubFile.toUrl(isDirectory = false)
             val asset = app.assetRetriever.retrieve(url).getOrNull() ?: return@withContext null
             publication = app.publicationOpener.open(asset, allowUserInteraction = false).getOrNull() ?: return@withContext null
             

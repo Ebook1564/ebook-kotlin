@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -104,17 +105,17 @@ private val nebulaBlobs = listOf(
 // ─────────────────────────────────────────────
 
 @Composable
-fun SpaceBackground(modifier: Modifier = Modifier) {
+fun SpaceBackground(modifier: Modifier = Modifier, isActive: Boolean = true) {
 
     // ── stable data ──────────────────────────
     val stars     = remember { generateStars(90) }
     val particles = remember { buildParticleConfigs() }
 
-    // ── infinite transition (one shared clock) ──
-    val inf = rememberInfiniteTransition(label = "space")
+    // ── infinite transition (one shared clock) — skip when off-screen ──
+    val inf = if (isActive) rememberInfiniteTransition(label = "space") else null
 
     // Nebula pulse: 0 → 1 → 0 (sine-like via Reverse)
-    val nebulaPulse by inf.animateFloat(
+    val nebulaPulse by inf?.animateFloat(
         initialValue = 0f,
         targetValue  = 1f,
         animationSpec = infiniteRepeatable(
@@ -122,7 +123,7 @@ fun SpaceBackground(modifier: Modifier = Modifier) {
             repeatMode = RepeatMode.Reverse
         ),
         label = "nebulaPulse"
-    )
+    ) ?: remember { mutableStateOf(0.5f) }
 
     // Per-particle linear progress values (7 particles)
     val p0 by particleAnim(inf, particles[0])
@@ -139,16 +140,18 @@ fun SpaceBackground(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(SpaceGlowColors.DeepSpace)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        if (isActive) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
 
-            // 1. Deep nebula glow blobs
-            drawNebulaBlobs(nebulaPulse)
+                // 1. Deep nebula glow blobs
+                drawNebulaBlobs(nebulaPulse)
 
-            // 2. Static star field
-            drawStars(stars)
+                // 2. Static star field
+                drawStars(stars)
 
-            // 3. Floating particles
-            drawParticles(particles, particleProgress)
+                // 3. Floating particles
+                drawParticles(particles, particleProgress)
+            }
         }
     }
 }
@@ -159,10 +162,10 @@ fun SpaceBackground(modifier: Modifier = Modifier) {
 
 @Composable
 private fun particleAnim(
-    inf: InfiniteTransition,
+    inf: InfiniteTransition?,
     cfg: ParticleConfig
 ): androidx.compose.runtime.State<Float> =
-    inf.animateFloat(
+    inf?.animateFloat(
         initialValue  = 0f,
         targetValue   = 1f,
         animationSpec = infiniteRepeatable(
@@ -171,7 +174,7 @@ private fun particleAnim(
             initialStartOffset = StartOffset(cfg.startOffsetMs)
         ),
         label = "particle_${cfg.xFraction}"
-    )
+    ) ?: remember { mutableStateOf(0f) }
 
 // ─────────────────────────────────────────────
 //  DrawScope extensions
