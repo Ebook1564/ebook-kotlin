@@ -15,7 +15,7 @@
             android:id="@+id/fragment_reader_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:alpha="0.0" />
+            android:alpha="1.0" />
 
         <!-- New Foliate Reader Container (shown when useNewReader is enabled) -->
         <androidx.compose.ui.platform.ComposeView

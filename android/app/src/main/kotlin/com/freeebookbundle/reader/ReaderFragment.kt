@@ -146,6 +146,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var revealOverlayView: ComposeView
     private lateinit var fragmentReaderContainer: View
     private lateinit var ttsControlComposeView: ComposeView
+    private var readerContainer: android.widget.FrameLayout? = null
 
     // Search UI
     private lateinit var searchNavBar: View
@@ -213,6 +214,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         selectionComposeView = view.findViewById(R.id.selection_compose_view)
         revealOverlayView = view.findViewById(R.id.reveal_overlay_view)
         fragmentReaderContainer = view.findViewById(R.id.fragment_reader_container)
+        readerContainer = fragmentReaderContainer as? android.widget.FrameLayout
         ttsControlComposeView = view.findViewById(R.id.tts_control_compose_view)
 
         listOf(settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
@@ -580,14 +582,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         val publication = ReaderRepository.currentPublication ?: return
         val app = requireActivity().application as Application
         
+        Log.d(TAG, "setupNavigator: Starting with locator=${initialLocator.href}")
+        
         val factory = ReflowableWebRenditionFactory(
             application = app,
             publication = publication,
             configuration = ReflowableWebConfiguration()
         ) ?: run {
-            Log.e(TAG, "Failed to create ReflowableWebRenditionFactory")
+            Log.e(TAG, "Failed to create ReflowableWebRenditionFactory — publication may not be EPUB or is restricted")
             return
         }
+        
+        Log.d(TAG, "setupNavigator: Factory created")
         
         val initialGoLocation = ReflowableWebGoLocation(initialLocator)
         val initialSettings = createNewPreferences(settings)
@@ -600,13 +606,20 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             return
         }
         
+        Log.d(TAG, "setupNavigator: Rendition state created")
         this.renditionState = state
         
         // Host the composable in a ComposeView inside the fragment container
-        val container = view?.findViewById<android.widget.FrameLayout>(R.id.fragment_reader_container) ?: return
+        val container = readerContainer ?: run {
+            Log.e(TAG, "Reader container not found")
+            return
+        }
         
-        // Remove any existing views
+        // Remove any existing views and ensure container is visible
         container.removeAllViews()
+        container.alpha = 1f
+        
+        Log.d(TAG, "setupNavigator: Container ready, adding ComposeView")
         
         val composeView = ComposeView(requireContext()).apply {
             setViewTreeLifecycleOwner(viewLifecycleOwner)
@@ -623,14 +636,19 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             )
         }
         
+        Log.d(TAG, "setupNavigator: ComposeView content set")
+        
         // Collect location changes for progress tracking
         viewLifecycleOwner.lifecycleScope.launch {
             snapshotFlow { state.controller?.location }.collect { location ->
                 if (location != null) {
+                    Log.d(TAG, "Location update: ${location.href}, progression=${location.progression}, total=${location.totalProgression}")
                     updateReadingProgressFromNew(location)
                 }
             }
         }
+        
+        Log.d(TAG, "setupNavigator: Complete — waiting for location updates")
     }
 
     private fun findRealContentStartLocator(publication: org.readium.r2.shared.publication.Publication): Locator? {
@@ -689,17 +707,17 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             fontFamily = null,
             fontSize = settings.fontSize / 100.0,
             fontWeight = null,
-            hyphens = false,
+            hyphens = null,
             imageFilter = null,
             language = null,
-            letterSpacing = null,
-            ligatures = false,
+            letterSpacing = 0.0,
+            ligatures = null,
             lineHeight = null,
             linkColor = org.readium.r2.navigator.preferences.Color(0xFF0000EE.toInt()),
             maximalLineLength = null,
-            minimalLineLength = null,
+            minimalLineLength = 40.0,
             minMargins = 1.0,
-            optimalLineLength = null,
+            optimalLineLength = 65.0,
             overridePublisherColors = false,
             paragraphIndent = null,
             paragraphSpacing = null,
@@ -710,7 +728,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             textNormalization = false,
             verticalText = false,
             visitedColor = org.readium.r2.navigator.preferences.Color(0xFF551A8B.toInt()),
-            wordSpacing = null
+            wordSpacing = 0.0
         )
     }
 
