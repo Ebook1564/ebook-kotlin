@@ -21,7 +21,8 @@ data class CatalogEntry(
     val id: String,
     val t: String,
     val a: String,
-    val s: List<String>
+    val s: List<String>,
+    val d: Int = 0
 )
 
 private val audioBooksIds = setOf(
@@ -119,6 +120,8 @@ class CatalogRepository(
 
                 processCache = books
                 processGenreIndex = index
+                // Sort each genre list by popularity (downloads) descending
+                index.forEach { (_, list) -> list.sortByDescending { it.d } }
                 books
             }
         }
@@ -148,6 +151,21 @@ class CatalogRepository(
         }
         return (if (filtered.isEmpty()) catalog.take(limit) else filtered.take(limit))
             .map { it.toBook() }
+    }
+
+    suspend fun enrichWithCachedMetadata(books: List<Book>): List<Book> {
+        if (books.isEmpty()) return books
+        val ids = books.map { it.id }
+        val cached = bookDao.getCachedMetadata(ids)
+        if (cached.isEmpty()) return books
+        val cacheMap = cached.associateBy { it.id }
+        return books.map { book ->
+            val meta = cacheMap[book.id] ?: return@map book
+            book.copy(
+                description = meta.description,
+                externalCoverUrl = meta.external_cover_url
+            )
+        }
     }
 
     // Filtered lists are now cached at the repository level, not inside the

@@ -106,14 +106,14 @@ data class Book(
     }
     
     fun getBestCoverUrl(): String {
-        // Priority 1: Gutendex provided cover (self-hosted or external)
-        if (coverImageUrl.isNotBlank()) return coverImageUrl
-        
-        // Priority 2: Previously cached external cover (Google Books/Open Library)
+        // Priority 1: Previously cached external cover (Google Books/Open Library)
         if (!externalCoverUrl.isNullOrBlank() && !isExternalCoverPlaceholder()) {
             return externalCoverUrl
         }
-        
+
+        // Priority 2: Gutendex provided cover (self-hosted or external)
+        if (coverImageUrl.isNotBlank()) return coverImageUrl
+
         // Priority 3: Legacy server cover format
         return getServerCoverUrl()
     }

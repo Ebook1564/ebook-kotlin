@@ -40,9 +40,6 @@ class ReaderActivity : AppCompatActivity() {
         val file = File(filePath)
         if (!file.exists()) return
 
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val useNativeReader = intent.getBooleanExtra("USE_NATIVE_READER", false) || prefs.getBoolean("use_new_reader", true)
-
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 val fragment = supportFragmentManager.findFragmentById(R.id.reader_container)?.let {
@@ -53,29 +50,7 @@ class ReaderActivity : AppCompatActivity() {
             }
         })
 
-        if (useNativeReader && "epub".equals(file.extension, ignoreCase = true)) {
-            loadWithNativeReader(filePath, book, openAudioPlayer)
-        } else {
-            loadWithReadium(filePath, book, openAudioPlayer)
-        }
-    }
-
-    private fun loadWithNativeReader(filePath: String, book: Book, openAudioPlayer: Boolean) {
-        val settingsRepo = ReaderSettingsRepository(this)
-        val backgroundColor = settingsRepo.getThemeColor()
-        val textColor = settingsRepo.getTextColor()
-
-        val readerFragment = NativeReaderFragment().apply {
-            arguments = Bundle().apply {
-                putString("BOOK_ID", book.id)
-                putString("FILE_PATH", filePath)
-                putBoolean("OPEN_AUDIO_PLAYER", openAudioPlayer)
-            }
-        }
-
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.reader_container, readerFragment)
-            .commit()
+        loadWithReadium(filePath, book, openAudioPlayer)
     }
 
     private fun loadWithReadium(filePath: String, book: Book, openAudioPlayer: Boolean) {

@@ -123,4 +123,13 @@ interface BookDao {
 
     @Query("SELECT MAX(last_opened) FROM books WHERE last_opened IS NOT NULL")
     suspend fun getLastActivityTime(): Long?
+
+    @Query("SELECT id, description, external_cover_url FROM books WHERE id IN (:ids) AND (description != '' OR external_cover_url IS NOT NULL)")
+    suspend fun getCachedMetadata(ids: List<String>): List<CachedMetadata>
+
+    data class CachedMetadata(
+        val id: String,
+        val description: String,
+        val external_cover_url: String?
+    )
 }

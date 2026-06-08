@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.freeebookbundle.db.AppDatabase
+import com.freeebookbundle.db.BookProgressDao
 import com.freeebookbundle.db.Bookmark
 import com.freeebookbundle.db.Highlight
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class ReaderSettings(
     val fontSize: Double = 100.0,
-    val theme: ReaderTheme = ReaderTheme.WHITE,
+    val theme: ReaderTheme = ReaderTheme.SEPIA,
     val scrollMode: Boolean = true,
     val fontFamily: String = "serif",
     val lineHeight: Float = 1.5f,
@@ -77,9 +78,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float) {
+    fun updateReadingProgress(bookId: String, spineIndex: Int, progression: Float, force: Boolean = false) {
         val now = System.currentTimeMillis()
-        if (now - lastProgressUpdate < 2000) {
+        if (!force && now - lastProgressUpdate < 2000) {
             android.util.Log.d("PerfTrace", "Throttled progress update for $bookId (last update was ${now - lastProgressUpdate}ms ago)")
             return // Throttle to 2 seconds
         }
@@ -87,14 +88,20 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         lastProgressUpdate = now
         android.util.Log.d("PerfTrace", "Executing progress update for $bookId at spine=$spineIndex progress=$progression")
         viewModelScope.launch {
-            bookProgressDao.upsertProgress(
-                com.freeebookbundle.db.BookProgressEntity(
-                    bookId = bookId,
-                    lastSpineIndex = spineIndex,
-                    chapterProgression = progression,
-                    lastOpened = now
+            // Try targeted update first (preserves TTS fields)
+            bookProgressDao.updateReadingPosition(bookId, spineIndex, progression, now)
+            // If no row existed, the UPDATE affected nothing — create one
+            val existing = bookProgressDao.getProgress(bookId)
+            if (existing == null) {
+                bookProgressDao.upsertProgress(
+                    com.freeebookbundle.db.BookProgressEntity(
+                        bookId = bookId,
+                        lastSpineIndex = spineIndex,
+                        chapterProgression = progression,
+                        lastOpened = now
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -186,4 +193,6 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     suspend fun getHighlightsSync(bookId: String): List<Highlight> = dao.getHighlightsForBookSync(bookId)
+
+    suspend fun getLastPosition(bookId: String): BookProgressDao.LastPosition? = bookProgressDao.getLastPosition(bookId)
 }

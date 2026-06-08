@@ -32,47 +32,48 @@ import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.ReaderViewModel
 import com.freeebookbundle.repository.ReaderSettingsRepository
 import com.freeebookbundle.utils.EpubPreviewUtils
-import com.freeebookbundle.utils.LocaleManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.readium.navigator.web.reflowable.ReflowableWebRendition
+import org.readium.navigator.web.reflowable.ReflowableWebRenditionState
+import org.readium.navigator.web.reflowable.ReflowableWebRenditionFactory
+import org.readium.navigator.web.reflowable.ReflowableWebDecorationLocation
+import org.readium.navigator.common.Decoration
+import org.readium.navigator.common.DecorationListener
+import org.readium.navigator.common.HyperlinkListener
+import org.readium.navigator.common.InputListener
+import org.readium.navigator.common.TapEvent
+import org.readium.navigator.common.TapContext
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import org.readium.navigator.web.reflowable.preferences.ReflowableWebSettings
+import org.readium.navigator.web.reflowable.ReflowableWebGoLocation
 import androidx.compose.ui.graphics.Color
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.ExperimentalReadiumApi
-import org.readium.r2.navigator.DecorableNavigator
-import org.readium.r2.navigator.Decoration
-import org.readium.r2.navigator.Selection
 import org.readium.r2.shared.publication.LocatorCollection
 import org.readium.r2.shared.publication.services.search.search
 import org.readium.r2.shared.publication.services.search.SearchIterator
 import org.readium.r2.shared.util.Try
 
-// New navigator imports
-import org.readium.navigator.web.reflowable.ReflowableWebRendition
-import org.readium.navigator.web.reflowable.ReflowableWebRenditionState
-import org.readium.navigator.web.reflowable.ReflowableWebRenditionFactory
-import org.readium.navigator.web.reflowable.ReflowableWebGoLocation
-import org.readium.navigator.web.reflowable.ReflowableWebLocation
-import org.readium.navigator.web.reflowable.ReflowableWebConfiguration
-import org.readium.navigator.web.reflowable.preferences.ReflowableWebPreferences
-import org.readium.navigator.web.reflowable.preferences.ReflowableWebDefaults
-import org.readium.navigator.web.reflowable.preferences.ReflowableWebSettings
-import org.readium.navigator.common.Progression
-import org.readium.r2.shared.util.Url
-import android.app.Application
-
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import java.util.Locale
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import org.jsoup.Jsoup
 import org.jsoup.safety.Safelist
 
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -80,6 +81,8 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -91,7 +94,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeebookbundle.viewmodel.ReaderTheme
@@ -107,10 +112,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.*
 
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
-
 @OptIn(ExperimentalReadiumApi::class)
 class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
@@ -125,6 +126,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private var currentSelection: Locator? = null
     private var tts: TextToSpeech? = null
     private var isTtsInitialized = false
+    private var highlightDeleteComposeView: ComposeView? = null
     
     private lateinit var topBar: View
     private lateinit var bottomBar: View
@@ -146,7 +148,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     private lateinit var revealOverlayView: ComposeView
     private lateinit var fragmentReaderContainer: View
     private lateinit var ttsControlComposeView: ComposeView
-    private var readerContainer: android.widget.FrameLayout? = null
 
     // Search UI
     private lateinit var searchNavBar: View
@@ -158,15 +159,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     // Progress UI
     private lateinit var progressComposeView: ComposeView
     private var progressProgress by mutableStateOf(0f)
+    private var showNextChapter by mutableStateOf(false)
     private var bottomBarVisible by mutableStateOf(false)
     
     private var currentSearchLocators = mutableListOf<Locator>()
     private var currentSearchIndex = -1
     private var highlightsJob: kotlinx.coroutines.Job? = null
+    private var highlightsById: Map<String, com.freeebookbundle.db.Highlight> = emptyMap()
     
     // Reading progress tracking
     private var totalSpineItems = 0
     private var currentSpineIndex = 0
+    private var isAutoAdvancing = false
 
     // TTS Compose State - using mutableStateOf for Compose recomposition
     private var isTtsActive by mutableStateOf(false)
@@ -214,7 +218,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         selectionComposeView = view.findViewById(R.id.selection_compose_view)
         revealOverlayView = view.findViewById(R.id.reveal_overlay_view)
         fragmentReaderContainer = view.findViewById(R.id.fragment_reader_container)
-        readerContainer = fragmentReaderContainer as? android.widget.FrameLayout
         ttsControlComposeView = view.findViewById(R.id.tts_control_compose_view)
 
         listOf(settingsComposeView, selectionComposeView, revealOverlayView, ttsControlComposeView).forEach { cv ->
@@ -265,7 +268,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         // Set up reading progress tracking
         totalSpineItems = publication.readingOrder.size
         currentSpineIndex = 0
-        updateChapterTitle()
+        updateProgressUI()
 
         readerTitle.text = publication.metadata.title
 
@@ -274,9 +277,30 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         applyInsets(view)
 
         val settings = viewModel.settings.value
-        val initialLocator = findRealContentStartLocator(publication) ?: return view
 
-        lifecycleScope.launch { setupNavigator(initialLocator, settings) }
+        lifecycleScope.launch {
+            // Load saved position from DB
+            val savedPosition = withContext(Dispatchers.IO) {
+                viewModel.getLastPosition(bookId)
+            }
+
+            val startIndex = if (savedPosition != null) {
+                savedPosition.spineIndex.coerceIn(0, publication.readingOrder.size - 1)
+            } else {
+                if (publication.readingOrder.size > 1) 1 else 0
+            }
+
+            val initialLink = publication.readingOrder[startIndex]
+            val initialLocator = if (savedPosition != null && savedPosition.progression > 0f) {
+                publication.locatorFromLink(initialLink)?.copy(
+                    locations = Locator.Locations(progression = savedPosition.progression.toDouble())
+                )
+            } else {
+                publication.locatorFromLink(initialLink)
+            } ?: return@launch
+
+            setupNavigator(initialLocator, settings)
+        }
         
         // Auto-open audio player if requested
         val openAudioPlayer = arguments?.getBoolean("OPEN_AUDIO_PLAYER", false) ?: false
@@ -304,17 +328,13 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             }
         }
         
-        if (bookId != "unknown") {
-            viewModel.recordBookOpened(bookId)
-        }
-        
         observeHighlights()
     }
 
     private fun setupTtsControls() {
         val currentBook = ReaderRepository.currentBook
         val publication = ReaderRepository.currentPublication
-        val bookTitle = currentBook?.title ?: publication?.metadata?.title ?: getString(R.string.reader_unknown_book)
+        val bookTitle = currentBook?.title ?: publication?.metadata?.title ?: "Unknown Book"
         val authorName = currentBook?.author ?: extractAuthorName(publication?.metadata?.authors)
         val coverUrl = currentBook?.getBestCoverUrl()
         val chapters = publication?.tableOfContents?.mapIndexed { index, link ->
@@ -378,28 +398,22 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun navigateToChapter(index: Int) {
         val publication = ReaderRepository.currentPublication ?: return
-        val state = renditionState ?: return
         val toc = publication.tableOfContents
         if (index in toc.indices) {
             lifecycleScope.launch {
-                val link = toc[index]
-                val goLocation = ReflowableWebGoLocation(
-                    href = link.url(),
-                    progression = Progression(0.0)
-                )
-                state.controller?.goTo(goLocation)
-                delay(500)
-                speakCurrentPage()
+                publication.locatorFromLink(toc[index])?.let { locator ->
+                    renditionState?.controller?.goTo(ReflowableWebGoLocation(locator))
+                    speakCurrentPage()
+                }
             }
         }
     }
 
     private fun extractAuthorName(authors: Any?): String {
-        if (authors == null) return getString(R.string.reader_unknown_author)
-        return authors.toString().ifEmpty { getString(R.string.reader_unknown_author) }
+        if (authors == null) return "Unknown Author"
+        return authors.toString().ifEmpty { "Unknown Author" }
     }
 
     private fun togglePlayPauseTts() {
@@ -416,7 +430,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun nextTts() {
         ttsVoiceManager.stop()
         if (currentSentenceIndex < ttsSentences.size - 1) {
@@ -431,7 +444,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun prevTts() {
         ttsVoiceManager.stop()
         if (currentSentenceIndex > 0) {
@@ -463,7 +475,6 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         bottomBarVisible = true
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun speakCurrentPage() {
         if (tts == null) {
             tts = TextToSpeech(requireContext().applicationContext, this)
@@ -473,10 +484,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
         lifecycleScope.launch {
             val publication = ReaderRepository.currentPublication ?: return@launch
-            val location = renditionState?.controller?.location ?: return@launch
+            val currentLocator = renditionState?.controller?.location?.toLocator() ?: return@launch
             
             val fullText = try {
-                val resource = publication.get(location.href)
+                val resource = publication.get(currentLocator.href)
                 val content = resource?.read()?.getOrNull()
                 if (content != null) {
                     val html = String(content, Charsets.UTF_8)
@@ -491,15 +502,20 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 ttsSentences = fullText.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }.toMutableList()
                 currentFullText = fullText
                 paragraphSentences = ttsSentences.toMutableList()
-                currentResourceLocator = location.toLocator()
+                currentResourceLocator = currentLocator
                 
-                val visibleText = ""
-                currentSentenceIndex = 0
+                val visibleText = currentLocator.text.highlight ?: ""
+                currentSentenceIndex = if (visibleText.isNotEmpty()) {
+                    val index = ttsSentences.indexOfFirst { it.contains(visibleText, ignoreCase = true) }
+                    if (index != -1) index else 0
+                } else {
+                    0
+                }
                 
                 speakCurrentSentence()
-                } else {
-                    Toast.makeText(context, getString(R.string.reader_no_text), Toast.LENGTH_SHORT).show()
-                }
+            } else {
+                Toast.makeText(context, "No text found to read on this page.", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -522,30 +538,67 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         isTtsPlaying = true
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun updateTtsHighlight(text: String?, isWord: Boolean = false) {
         val state = renditionState ?: return
+        val controller = state.controller ?: return
         val baseLocator = currentResourceLocator ?: return
         
-        lifecycleScope.launch {
-            if (text == null) {
-                state.controller?.decorations?.let { currentDecorations ->
-                    // Clear TTS decorations
-                    val newDecorations = currentDecorations.filterKeys { it != "tts-highlight" }
-                    state.controller?.let { ctrl ->
-                        // Apply empty decorations to clear
-                    }
+        if (text == null) {
+            // Clear TTS highlights and re-apply regular highlights
+            viewLifecycleOwner.lifecycleScope.launch {
+                val highlights = viewModel.getHighlightsSync(bookId)
+                highlightsById = highlights.associateBy { it.id.toString() }
+                val decorations = highlights.mapNotNull { highlight ->
+                    try {
+                        val locator = org.json.JSONObject(highlight.locator)
+                        val parsedLocator = org.readium.r2.shared.publication.Locator.fromJSON(locator) ?: return@mapNotNull null
+                        val decoLocation = ReflowableWebDecorationLocation(parsedLocator) ?: return@mapNotNull null
+                        Decoration(
+                            id = Decoration.Id(highlight.id.toString()),
+                            location = decoLocation,
+                            style = Decoration.Style.Highlight(tint = highlight.color),
+                        )
+                    } catch (e: Exception) { null }
                 }
-                return@launch
+                controller.decorations = persistentMapOf("highlights" to decorations.toPersistentList())
+            }
+            return
+        }
+
+        // Create a locator for the text within the current resource
+        val locator = baseLocator.copy(
+            text = org.readium.r2.shared.publication.Locator.Text(highlight = text)
+        )
+
+        // Build decoration list: TTS highlight + existing highlights
+        viewLifecycleOwner.lifecycleScope.launch {
+            val existingHighlights = viewModel.getHighlightsSync(bookId)
+            val allDecorations = mutableListOf<Decoration<ReflowableWebDecorationLocation>>()
+
+            // Add TTS highlight
+            val ttsDecoLocation = ReflowableWebDecorationLocation(locator)
+            if (ttsDecoLocation != null) {
+                allDecorations.add(Decoration(
+                    id = Decoration.Id(if (isWord) "tts-word" else "tts-sentence"),
+                    location = ttsDecoLocation,
+                    style = Decoration.Style.Highlight(tint = if (isWord) 0x44FF0000.toInt() else 0x44FFFF00.toInt()),
+                ))
             }
 
-            // Create a locator for the text within the current resource
-            val locator = baseLocator.copy(
-                text = Locator.Text(highlight = text)
-            )
-
-            // For the new navigator, decorations work differently
-            // TTS highlighting is simplified for now
+            // Add existing highlights
+            existingHighlights.forEach { highlight ->
+                try {
+                    val highlightLocator = org.json.JSONObject(highlight.locator)
+                    val parsedLocator = org.readium.r2.shared.publication.Locator.fromJSON(highlightLocator) ?: return@forEach
+                    val decoLocation = ReflowableWebDecorationLocation(parsedLocator) ?: return@forEach
+                    allDecorations.add(Decoration(
+                        id = Decoration.Id(highlight.id.toString()),
+                        location = decoLocation,
+                        style = Decoration.Style.Highlight(tint = highlight.color),
+                    ))
+                } catch (e: Exception) {}
+            }
+            controller.decorations = persistentMapOf("highlights" to allDecorations.toPersistentList())
         }
     }
 
@@ -577,198 +630,217 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
-    private suspend fun setupNavigator(initialLocator: Locator, settings: ReaderSettings, forceScrollMode: Boolean = true) {
-        val publication = ReaderRepository.currentPublication ?: return
-        val app = requireActivity().application as Application
-        
-        Log.d(TAG, "setupNavigator: Starting with locator=${initialLocator.href}")
-        
-        val factory = ReflowableWebRenditionFactory(
-            application = app,
-            publication = publication,
-            configuration = ReflowableWebConfiguration()
-        ) ?: run {
-            Log.e(TAG, "Failed to create ReflowableWebRenditionFactory — publication may not be EPUB or is restricted")
+    private fun setupNavigator(initialLocator: Locator, settings: ReaderSettings, forceScrollMode: Boolean = true) {
+        val publication = ReaderRepository.currentPublication
+        if (publication == null) {
+            android.util.Log.e("ReaderFrag", "setupNavigator: ReaderRepository.currentPublication is NULL")
             return
         }
-        
-        Log.d(TAG, "setupNavigator: Factory created")
-        
-        val initialGoLocation = ReflowableWebGoLocation(initialLocator)
-        val initialSettings = createNewPreferences(settings)
-        
-        val state = factory.createRenditionState(
-            initialSettings = initialSettings,
-            initialLocation = initialGoLocation
-        ).getOrNull() ?: run {
-            Log.e(TAG, "Failed to create rendition state")
-            return
-        }
-        
-        Log.d(TAG, "setupNavigator: Rendition state created")
-        this.renditionState = state
-        
-        // Host the composable in a ComposeView inside the fragment container
-        val container = readerContainer ?: run {
-            Log.e(TAG, "Reader container not found")
-            return
-        }
-        
-        // Remove any existing views and ensure container is visible
-        container.removeAllViews()
-        container.alpha = 1f
-        
-        Log.d(TAG, "setupNavigator: Container ready, adding ComposeView")
-        
-        val composeView = ComposeView(requireContext()).apply {
-            setViewTreeLifecycleOwner(viewLifecycleOwner)
-            setViewTreeViewModelStoreOwner(this@ReaderFragment)
-            setViewTreeSavedStateRegistryOwner(this@ReaderFragment)
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        }
-        container.addView(composeView)
-        
-        composeView.setContent {
-            ReflowableWebRendition(
-                state = state,
-                modifier = Modifier.fillMaxSize(),
+        android.util.Log.d("ReaderFrag", "setupNavigator: START - href=${initialLocator.href}, progression=${initialLocator.locations.progression}")
+        android.util.Log.d("ReaderFrag", "setupNavigator: readingOrder.size=${publication.readingOrder.size}")
+        android.util.Log.d("ReaderFrag", "setupNavigator: publication.conformsToEPUB=${publication.conformsTo(org.readium.r2.shared.publication.Publication.Profile.EPUB)}")
+        val activity = requireActivity()
+
+        lifecycleScope.launch {
+            android.util.Log.d("ReaderFrag", "setupNavigator: Creating ReflowableWebRenditionFactory...")
+            val factory = ReflowableWebRenditionFactory(
+                application = activity.application,
+                publication = publication,
             )
-        }
-        
-        Log.d(TAG, "setupNavigator: ComposeView content set")
-        
-        // Collect location changes for progress tracking
-        viewLifecycleOwner.lifecycleScope.launch {
-            snapshotFlow { state.controller?.location }.collect { location ->
-                if (location != null) {
-                    Log.d(TAG, "Location update: ${location.href}, progression=${location.progression}, total=${location.totalProgression}")
-                    updateReadingProgressFromNew(location)
+            if (factory == null) {
+                android.util.Log.e("ReaderFrag", "setupNavigator: ReflowableWebRenditionFactory returned NULL!")
+                return@launch
+            }
+            android.util.Log.d("ReaderFrag", "setupNavigator: Factory created successfully")
+
+            val (textColorHex, bgColorHex) = when (settings.theme) {
+                ReaderTheme.WHITE -> 0xFF000000.toInt() to 0xFFFFFFFF.toInt()
+                ReaderTheme.DARK -> 0xFFE0E0E0.toInt() to 0xFF1A1A1A.toInt()
+                ReaderTheme.SEPIA -> 0xFF5B4636.toInt() to 0xFFF5E6C8.toInt()
+            }
+
+            val initialLocation = ReflowableWebGoLocation(
+                href = initialLocator.href,
+                progression = org.readium.navigator.common.Progression(initialLocator.locations.progression ?: 0.0)
+            )
+
+            val webSettings = ReflowableWebSettings(
+                scroll = true,
+                fontSize = settings.fontSize / 100.0,
+                textColor = org.readium.r2.navigator.preferences.Color(textColorHex),
+                backgroundColor = org.readium.r2.navigator.preferences.Color(bgColorHex),
+                linkColor = org.readium.r2.navigator.preferences.Color(textColorHex),
+                visitedColor = org.readium.r2.navigator.preferences.Color(textColorHex),
+                overridePublisherColors = true,
+                fontFamily = when (settings.fontFamily) {
+                    "serif" -> org.readium.r2.navigator.preferences.FontFamily.SERIF
+                    "sans-serif" -> org.readium.r2.navigator.preferences.FontFamily.SANS_SERIF
+                    "monospace" -> org.readium.r2.navigator.preferences.FontFamily.MONOSPACE
+                    else -> org.readium.r2.navigator.preferences.FontFamily.SANS_SERIF
+                },
+                readingProgression = org.readium.r2.navigator.preferences.ReadingProgression.LTR,
+                columnCount = null,
+                fontWeight = null,
+                hyphens = null,
+                imageFilter = null,
+                language = null,
+                letterSpacing = null,
+                ligatures = null,
+                lineHeight = null,
+                maximalLineLength = null,
+                minimalLineLength = null,
+                minMargins = 0.0,
+                optimalLineLength = 0.0,
+                paragraphIndent = null,
+                paragraphSpacing = null,
+                textAlign = null,
+                textNormalization = false,
+                verticalText = false,
+                wordSpacing = null,
+            )
+
+            android.util.Log.d("ReaderFrag", "setupNavigator: Creating ReflowableWebRenditionState...")
+            val state = factory.createRenditionState(
+                initialSettings = webSettings,
+                initialLocation = initialLocation,
+            ).getOrNull()
+            if (state == null) {
+                android.util.Log.e("ReaderFrag", "setupNavigator: createRenditionState returned failure!")
+                return@launch
+            }
+            renditionState = state
+            android.util.Log.d("ReaderFrag", "setupNavigator: State created, adding ComposeView...")
+
+            withContext(Dispatchers.Main) {
+                val container = fragmentReaderContainer as? ViewGroup
+                if (container == null) {
+                    android.util.Log.e("ReaderFrag", "setupNavigator: fragmentReaderContainer is NOT a ViewGroup! type=${fragmentReaderContainer::class.java.simpleName}")
+                    return@withContext
                 }
-            }
-        }
-        
-        Log.d(TAG, "setupNavigator: Complete — waiting for location updates")
-    }
+                container.removeAllViews()
+                android.util.Log.d("ReaderFrag", "setupNavigator: Container cleared, creating ComposeView")
 
-    private fun findRealContentStartLocator(publication: org.readium.r2.shared.publication.Publication): Locator? {
-        val toc = publication.tableOfContents
-        val readingOrder = publication.readingOrder
-        
-        Log.d(TAG, "[SmartStart] Finding real content start")
-        Log.d(TAG, "[SmartStart] TOC size: ${toc.size}, ReadingOrder size: ${readingOrder.size}")
-        
-        val skipPatterns = listOf("cover", "wrapper", "pg-header", "pg-footer")
-        
-        fun String.matchesSkipPattern(): Boolean {
-            val lower = this.lowercase()
-            return skipPatterns.any { lower.contains(it) }
-        }
-        
-        // Strategy 1: Use TOC (most reliable for structured EPUBs)
-        if (toc.isNotEmpty()) {
-            // Find first TOC entry that isn't cover/gutenberg
-            val firstContentToc = toc.firstOrNull { link ->
-                val href = link.href.toString()
-                Log.d(TAG, "[SmartStart] Checking TOC: ${link.title ?: "no title"} -> $href")
-                !href.matchesSkipPattern()
+                val composeView = ComposeView(requireContext()).apply {
+                    setViewTreeLifecycleOwner(viewLifecycleOwner)
+                    setViewTreeViewModelStoreOwner(this@ReaderFragment)
+                    setViewTreeSavedStateRegistryOwner(this@ReaderFragment)
+                    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+                    setContent {
+                        val highlightTapListener = remember {
+                            object : DecorationListener<ReflowableWebDecorationLocation> {
+                                override fun onDecorationActivated(event: DecorationListener.OnActivatedEvent<ReflowableWebDecorationLocation>) {
+                                    val highlightId = event.decoration.id.value
+                                    val highlight = highlightsById[highlightId]
+                                    if (highlight != null) {
+                                        showHighlightPopup(highlight, null)
+                                    }
+                                }
+                            }
+                        }
+                        val externalLinkListener = remember {
+                            object : HyperlinkListener {
+                                override fun onReadingOrderLinkActivated(url: org.readium.r2.shared.util.Url, context: org.readium.navigator.common.LinkContext?) {
+                                    lifecycleScope.launch {
+                                        renditionState?.controller?.goTo(ReflowableWebGoLocation(url))
+                                    }
+                                }
+                                override fun onNonLinearLinkActivated(url: org.readium.r2.shared.util.Url, context: org.readium.navigator.common.LinkContext?) {}
+                                override fun onExternalLinkActivated(url: AbsoluteUrl, context: org.readium.navigator.common.LinkContext?) {
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url.toString()))
+                                        startActivity(intent)
+                                    } catch (e: Exception) {
+                                        android.util.Log.w("ReaderFrag", "Failed to open external link: $url", e)
+                                    }
+                                }
+                            }
+                        }
+                        ReflowableWebRendition(
+                            state = state,
+                            windowInsets = androidx.compose.foundation.layout.WindowInsets(0),
+                            inputListener = object : InputListener {
+                                override fun onTap(event: TapEvent, context: TapContext) {}
+                            },
+                            hyperlinkListener = externalLinkListener,
+                            decorationListener = highlightTapListener,
+                            textSelectionActionModeCallback = createSelectionActionModeCallback(),
+                        )
+                    }
+                }
+                container.addView(composeView)
+                android.util.Log.d("ReaderFrag", "setupNavigator: ComposeView added to container, childCount=${container.childCount}")
             }
-            
-            if (firstContentToc != null) {
-                Log.d(TAG, "[SmartStart] Using TOC entry: ${firstContentToc.title ?: "no title"}")
-                return publication.locatorFromLink(firstContentToc)
-            }
-        }
-        
-        // Strategy 2: Fallback to reading order, skipping cover/gutenberg items
-        val firstContentSpineIndex = readingOrder.indexOfFirst { link ->
-            val href = link.href.toString()
-            Log.d(TAG, "[SmartStart] Checking spine: $href")
-            !href.matchesSkipPattern()
-        }
-        
-        if (firstContentSpineIndex >= 0) {
-            Log.d(TAG, "[SmartStart] Using spine index: $firstContentSpineIndex")
-            return publication.locatorFromLink(readingOrder[firstContentSpineIndex])
-        }
-        
-        // Strategy 3: Last resort - use first item
-        Log.d(TAG, "[SmartStart] No content found, using first item")
-        readingOrder.firstOrNull()?.let { return publication.locatorFromLink(it) }
-        return null
-    }
 
-    @OptIn(ExperimentalReadiumApi::class)
-    private fun createNewPreferences(settings: ReaderSettings): ReflowableWebSettings {
-        val isRTL = activity?.let { LocaleManager.isCurrentLocaleRTL(it) } ?: false
-        return ReflowableWebSettings(
-            backgroundColor = org.readium.r2.navigator.preferences.Color(0xFFFFFFFF.toInt()),
-            columnCount = 1,
-            fontFamily = null,
-            fontSize = settings.fontSize / 100.0,
-            fontWeight = null,
-            hyphens = null,
-            imageFilter = null,
-            language = null,
-            letterSpacing = 0.0,
-            ligatures = null,
-            lineHeight = null,
-            linkColor = org.readium.r2.navigator.preferences.Color(0xFF0000EE.toInt()),
-            maximalLineLength = null,
-            minimalLineLength = 40.0,
-            minMargins = 1.0,
-            optimalLineLength = 65.0,
-            overridePublisherColors = false,
-            paragraphIndent = null,
-            paragraphSpacing = null,
-            readingProgression = if (isRTL) org.readium.r2.navigator.preferences.ReadingProgression.RTL else org.readium.r2.navigator.preferences.ReadingProgression.LTR,
-            scroll = true,
-            textAlign = null,
-            textColor = org.readium.r2.navigator.preferences.Color(0xFF121212.toInt()),
-            textNormalization = false,
-            verticalText = false,
-            visitedColor = org.readium.r2.navigator.preferences.Color(0xFF551A8B.toInt()),
-            wordSpacing = 0.0
-        )
+            android.util.Log.d("ReaderFrag", "setupNavigator: Collecting locator changes...")
+            // Collect locator changes for progress tracking
+            viewLifecycleOwner.lifecycleScope.launch {
+                androidx.compose.runtime.snapshotFlow { renditionState?.controller?.location }
+                    .collect { location ->
+                        if (location != null) {
+                            updateReadingProgress(location.toLocator())
+                        }
+                    }
+            }
+        }
     }
 
     private var chapterProgression = 0f
     
-    @OptIn(ExperimentalReadiumApi::class)
-    private fun updateReadingProgressFromNew(location: ReflowableWebLocation) {
+    private fun updateReadingProgress(locator: Locator) {
         val publication = ReaderRepository.currentPublication ?: return
-        val href = location.href.toString()
+        val href = locator.href.toString()
         
         // Find current spine index
         val spineIndex = publication.readingOrder.indexOfFirst { it.href.toString() == href }
         if (spineIndex >= 0) {
             currentSpineIndex = spineIndex
+            isAutoAdvancing = false
         }
         
-        // Get global progression across all chapters (0.0 to 1.0)
-        val globalProgression = location.totalProgression.value.toFloat()
-        chapterProgression = location.progression.value.toFloat()
+        // Get intra-chapter progress from locator (0.0 to 1.0)
+        chapterProgression = locator.locations?.progression?.toFloat() ?: 0f
         
-        // Use global progression for the progress bar
-        progressProgress = globalProgression.coerceIn(0f, 1f)
+        // Persist to database (throttled via ViewModel)
+        viewModel.updateReadingProgress(bookId, currentSpineIndex, chapterProgression)
         
-        // Save progress to database
-        if (bookId != "unknown") {
-            viewModel.updateReadingProgress(bookId, currentSpineIndex, chapterProgression)
-        }
-
+        Log.d(TAG, "[Progress] locator=$locator, progression=$chapterProgression, spineIndex=$currentSpineIndex, total=$totalSpineItems")
+        
         activity?.runOnUiThread {
-            updateChapterTitle()
+            updateProgressUI()
         }
     }
 
-    private fun updateChapterTitle() {
+    private fun updateProgressUI() {
+        progressProgress = chapterProgression.coerceIn(0f, 1f)
+        
+        val isLastChapter = currentSpineIndex >= totalSpineItems - 1
+        showNextChapter = false
+        
         val chapterTitle = if (tableOfContents.isNotEmpty() && currentSpineIndex < tableOfContents.size) {
             tableOfContents[currentSpineIndex].title ?: "Chapter ${currentSpineIndex + 1}"
         } else {
             "Chapter ${currentSpineIndex + 1}"
         }
         readerChapter.text = chapterTitle
+    }
+
+    private fun autoAdvanceToNextChapter() {
+        val publication = ReaderRepository.currentPublication ?: return
+        val nextIndex = currentSpineIndex + 1
+        if (nextIndex >= totalSpineItems) return
+
+        val nextLink = publication.readingOrder.getOrNull(nextIndex) ?: return
+        lifecycleScope.launch {
+            try {
+                publication.locatorFromLink(nextLink)?.let { locator ->
+                    Log.d(TAG, "[AutoAdvance] Moving to chapter $nextIndex")
+                    renditionState?.controller?.goTo(ReflowableWebGoLocation(locator))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-advance failed: ${e.message}")
+                isAutoAdvancing = false
+            }
+        }
     }
 
     private fun setupProgressBar() {
@@ -781,7 +853,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             
             val systemNavPadding = androidx.compose.foundation.layout.WindowInsets.systemBars.asPaddingValues()
             
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
@@ -792,6 +864,46 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                     )
                     .background(Color.Transparent)
             ) {
+                if (showNextChapter) {
+                    Button(
+                        onClick = {
+                            lifecycleScope.launch {
+                                try {
+                                    val publication = ReaderRepository.currentPublication
+                                    if (publication != null && currentSpineIndex < totalSpineItems - 1) {
+                                        val nextLink = publication.readingOrder.getOrNull(currentSpineIndex + 1)
+                                        if (nextLink != null) {
+                                            publication.locatorFromLink(nextLink)?.let { locator ->
+                                                renditionState?.controller?.goTo(ReflowableWebGoLocation(locator))
+                                            }
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error going to next chapter: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE50914)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 8.dp,
+                            pressedElevation = 4.dp
+                        )
+                    ) {
+                        Text(
+                            text = if (currentSpineIndex < totalSpineItems - 1) "Next Chapter →" else "Finish",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -811,6 +923,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        // Force-save final reading position before teardown
+        if (bookId != "unknown") {
+            viewModel.updateReadingProgress(bookId, currentSpineIndex, chapterProgression, force = true)
+        }
         try { tts?.stop(); tts?.shutdown() } catch (e: Exception) {}
         if (::ttsVoiceManager.isInitialized) ttsVoiceManager.shutdown()
         super.onDestroy()
@@ -831,7 +947,11 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         titleContainer.setOnClickListener { openChapterDrawer() }
         btnBookmarkStar.setOnClickListener { bookmarkCurrentLocation() }
         btnHighlight.setOnClickListener {
-            Toast.makeText(context, getString(R.string.reader_select_text), Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                val selection = renditionState?.controller?.currentSelection()
+                if (selection != null) showSelectionMenu(selection.location.toLocator())
+                else Toast.makeText(context, "Select text first", Toast.LENGTH_SHORT).show()
+            }
         }
         btnBookList.setOnClickListener { showBookListDialog() }
         btnSearch.setOnClickListener { showSearchDialog() }
@@ -855,7 +975,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         tableOfContents = publication.tableOfContents
         val toc = tableOfContents
         val chapterCountText = view?.findViewById<TextView>(R.id.drawer_chapter_count)
-        chapterCountText?.text = getString(R.string.reader_chapters_count, toc.size)
+        chapterCountText?.text = "${toc.size} chapters"
         
         // Enable swipe gesture to open drawer
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
@@ -865,11 +985,27 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 toc.getOrNull(index)?.let { link ->
                     drawerLayout.closeDrawers()
-                    val goLocation = ReflowableWebGoLocation(
-                        href = link.url(),
-                        progression = Progression(0.0)
-                    )
-                    renditionState?.controller?.goTo(goLocation)
+                    val locator = publication.locatorFromLink(link) ?: run {
+                        // Fallback: create Locator manually from link href
+                        android.util.Log.w("ReaderFrag", "locatorFromLink returned null for ${link.href}, mediaType=${link.mediaType}, title=${link.title}")
+                        try {
+                            val resolvedUrl = link.href.resolve()
+                            Locator(
+                                href = resolvedUrl,
+                                mediaType = link.mediaType ?: org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+                                title = link.title,
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.e("ReaderFrag", "Failed to resolve href: ${link.href}", e)
+                            null
+                        }
+                    }
+                    if (locator != null) {
+                        android.util.Log.d("ReaderFrag", "TOC click: index=$index, locator.href=${locator.href}, title=${locator.title}")
+                        renditionState?.controller?.goTo(ReflowableWebGoLocation(locator))
+                    } else {
+                        android.util.Log.e("ReaderFrag", "TOC click: could not create locator for index=$index, link.href=${link.href}")
+                    }
                 }
             }
         }
@@ -955,22 +1091,22 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                 var showTagInput by remember { mutableStateOf(false) }
                 var tagText by remember { mutableStateOf("") }
                 Box(modifier = Modifier.fillMaxSize()) {
-                    Surface(modifier = Modifier.fillMaxSize().selectable(selected = true, onClick = { selectionComposeView.visibility = View.GONE }), color = Color.Transparent) {}
+                    Surface(modifier = Modifier.fillMaxSize().clickable { selectionComposeView.visibility = View.GONE; renditionState?.controller?.clearSelection() }, color = Color.Transparent) {}
                     Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(), shape = RoundedCornerShape(12.dp), shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             if (!showTagInput) {
-                                Text(stringResource(R.string.reader_highlight_title), style = MaterialTheme.typography.titleMedium)
+                                Text("Highlight", style = MaterialTheme.typography.titleMedium)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                    colors.forEach { colorInt -> Box(modifier = Modifier.size(40.dp).background(Color(colorInt), CircleShape).selectable(selected = false, onClick = { highlightSelection(locator, colorInt); selectionComposeView.visibility = View.GONE })) }
+                                    colors.forEach { colorInt -> Box(modifier = Modifier.size(40.dp).background(Color(colorInt), CircleShape).clickable { highlightSelection(locator, colorInt); selectionComposeView.visibility = View.GONE; renditionState?.controller?.clearSelection() }) }
                                 }
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    TextButton(onClick = { showTagInput = true }) { Text(stringResource(R.string.reader_add_note)) }
-                                    TextButton(onClick = { Toast.makeText(context, "Lookup: ${locator.text.highlight}", Toast.LENGTH_SHORT).show() }) { Text(stringResource(R.string.reader_lookup)) }
+                                    TextButton(onClick = { showTagInput = true }) { Text("Add Note") }
+                                    TextButton(onClick = { Toast.makeText(context, "Lookup: ${locator.text.highlight}", Toast.LENGTH_SHORT).show() }) { Text("Lookup") }
                                 }
                             } else {
-                                OutlinedTextField(value = tagText, onValueChange = { tagText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.reader_note_placeholder)) })
-                                Button(onClick = { highlightSelection(locator, 0x8800AAFF.toInt(), tagText); selectionComposeView.visibility = View.GONE }) { Text(stringResource(R.string.reader_save)) }
+                                OutlinedTextField(value = tagText, onValueChange = { tagText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Note...") })
+                                Button(onClick = { highlightSelection(locator, 0x8800AAFF.toInt(), tagText); selectionComposeView.visibility = View.GONE; renditionState?.controller?.clearSelection() }) { Text("Save") }
                             }
                         }
                     }
@@ -979,27 +1115,112 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
+    private fun showHighlightPopup(highlight: Highlight, tapPoint: android.graphics.PointF?) {
+        selectionComposeView.visibility = View.VISIBLE
+        selectionComposeView.setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize().selectable(selected = true, onClick = { selectionComposeView.visibility = View.GONE }),
+                        color = Color.Transparent
+                    ) {}
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        shadowElevation = 8.dp,
+                        color = Color(0xFF1A1A1A)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Highlight", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (!highlight.selectedText.isNullOrBlank()) {
+                                Text(
+                                    text = "\"${highlight.selectedText.take(100)}\"",
+                                    color = Color.LightGray,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    onClick = {
+                                        viewLifecycleOwner.lifecycleScope.launch {
+                                            viewModel.deleteHighlight(highlight)
+                                            Toast.makeText(context, "Highlight deleted", Toast.LENGTH_SHORT).show()
+                                        }
+                                        selectionComposeView.visibility = View.GONE
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFE53935),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        "Delete",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                                Surface(
+                                    onClick = { selectionComposeView.visibility = View.GONE },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(alpha = 0.1f),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        "Cancel",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun observeHighlights() {
         highlightsJob?.cancel()
         highlightsJob = viewLifecycleOwner.lifecycleScope.launch {
             viewModel.getHighlights(bookId).collectLatest { highlights ->
                 val state = renditionState ?: return@collectLatest
+                val controller = state.controller ?: return@collectLatest
 
-                // Highlights are stored in the database and displayed when
-                // the user opens the highlight list. The new navigator handles
-                // decoration rendering through the DecorationListener composable.
-                // For now, highlights are persisted but not actively rendered
-                // on the page — this matches the behavior before the navigator switch.
-                Log.d(TAG, "Loaded ${highlights.size} highlights for book $bookId")
+                // Update lookup map for decoration taps
+                highlightsById = highlights.associateBy { it.id.toString() }
+
+                val decorations = highlights.mapNotNull { highlight ->
+                    try {
+                        val locator = try {
+                            org.json.JSONObject(highlight.locator)
+                        } catch (e: Exception) { null } ?: return@mapNotNull null
+
+                        val parsedLocator = org.readium.r2.shared.publication.Locator.fromJSON(locator) ?: return@mapNotNull null
+                        val decoLocation = ReflowableWebDecorationLocation(parsedLocator) ?: return@mapNotNull null
+                        Decoration(
+                            id = Decoration.Id(highlight.id.toString()),
+                            location = decoLocation,
+                            style = Decoration.Style.Highlight(tint = highlight.color),
+                        )
+                    } catch (e: Exception) { null }
+                }
+                controller.decorations = persistentMapOf("highlights" to decorations.toPersistentList())
             }
         }
     }
 
     private fun showSearchDialog() {
         val input = EditText(context)
-        input.setHint(getString(R.string.reader_search_placeholder))
-        AlertDialog.Builder(context).setTitle(getString(R.string.reader_search_title)).setView(input).setPositiveButton(getString(R.string.reader_search_action)) { _, _ -> performSearch(input.text.toString()) }.setNegativeButton(getString(R.string.reader_cancel), null).show()
+        input.setHint("Search...")
+        AlertDialog.Builder(context).setTitle("Search Book").setView(input).setPositiveButton("Search") { _, _ -> performSearch(input.text.toString()) }.setNegativeButton("Cancel", null).show()
     }
 
     private fun performSearch(query: String) {
@@ -1023,13 +1244,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun updateSearchNavigation() {
         if (currentSearchIndex in currentSearchLocators.indices) {
-            val locator = currentSearchLocators[currentSearchIndex]
-            val goLocation = ReflowableWebGoLocation(locator)
             lifecycleScope.launch {
-                renditionState?.controller?.goTo(goLocation)
+                renditionState?.controller?.goTo(ReflowableWebGoLocation(currentSearchLocators[currentSearchIndex]))
             }
             searchCountText.text = "${currentSearchIndex + 1}/${currentSearchLocators.size}"
         }
@@ -1041,10 +1259,8 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         btnCloseSearch.setOnClickListener { searchNavBar.visibility = View.GONE; currentSearchLocators.clear() }
     }
 
-    @OptIn(ExperimentalReadiumApi::class)
     private fun bookmarkCurrentLocation() {
-        val location = renditionState?.controller?.location ?: return
-        val locator = location.toLocator()
+        val locator = renditionState?.controller?.location?.toLocator() ?: return
         viewModel.insertBookmark(bookId, locator.toJSON().toString())
         btnBookmarkStar.setImageResource(R.drawable.ic_bookmark)
         btnBookmarkStar.postDelayed({ if (isAdded) btnBookmarkStar.setImageResource(R.drawable.ic_bookmark_border) }, 1000)
@@ -1080,7 +1296,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 viewModel.getBookmarks(bookId).collectLatest { bookmarks ->
                     if (bookmarks.isEmpty()) {
-                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf(getString(R.string.reader_no_bookmarks)))
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No bookmarks yet"))
                         listView.setOnItemClickListener(null)
                     } else {
                         val publication = ReaderRepository.currentPublication
@@ -1090,7 +1306,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmark.locator))
                                 if (locator != null) {
                                     val locatorHref = locator.href.toString()
-                                    var chapterName = getString(R.string.reader_chapter_default, currentSpineIndex + 1)
+                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
                                     for (tocLink in tocLinks) {
                                         val tocHref = tocLink.href.toString()
                                         if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
@@ -1098,21 +1314,23 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                             break
                                         }
                                     }
+                                    
                                     val locationInfo = locator.locations?.fragments?.firstOrNull()?.let { fragment ->
                                         fragment.replace("cfi=", "").take(20)
                                     } ?: locator.locations?.progression?.let { 
                                         "${(it * 100).toInt()}%"
                                     } ?: ""
+                                    
                                     if (locationInfo.isNotEmpty()) {
                                         "$chapterName ($locationInfo)"
                                     } else {
                                         chapterName
                                     }
                                 } else {
-                                    getString(R.string.reader_bookmark_default, index + 1)
+                                    "Bookmark ${index + 1}"
                                 }
                             } catch (e: Exception) {
-                                getString(R.string.reader_bookmark_default, index + 1)
+                                "Bookmark ${index + 1}"
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, bookmarkTitles)
@@ -1120,19 +1338,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             try {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(bookmarks[pos].locator))
                                 locator?.let {
-                                    val goLocation = ReflowableWebGoLocation(it)
                                     lifecycleScope.launch {
-                                        renditionState?.controller?.goTo(goLocation)
+                                        renditionState?.controller?.goTo(ReflowableWebGoLocation(it))
                                     }
                                 }
                             } catch (e: Exception) {
-                                Toast.makeText(context, getString(R.string.reader_bookmark_error), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Error loading bookmark", Toast.LENGTH_SHORT).show()
                             }
                         }
                         listView.setOnItemLongClickListener { _: android.widget.AdapterView<*>, _: View, pos: Int, _: Long ->
                             lifecycleScope.launch {
                                 viewModel.deleteBookmark(bookmarks[pos])
-                                Toast.makeText(context, getString(R.string.reader_bookmark_deleted), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Bookmark deleted", Toast.LENGTH_SHORT).show()
                             }
                             true
                         }
@@ -1146,7 +1363,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
             lifecycleScope.launch {
                 viewModel.getHighlights(bookId).collectLatest { highlights ->
                     if (highlights.isEmpty()) {
-                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf(getString(R.string.reader_no_highlights)))
+                        listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, listOf("No highlights yet"))
                         listView.setOnItemClickListener(null)
                     } else {
                         val publication = ReaderRepository.currentPublication
@@ -1156,7 +1373,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlight.locator))
                                 if (locator != null) {
                                     val locatorHref = locator.href.toString()
-                                    var chapterName = getString(R.string.reader_chapter_default, currentSpineIndex + 1)
+                                    var chapterName = "Chapter ${currentSpineIndex + 1}"
                                     for (tocLink in tocLinks) {
                                         val tocHref = tocLink.href.toString()
                                         if (locatorHref.contains(tocHref.substringAfterLast("/"))) {
@@ -1181,10 +1398,10 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                         "$prefix$chapterName"
                                     }
                                 } else {
-                                    getString(R.string.reader_highlight_default, index + 1)
+                                    "Highlight ${index + 1}"
                                 }
                             } catch (e: Exception) {
-                                getString(R.string.reader_highlight_default, index + 1)
+                                "Highlight ${index + 1}"
                             }
                         }
                         listView.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, highlightTitles)
@@ -1192,19 +1409,18 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             try {
                                 val locator = org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(highlights[pos].locator))
                                 locator?.let {
-                                    val goLocation = ReflowableWebGoLocation(it)
                                     lifecycleScope.launch {
-                                        renditionState?.controller?.goTo(goLocation)
+                                        renditionState?.controller?.goTo(ReflowableWebGoLocation(it))
                                     }
                                 }
                             } catch (e: Exception) {
-                                Toast.makeText(context, getString(R.string.reader_highlight_error), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Error loading highlight", Toast.LENGTH_SHORT).show()
                             }
                         }
                         listView.setOnItemLongClickListener { _: android.widget.AdapterView<*>, _: View, pos: Int, _: Long ->
                             lifecycleScope.launch {
                                 viewModel.deleteHighlight(highlights[pos])
-                                Toast.makeText(context, getString(R.string.reader_highlight_deleted), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Highlight deleted", Toast.LENGTH_SHORT).show()
                             }
                             true
                         }
@@ -1218,7 +1434,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
         
         val dialog: android.app.AlertDialog = android.app.AlertDialog.Builder(requireContext())
             .setView(dialogView)
-            .setNegativeButton(getString(R.string.reader_close), null)
+            .setNegativeButton("Close", null)
             .create()
         
         // Start with Highlights tab
@@ -1250,7 +1466,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(stringResource(R.string.reader_reading_settings_title), style = MaterialTheme.typography.titleLarge, color = Color.White)
+                                Text("Reading Settings", style = MaterialTheme.typography.titleLarge, color = Color.White)
                                 IconButton(onClick = { settingsComposeView.visibility = View.GONE }) {
                                     Icon(Icons.Default.Close, contentDescription = null, tint = Color.Gray)
                                 }
@@ -1258,7 +1474,7 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
                             
                             Spacer(modifier = Modifier.height(24.dp))
                             
-                            Text(stringResource(R.string.reader_theme_label), color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
+                            Text("Theme", color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1297,41 +1513,102 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
 
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            Text(stringResource(R.string.reader_font_size, settings.fontSize.toInt()), color = Color.LightGray)
-                            Slider(
-                                value = settings.fontSize.toFloat(),
-                                onValueChange = {
-                                    val ns = settings.copy(fontSize = it.toDouble())
-                                    viewModel.updateSettings(ns)
-                                },
-                                onValueChangeFinished = {
-                                    recreateNavigator(viewModel.settings.value)
-                                },
-                                valueRange = 50f..300f,
-                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                            Text("TYPEFACE", color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val fontOptions = listOf(
+                                Triple("Serif", "serif", FontFamily.Serif),
+                                Triple("Sans", "sans-serif", FontFamily.SansSerif),
+                                Triple("Mono", "monospace", FontFamily.Monospace),
+                                Triple("Merriweather", "Merriweather", FontFamily.Serif),
+                                Triple("Lora", "Lora", FontFamily.Serif),
+                                Triple("Dyslexic", "OpenDyslexic", FontFamily.SansSerif)
                             )
-                            
-                            Spacer(modifier = Modifier.height(24.dp))
-                            
-                            Surface(
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color.White.copy(alpha = 0.1f)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(stringResource(R.string.reader_vertical_scroll), style = MaterialTheme.typography.bodyLarge, color = Color.White)
-                                        Text(stringResource(R.string.reader_scroll_desc), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                    }
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = stringResource(R.string.reader_enabled),
-                                        tint = Color(0xFF4CAF50),
-                                        modifier = Modifier.size(24.dp)
+                                fontOptions.forEach { (label, value, _) ->
+                                    FilterChip(
+                                        selected = settings.fontFamily == value,
+                                        onClick = {
+                                            val ns = settings.copy(fontFamily = value)
+                                            viewModel.updateSettings(ns)
+                                            recreateNavigator(ns)
+                                        },
+                                        label = { Text(label, fontSize = 10.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = Color.White.copy(alpha = 0.08f),
+                                            labelColor = Color.LightGray,
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = settings.fontFamily == value,
+                                            borderColor = Color.Transparent,
+                                            borderWidth = 1.dp,
+                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                            selectedBorderWidth = 2.dp
+                                        )
                                     )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text(stringResource(R.string.reader_font_size, settings.fontSize.toInt()), color = Color.LightGray, style = MaterialTheme.typography.labelMedium)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    onClick = {
+                                        val new = (settings.fontSize - 5.0).coerceIn(50.0, 300.0)
+                                        val ns = settings.copy(fontSize = new)
+                                        viewModel.updateSettings(ns)
+                                        recreateNavigator(ns)
+                                    },
+                                    enabled = settings.fontSize > 50.0,
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (settings.fontSize > 50.0) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.03f),
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Remove, contentDescription = "Decrease font size", tint = if (settings.fontSize > 50.0) Color.White else Color.Gray, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                                Slider(
+                                    value = settings.fontSize.toFloat(),
+                                    onValueChange = { raw ->
+                                        val snapped = (Math.round(raw / 5.0) * 5.0).coerceIn(50.0, 300.0)
+                                        val ns = settings.copy(fontSize = snapped)
+                                        viewModel.updateSettings(ns)
+                                    },
+                                    onValueChangeFinished = {
+                                        recreateNavigator(viewModel.settings.value)
+                                    },
+                                    valueRange = 50f..300f,
+                                    steps = 49,
+                                    modifier = Modifier.weight(1f),
+                                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                                )
+                                Surface(
+                                    onClick = {
+                                        val new = (settings.fontSize + 5.0).coerceIn(50.0, 300.0)
+                                        val ns = settings.copy(fontSize = new)
+                                        viewModel.updateSettings(ns)
+                                        recreateNavigator(ns)
+                                    },
+                                    enabled = settings.fontSize < 300.0,
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (settings.fontSize < 300.0) Color.White.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.03f),
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Add, contentDescription = "Increase font size", tint = if (settings.fontSize < 300.0) Color.White else Color.Gray, modifier = Modifier.size(24.dp))
+                                    }
                                 }
                             }
                         }
@@ -1342,17 +1619,75 @@ class ReaderFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     private fun highlightSelection(locator: Locator, color: Int, annotation: String? = null) {
-        viewLifecycleOwner.lifecycleScope.launch { viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation) }
-    }
-
-    @OptIn(ExperimentalReadiumApi::class)
-    private fun recreateNavigator(settings: ReaderSettings) {
-        lifecycleScope.launch {
-            val currentLocation = renditionState?.controller?.location
-            if (currentLocation != null) {
-                setupNavigator(currentLocation.toLocator(), settings, forceScrollMode = true)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val selectedText = locator.text.highlight ?: ""
+            if (selectedText.isNotBlank()) {
+                val existingHighlights = viewModel.getHighlightsSync(bookId)
+                val overlapping = existingHighlights.any { existing ->
+                    val existingText = try {
+                        val existingLocator = Locator.fromJSON(org.json.JSONObject(existing.locator))
+                        existingLocator?.text?.highlight ?: ""
+                    } catch (e: Exception) { "" }
+                    existingText.isNotBlank() && selectedText.isNotBlank() && (
+                        existingText.contains(selectedText, ignoreCase = true) ||
+                        selectedText.contains(existingText, ignoreCase = true)
+                    )
+                }
+                if (overlapping) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Text already highlighted", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
             }
+            viewModel.insertHighlight(bookId, locator.toJSON().toString(), color, annotation)
         }
     }
+
+    private fun createSelectionActionModeCallback(): ActionMode.Callback {
+        return object : ActionMode.Callback {
+            override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+                menu.clear()
+                menu.add(0, 1, 0, "Highlight")
+                menu.add(0, 2, 0, "Copy")
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: ActionMode, menu: Menu) = false
+
+            override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+                when (item.itemId) {
+                    1 -> { // Highlight
+                        lifecycleScope.launch {
+                            val selection = renditionState?.controller?.currentSelection()
+                            if (selection != null) {
+                                showSelectionMenu(selection.location.toLocator())
+                            }
+                            withContext(Dispatchers.Main) { mode.finish() }
+                        }
+                    }
+                    2 -> { // Copy
+                        lifecycleScope.launch {
+                            val selection = renditionState?.controller?.currentSelection()
+                            if (selection != null) {
+                                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("selected text", selection.text)
+                                clipboard.setPrimaryClip(clip)
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            withContext(Dispatchers.Main) { mode.finish() }
+                        }
+                    }
+                }
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: ActionMode) {}
+        }
+    }
+
+    private fun recreateNavigator(settings: ReaderSettings) { renditionState?.controller?.location?.toLocator()?.let { setupNavigator(it, settings, forceScrollMode = true) } }
     fun isScrollMode(): Boolean = viewModel.settings.value.scrollMode
 }

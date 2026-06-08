@@ -107,6 +107,15 @@ class EbookApp : Application() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to verify database", e)
             }
+
+            // 3. Warm catalog cache in background so home screen sections load instantly
+            try {
+                val startTime = System.currentTimeMillis()
+                catalogRepo.getCatalog()
+                Log.d(TAG, "Catalog warmed in ${System.currentTimeMillis() - startTime}ms")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to warm catalog cache", e)
+            }
         }
 
         // Firebase on main thread (required by SDK) but async token fetch

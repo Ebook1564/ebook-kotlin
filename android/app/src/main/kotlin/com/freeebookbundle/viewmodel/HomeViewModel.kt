@@ -1,6 +1,7 @@
 package com.freeebookbundle.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
@@ -309,8 +310,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             // 1. Load Billboard first (High priority) — IO thread to avoid blocking main
-            val billboard = withContext(Dispatchers.IO) {
+            val rawBillboard = withContext(Dispatchers.IO) {
                 catalogRepo.getStaticBooksByTopic(topicsToLoad.first(), 6)
+            }
+            val billboard = withContext(Dispatchers.IO) {
+                catalogRepo.enrichWithCachedMetadata(rawBillboard)
             }
             _billboardBooks.value = billboard
             _uiState.value = _uiState.value.copy(isCatalogLoading = false)
@@ -318,12 +322,61 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // 2. Load all other sections in parallel, then update ONCE
             val sections = topicsToLoad.map { topic ->
                 async(Dispatchers.IO) {
-                    HomeSection(topic, topic, catalogRepo.getStaticBooksByTopic(topic, 15))
+                    val rawBooks = catalogRepo.getStaticBooksByTopic(topic, 15)
+                    HomeSection(topic, topic, catalogRepo.enrichWithCachedMetadata(rawBooks))
                 }
             }.awaitAll()
             
             _homeSections.value = sections
             _uiState.value = _uiState.value.copy(isLoading = false)
+
+            // 3. Fetch metadata for visible books with priority
+            prefetchVisibleBookMetadata(billboard, sections)
+        }
+    }
+
+    private fun prefetchVisibleBookMetadata(billboard: List<Book>, sections: List<HomeSection>) {
+        viewModelScope.launch {
+            // Priority 1: Billboard books (most visible)
+            // Priority 2: First 3 books from each section (visible in horizontal scroll)
+            // Priority 3: Remaining section books
+
+            val priority1 = billboard
+            val priority2 = sections.flatMap { section -> section.books.take(3) }
+            val priority3 = sections.flatMap { section -> section.books.drop(3) }
+
+            val allPriority = (priority1 + priority2 + priority3).distinctBy { it.id }
+            val toFetch = allPriority.filter { metadataRepo.needsMetadata(it) }
+
+            if (toFetch.isEmpty()) return@launch
+
+            Log.d("HomeViewModel", "Prefetching metadata for ${toFetch.size} books (P1=${priority1.size}, P2=${priority2.size}, P3=${priority3.size})")
+
+            // Update UI state for billboard books as they get metadata
+            metadataRepo.fetchMetadataBatch(toFetch) { updatedBook ->
+                // Update billboard if this book is in it
+                val currentBillboard = _billboardBooks.value
+                val billboardIndex = currentBillboard.indexOfFirst { it.id == updatedBook.id }
+                if (billboardIndex >= 0) {
+                    _billboardBooks.value = currentBillboard.toMutableList().apply {
+                        set(billboardIndex, updatedBook)
+                    }
+                }
+
+                // Update sections
+                val currentSections = _homeSections.value
+                val updatedSections = currentSections.map { section ->
+                    val bookIndex = section.books.indexOfFirst { it.id == updatedBook.id }
+                    if (bookIndex >= 0) {
+                        section.copy(books = section.books.toMutableList().apply {
+                            set(bookIndex, updatedBook)
+                        })
+                    } else section
+                }
+                if (updatedSections != currentSections) {
+                    _homeSections.value = updatedSections
+                }
+            }
         }
     }
 

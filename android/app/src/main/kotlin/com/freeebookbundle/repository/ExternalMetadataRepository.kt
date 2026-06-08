@@ -77,12 +77,17 @@ class ExternalMetadataRepository(private val bookDao: BookDao) {
         return "${ServerConfig.getCoversUrl()}/${bookId}_cover_image.jpg"
     }
 
+    fun needsMetadata(book: Book): Boolean {
+        if (book.description.isNotBlank() && book.externalCoverUrl != null) return false
+        return true
+    }
+
     suspend fun fetchAndCacheMetadata(book: Book): Book = withContext(Dispatchers.IO) {
         Log.d(TAG, "Syncing: ${book.title}")
 
         var updatedBook = fetchFromGoogleBooks(book)
         
-        if (updatedBook.description.contains("A classic text by")) {
+        if (updatedBook.description.isBlank() || updatedBook.description.contains("A classic text by")) {
             updatedBook = fetchFromOpenLibrary(updatedBook)
         }
 
@@ -112,6 +117,24 @@ class ExternalMetadataRepository(private val bookDao: BookDao) {
         }
         
         return@withContext book
+    }
+
+    suspend fun fetchMetadataBatch(books: List<Book>, onEach: ((Book) -> Unit)? = null) = withContext(Dispatchers.IO) {
+        val needsFetch = books.filter { needsMetadata(it) }
+        if (needsFetch.isEmpty()) return@withContext
+
+        Log.d(TAG, "Batch fetching metadata for ${needsFetch.size} books")
+        for (book in needsFetch) {
+            try {
+                val updated = fetchAndCacheMetadata(book)
+                if (updated != book) {
+                    onEach?.invoke(updated)
+                }
+                kotlinx.coroutines.delay(200)
+            } catch (e: Exception) {
+                Log.e(TAG, "Batch fetch failed for ${book.title}: ${e.message}")
+            }
+        }
     }
 
     private fun fetchFromGoogleBooks(book: Book): Book {
@@ -214,7 +237,8 @@ class ExternalMetadataRepository(private val bookDao: BookDao) {
     private fun cleanDescription(desc: String): String {
         return desc.replace(Regex("<.*?>"), "") 
                    .replace(Regex("\\[.*?\\]"), "")
-                   .replace(Regex("\\(.*?\\)"), "")
+                   .replace(Regex("\\(A classic text by.*?\\)"), "")
+                   .replace(Regex("\\(Originally published.*?\\)"), "")
                    .trim()
     }
 }

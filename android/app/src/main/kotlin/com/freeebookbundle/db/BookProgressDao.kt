@@ -8,6 +8,12 @@ interface BookProgressDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProgress(progress: BookProgressEntity)
 
+    @Query("UPDATE book_progress SET last_spine_index = :spineIndex, chapter_progression = :progression, last_opened = :now WHERE book_id = :bookId")
+    suspend fun updateReadingPosition(bookId: String, spineIndex: Int, progression: Float, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE book_progress SET tts_spine_index = :spineIndex, tts_sentence_index = :sentenceIndex, tts_paragraph_index = :paragraphIndex WHERE book_id = :bookId")
+    suspend fun updateTtsPosition(bookId: String, spineIndex: Int, sentenceIndex: Int, paragraphIndex: Int)
+
     @Query("SELECT * FROM book_progress WHERE book_id = :bookId")
     suspend fun getProgress(bookId: String): BookProgressEntity?
 
