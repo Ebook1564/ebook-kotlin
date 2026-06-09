@@ -295,7 +295,7 @@ fun StaticAppLayout(homeViewModel: HomeViewModel, appViewModel: AppViewModel, li
                     onBookClick = { homeViewModel.startReadTransition(it) },
                     onReadNowClick = { homeViewModel.startReadTransition(it) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) })
+                1 -> SearchScreen(viewModel = homeViewModel, onBookClick = { homeViewModel.startReadTransition(it) }, onAuthorClick = { author -> homeViewModel.openAuthor(author) })
                 2 -> LibraryScreen(viewModel = libraryViewModel, homeViewModel = homeViewModel, onProfileClick = onProfileClick, onBookClick = { homeViewModel.startReadTransition(it) })
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
@@ -347,7 +347,8 @@ fun BookVerseApp(
             isInspectingByShelf || 
             libraryUiState.seeAllStatus != null || 
             homeNavState.currentCollection != null || 
-            homeNavState.currentCuratedCollection != null
+            homeNavState.currentCuratedCollection != null ||
+            homeNavState.currentAuthor != null
         }
     }
 
@@ -384,7 +385,7 @@ fun BookVerseApp(
                     onBookClick = { onBookClick(it) },
                     onReadNowClick = { book -> homeViewModel.startReadTransition(book) }
                 )
-                1 -> SearchScreen(viewModel = homeViewModel, isSpaceActive = isSpaceActive, onBookClick = { onBookClick(it) })
+                1 -> SearchScreen(viewModel = homeViewModel, isSpaceActive = isSpaceActive, onBookClick = { onBookClick(it) }, onAuthorClick = { author -> homeViewModel.openAuthor(author) })
                 2 -> LibraryScreen(
                     viewModel = libraryViewModel, 
                     homeViewModel = homeViewModel,
@@ -484,6 +485,25 @@ fun ReaderOverlayManager(
                 accentColor = currentCurated.accentColor,
                 books = books,
                 onBack = { homeViewModel.closeCollection() },
+                onBookClick = onBookClick
+            )
+        }
+    }
+
+    val currentAuthorName = navigationState.currentAuthor
+    AnimatedVisibility(
+        visible = currentAuthorName != null,
+        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeIn(),
+        exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(600, easing = PremiumEasing)) + fadeOut()
+    ) {
+        if (currentAuthorName != null) {
+            val books = homeViewModel.filterResults.collectAsLazyPagingItems()
+            BackHandler { homeViewModel.closeAuthor() }
+            AuthorPage(
+                authorName = currentAuthorName,
+                authorColor = com.freeebookbundle.ui.getAuthorColor(currentAuthorName),
+                books = books,
+                onBack = { homeViewModel.closeAuthor() },
                 onBookClick = onBookClick
             )
         }

@@ -135,6 +135,9 @@ class CatalogRepository(
     suspend fun getGenreCounts(): Map<String, Int> =
         getGenreIndex().mapValues { it.value.size }
 
+    suspend fun getAuthorCounts(): Map<String, Int> =
+        getCatalog().groupBy { it.a }.mapValues { it.value.size }
+
     suspend fun getBookDetails(id: String): Book? =
         getCatalog().find { it.id == id }?.toBook()
 

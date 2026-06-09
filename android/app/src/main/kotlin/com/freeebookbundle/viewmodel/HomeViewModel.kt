@@ -198,7 +198,8 @@ data class HomeUiState(
 data class HomeNavigationState(
     val currentCollection: BookCollection? = null,
     val currentCuratedCollection: CuratedCollection? = null,
-    val selectedCategoryForSearch: String? = null
+    val selectedCategoryForSearch: String? = null,
+    val currentAuthor: String? = null
 )
 
 @Immutable
@@ -397,6 +398,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
+    suspend fun getTopAuthors(count: Int = 10): List<Pair<String, Int>> {
+        val counts = catalogRepo.getAuthorCounts()
+        return counts.entries
+            .filter { it.key.isNotBlank() }
+            .sortedByDescending { it.value }
+            .take(count)
+            .map { it.key to it.value }
+    }
+
     fun openCollection(tag: String) = viewModelScope.launch {
         val curatedCollection = CuratedCollections.findCollectionForTag(tag)
         if (curatedCollection != null) {
@@ -420,6 +430,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeCollection() { 
         _navigationState.value = _navigationState.value.copy(currentCollection = null, currentCuratedCollection = null) 
+    }
+
+    fun openAuthor(name: String) {
+        setAuthorFilter(name)
+        _navigationState.value = _navigationState.value.copy(currentAuthor = name)
+    }
+
+    fun closeAuthor() {
+        _navigationState.value = _navigationState.value.copy(currentAuthor = null)
+        clearFilters()
     }
 
     fun fetchMetadataForBook(book: Book, onUpdated: (Book) -> Unit) {
