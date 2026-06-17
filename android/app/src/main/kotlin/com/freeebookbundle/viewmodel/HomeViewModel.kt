@@ -199,7 +199,8 @@ data class HomeNavigationState(
     val currentCollection: BookCollection? = null,
     val currentCuratedCollection: CuratedCollection? = null,
     val selectedCategoryForSearch: String? = null,
-    val currentAuthor: String? = null
+    val currentAuthor: String? = null,
+    val expandedGenre: String? = null
 )
 
 @Immutable
@@ -272,6 +273,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .flatMapLatest { collection ->
             if (collection == null) flowOf(PagingData.empty())
             else catalogRepo.getBooksByTopic(collection.tags.first())
+        }.cachedIn(viewModelScope)
+
+    val expandedGenreBooks: Flow<PagingData<Book>> = _navigationState
+        .map { it.expandedGenre }
+        .distinctUntilChanged()
+        .flatMapLatest { genre ->
+            if (genre == null) flowOf(PagingData.empty())
+            else catalogRepo.getBooksByTopic(genre)
         }.cachedIn(viewModelScope)
 
     val authorResults: Flow<PagingData<String>> = _uiState
@@ -430,6 +439,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeCollection() { 
         _navigationState.value = _navigationState.value.copy(currentCollection = null, currentCuratedCollection = null) 
+    }
+
+    fun toggleGenreExpansion(category: String) {
+        val current = _navigationState.value.expandedGenre
+        _navigationState.value = _navigationState.value.copy(
+            expandedGenre = if (current == category) null else category,
+            currentCollection = null,
+            currentCuratedCollection = null
+        )
+    }
+
+    fun closeExpandedGenre() {
+        _navigationState.value = _navigationState.value.copy(expandedGenre = null)
     }
 
     fun openAuthor(name: String) {

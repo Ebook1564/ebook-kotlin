@@ -167,9 +167,9 @@ private fun CollectionPageContent(
 }
 
 @Composable
-fun CollectionBookItem(book: Book, onClick: () -> Unit) {
+fun CollectionBookItem(book: Book, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier.width(100.dp).clickable { onClick() },
+        modifier = modifier.width(100.dp).clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(

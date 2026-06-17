@@ -48,6 +48,15 @@ import com.freeebookbundle.viewmodel.AppThemeMode
 import com.freeebookbundle.viewmodel.AppViewModel
 import com.freeebookbundle.viewmodel.HomeViewModel
 import com.freeebookbundle.viewmodel.SearchFilter
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 
 @Composable
 fun SearchScreen(
@@ -356,33 +365,121 @@ private fun GenreBlock(
     val context = LocalContext.current
     val genreColor = getDrawerColor(category)
     val genreFont = remember(category) { getGenreFont(category, context) }
+    val genreFontSecondary = remember(category) { getGenreFontSecondary(category, context) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "fontWave")
+    val waveProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(7000, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "waveProgress"
+    )
+
+    val breathTransition = rememberInfiniteTransition(label = "breathing")
+    val breathScale by breathTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breathScale"
+    )
+
+    val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerOffset by shimmerTransition.animateFloat(
+        initialValue = -200f,
+        targetValue = 400f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(12000),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerOffset"
+    )
 
     Box(
         modifier = modifier
             .aspectRatio(1.4f)
             .clip(RoundedCornerShape(12.dp))
+            .graphicsLayer {
+                scaleX = breathScale
+                scaleY = breathScale
+            }
             .background(genreColor.copy(alpha = 0.15f))
             .clickable { onClick() }
     ) {
         GenreScribble(category = category, color = genreColor)
 
-        Text(
-            text = getCategoryDisplayName(category),
-            color = Color.White,
-            fontFamily = genreFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp)
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val shimmerW = size.width * 0.4f
+                drawRect(
+                    color = Color.White.copy(alpha = 0.06f),
+                    topLeft = Offset(shimmerOffset - shimmerW, 0f),
+                    size = Size(shimmerW, size.height)
+                )
+            }
+
+            val displayName = getCategoryDisplayName(category)
+            val words = displayName.split(" ")
+            val wordCount = words.size
+            val wordSlice = 1f / wordCount.coerceAtLeast(1)
+            val staggerDelay = 0.06f / wordCount.coerceAtLeast(1)
+
+            Text(
+                text = buildAnnotatedString {
+                    words.forEachIndexed { wordIdx, word ->
+                        val wordStart = wordIdx * wordSlice + wordIdx * staggerDelay
+                        val wordProgress = ((waveProgress - wordStart) / wordSlice).coerceIn(-0.01f, 1.01f)
+
+                        word.forEachIndexed { charIdx, char ->
+                            val charNorm = (charIdx + 0.5f) / word.length
+
+                            if (wordProgress < 0.30f) {
+                                pushStyle(SpanStyle(fontFamily = genreFont, color = Color.White))
+                            } else if (wordProgress > 0.70f) {
+                                pushStyle(SpanStyle(fontFamily = genreFontSecondary, color = Color.White))
+                            } else {
+                                val rawT = (wordProgress - 0.30f) / 0.40f
+                                val t = (0.5f - 0.5f * kotlin.math.cos(rawT * Math.PI)).toFloat()
+                                val diff = t - charNorm
+                                val flipHW = 0.5f / word.length
+                                val font = if (diff > 0) genreFontSecondary else genreFont
+                                val alpha = if (kotlin.math.abs(diff) < flipHW) {
+                                    val norm = kotlin.math.abs(diff) / flipHW
+                                    val sineCurve = 0.5f * (1f + kotlin.math.cos(norm * Math.PI)).toFloat()
+                                    0.15f + 0.85f * sineCurve
+                                } else 1f
+                                pushStyle(SpanStyle(fontFamily = font, color = Color.White.copy(alpha = alpha)))
+                            }
+                            append(char)
+                            pop()
+                        }
+                        if (wordIdx < words.lastIndex) {
+                            pushStyle(SpanStyle(color = Color.White))
+                            append(" ")
+                            pop()
+                        }
+                    }
+                },
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp)
+            )
+        }
     }
 }
 
 @Composable
 private fun GenreScribble(category: String, color: Color) {
+    val cat = category.lowercase()
     val scribbleColor = color.copy(alpha = 0.18f)
 
     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -391,42 +488,53 @@ private fun GenreScribble(category: String, color: Color) {
         val cx = w / 2f
         val cy = h / 2f
 
-        when (category) {
-            "Romance" -> {
+        when {
+            cat.contains("romance") -> {
                 val heartPath = Path().apply {
                     moveTo(cx, cy + h * 0.15f)
                     cubicTo(cx - w * 0.35f, cy - h * 0.15f, cx - w * 0.35f, cy - h * 0.35f, cx, cy - h * 0.1f)
                     cubicTo(cx + w * 0.35f, cy - h * 0.35f, cx + w * 0.35f, cy - h * 0.15f, cx, cy + h * 0.15f)
                 }
                 drawPath(heartPath, scribbleColor, style = Stroke(width = 3.dp.toPx()))
-                drawCircle(scribbleColor, radius = 3.dp.toPx(), center = Offset(cx - w * 0.2f, cy - h * 0.2f))
-                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx + w * 0.25f, cy - h * 0.15f))
+                drawCircle(scribbleColor, radius = 3.dp.toPx(), center = Offset(cx - w * 0.25f, cy - h * 0.15f))
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx + w * 0.25f, cy - h * 0.1f))
+                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx - w * 0.1f, cy - h * 0.28f))
             }
-            "Science Fiction & Fantasy", "Science Fiction" -> {
-                val starPath = Path().apply {
-                    val r = minOf(w, h) * 0.22f
-                    for (i in 0 until 5) {
-                        val angle = Math.toRadians((i * 72 - 90).toDouble())
-                        val innerAngle = Math.toRadians((i * 72 + 36 - 90).toDouble())
-                        val ox = cx + r * kotlin.math.cos(angle).toFloat()
-                        val oy = cy + r * kotlin.math.sin(angle).toFloat()
-                        val ix = cx + r * 0.45f * kotlin.math.cos(innerAngle).toFloat()
-                        val iy = cy + r * 0.45f * kotlin.math.sin(innerAngle).toFloat()
-                        if (i == 0) moveTo(ox, oy) else lineTo(ox, oy)
-                        lineTo(ix, iy)
-                    }
+            cat.contains("science fiction") || cat.contains("scifi") -> {
+                val rocketPath = Path().apply {
+                    moveTo(cx, cy - h * 0.3f)
+                    lineTo(cx - w * 0.06f, cy - h * 0.05f)
+                    lineTo(cx - w * 0.1f, cy + h * 0.15f)
+                    lineTo(cx, cy + h * 0.08f)
+                    lineTo(cx + w * 0.1f, cy + h * 0.15f)
+                    lineTo(cx + w * 0.06f, cy - h * 0.05f)
                     close()
                 }
-                drawPath(starPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawPath(rocketPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
                 drawCircle(scribbleColor, radius = minOf(w, h) * 0.32f, center = Offset(cx, cy), style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.15f, center = Offset(cx, cy - h * 0.1f), style = Stroke(width = 1.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy + h * 0.15f), end = Offset(cx - w * 0.05f, cy + h * 0.25f), strokeWidth = 2.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx, cy + h * 0.15f), end = Offset(cx + w * 0.05f, cy + h * 0.25f), strokeWidth = 2.dp.toPx())
             }
-            "Fantasy" -> {
-                drawArc(scribbleColor, startAngle = 200f, sweepAngle = 140f, useCenter = false, topLeft = Offset(cx - w * 0.2f, cy - h * 0.25f), size = Size(w * 0.4f, h * 0.45f), style = Stroke(width = 3.dp.toPx()))
-                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx + w * 0.18f, cy - h * 0.18f))
-                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx - w * 0.15f, cy + h * 0.1f))
-                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx + w * 0.1f, cy + h * 0.2f))
+            cat.contains("fantasy") -> {
+                val castlePath = Path().apply {
+                    moveTo(cx - w * 0.2f, cy + h * 0.25f)
+                    lineTo(cx - w * 0.2f, cy - h * 0.1f)
+                    lineTo(cx - w * 0.15f, cy - h * 0.2f)
+                    lineTo(cx - w * 0.1f, cy - h * 0.1f)
+                    lineTo(cx - w * 0.05f, cy - h * 0.2f)
+                    lineTo(cx, cy - h * 0.1f)
+                    lineTo(cx + w * 0.05f, cy - h * 0.2f)
+                    lineTo(cx + w * 0.1f, cy - h * 0.1f)
+                    lineTo(cx + w * 0.15f, cy - h * 0.2f)
+                    lineTo(cx + w * 0.2f, cy - h * 0.1f)
+                    lineTo(cx + w * 0.2f, cy + h * 0.25f)
+                }
+                drawPath(castlePath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawArc(scribbleColor, startAngle = 200f, sweepAngle = 140f, useCenter = false, topLeft = Offset(cx + w * 0.2f, cy - h * 0.3f), size = Size(w * 0.15f, h * 0.15f), style = Stroke(width = 2.dp.toPx()))
+                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx + w * 0.28f, cy - h * 0.22f))
             }
-            "Adventure" -> {
+            cat.contains("adventure") -> {
                 val mountainPath = Path().apply {
                     moveTo(0f, h * 0.75f)
                     lineTo(w * 0.2f, h * 0.3f)
@@ -445,69 +553,232 @@ private fun GenreScribble(category: String, color: Color) {
                     }
                 }
                 drawPath(wavePath, scribbleColor, style = Stroke(width = 1.5.dp.toPx()))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.06f, center = Offset(cx, cy - h * 0.15f), style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy - h * 0.09f), end = Offset(cx + w * 0.05f, cy - h * 0.15f), strokeWidth = 1.5.dp.toPx())
             }
-            "Mystery", "Crime, Thrillers and Mystery" -> {
+            cat.contains("mystery") || cat.contains("crime") || cat.contains("thriller") -> {
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.13f, center = Offset(cx - w * 0.03f, cy - h * 0.08f), style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx + w * 0.06f, cy + h * 0.02f), end = Offset(cx + w * 0.18f, cy + h * 0.14f), strokeWidth = 3.dp.toPx())
                 for (i in 0..3) {
-                    val y = cy - h * 0.15f + i * h * 0.1f
-                    drawLine(scribbleColor, start = Offset(cx - w * 0.2f, y), end = Offset(cx + w * 0.2f, y), strokeWidth = 2.dp.toPx())
-                    drawLine(scribbleColor, start = Offset(cx + w * 0.2f, y), end = Offset(cx + w * 0.2f, y + h * 0.08f), strokeWidth = 2.dp.toPx())
-                }
-                drawCircle(scribbleColor, radius = minOf(w, h) * 0.12f, center = Offset(cx + w * 0.15f, cy - h * 0.05f), style = Stroke(width = 2.dp.toPx()))
-            }
-            "Short Stories" -> {
-                for (i in 0..4) {
-                    val y = cy - h * 0.2f + i * h * 0.1f
-                    val lineW = if (i % 2 == 0) w * 0.5f else w * 0.35f
-                    drawLine(scribbleColor, start = Offset(cx - lineW / 2, y), end = Offset(cx - lineW / 2 + lineW, y), strokeWidth = 2.dp.toPx())
+                    val fx = cx - w * 0.15f + i * w * 0.08f
+                    val fy = cy + h * 0.18f
+                    drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(fx, fy))
+                    drawLine(scribbleColor, start = Offset(fx, fy), end = Offset(fx + w * 0.02f, fy + h * 0.06f), strokeWidth = 1.dp.toPx())
                 }
             }
-            "Children & Young Adult", "Humour" -> {
+            cat.contains("short stor") -> {
+                val bookPath = Path().apply {
+                    moveTo(cx - w * 0.2f, cy - h * 0.2f)
+                    lineTo(cx - w * 0.2f, cy + h * 0.25f)
+                    lineTo(cx + w * 0.2f, cy + h * 0.25f)
+                    lineTo(cx + w * 0.2f, cy - h * 0.2f)
+                    close()
+                }
+                drawPath(bookPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy - h * 0.2f), end = Offset(cx, cy + h * 0.25f), strokeWidth = 2.dp.toPx())
+                for (i in 0..3) {
+                    val y = cy - h * 0.1f + i * h * 0.1f
+                    drawLine(scribbleColor, start = Offset(cx - w * 0.15f, y), end = Offset(cx - w * 0.03f, y), strokeWidth = 1.5.dp.toPx())
+                    drawLine(scribbleColor, start = Offset(cx + w * 0.03f, y), end = Offset(cx + w * 0.15f, y), strokeWidth = 1.5.dp.toPx())
+                }
+            }
+            cat.contains("children") || cat.contains("young adult") -> {
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.12f, center = Offset(cx - w * 0.1f, cy - h * 0.1f), style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.1f, cy + h * 0.02f), end = Offset(cx - w * 0.1f, cy + h * 0.25f), strokeWidth = 2.dp.toPx())
+                val kitePath = Path().apply {
+                    moveTo(cx + w * 0.15f, cy - h * 0.25f)
+                    lineTo(cx + w * 0.25f, cy - h * 0.1f)
+                    lineTo(cx + w * 0.15f, cy + h * 0.05f)
+                    lineTo(cx + w * 0.05f, cy - h * 0.1f)
+                    close()
+                }
+                drawPath(kitePath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx + w * 0.15f, cy + h * 0.05f), end = Offset(cx + w * 0.2f, cy + h * 0.25f), strokeWidth = 1.5.dp.toPx())
+            }
+            cat.contains("historical") -> {
+                val columnPath = Path().apply {
+                    moveTo(cx - w * 0.08f, cy - h * 0.25f)
+                    lineTo(cx - w * 0.12f, cy - h * 0.3f)
+                    lineTo(cx + w * 0.12f, cy - h * 0.3f)
+                    lineTo(cx + w * 0.08f, cy - h * 0.25f)
+                    lineTo(cx + w * 0.08f, cy + h * 0.2f)
+                    lineTo(cx - w * 0.08f, cy + h * 0.2f)
+                    close()
+                }
+                drawPath(columnPath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy - h * 0.3f), end = Offset(cx + w * 0.15f, cy - h * 0.3f), strokeWidth = 3.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy + h * 0.2f), end = Offset(cx + w * 0.15f, cy + h * 0.2f), strokeWidth = 3.dp.toPx())
                 for (i in 0..2) {
-                    val angle = Math.toRadians((i * 120).toDouble())
-                    val sx = cx + minOf(w, h) * 0.2f * kotlin.math.cos(angle).toFloat()
-                    val sy = cy + minOf(w, h) * 0.2f * kotlin.math.sin(angle).toFloat()
-                    drawLine(scribbleColor, start = Offset(cx, cy), end = Offset(sx, sy), strokeWidth = 2.dp.toPx())
-                    drawCircle(scribbleColor, radius = 3.dp.toPx(), center = Offset(sx, sy))
+                    val x = cx - w * 0.08f + i * w * 0.08f
+                    drawLine(scribbleColor, start = Offset(x, cy - h * 0.25f), end = Offset(x, cy + h * 0.2f), strokeWidth = 1.5.dp.toPx())
                 }
-                val zigPath = Path().apply {
-                    moveTo(cx - w * 0.25f, cy + h * 0.2f)
-                    for (i in 0..4) {
-                        val x = cx - w * 0.25f + i * w * 0.12f
-                        val y = if (i % 2 == 0) cy + h * 0.2f else cy + h * 0.3f
-                        lineTo(x, y)
-                    }
-                }
-                drawPath(zigPath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
             }
-            "Historical Novels" -> {
-                drawArc(scribbleColor, startAngle = 0f, sweepAngle = 270f, useCenter = false, topLeft = Offset(cx - w * 0.15f, cy - h * 0.2f), size = Size(w * 0.3f, h * 0.35f), style = Stroke(width = 2.5.dp.toPx()))
-                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy + h * 0.15f), end = Offset(cx - w * 0.15f, cy + h * 0.3f), strokeWidth = 2.dp.toPx())
-                drawLine(scribbleColor, start = Offset(cx + w * 0.15f, cy + h * 0.15f), end = Offset(cx + w * 0.15f, cy + h * 0.3f), strokeWidth = 2.dp.toPx())
-            }
-            "Poetry" -> {
-                val swooshPath = Path().apply {
-                    moveTo(cx - w * 0.3f, cy)
-                    cubicTo(cx - w * 0.1f, cy - h * 0.3f, cx + w * 0.1f, cy + h * 0.3f, cx + w * 0.3f, cy)
-                }
-                drawPath(swooshPath, scribbleColor, style = Stroke(width = 3.dp.toPx()))
-                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx - w * 0.25f, cy - h * 0.05f))
-                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx + w * 0.28f, cy + h * 0.05f))
-            }
-            "Biography", "Philosophy & Ethics" -> {
-                for (i in 0..3) {
-                    val x = cx - w * 0.15f + i * w * 0.1f
-                    drawLine(scribbleColor, start = Offset(x, cy - h * 0.25f), end = Offset(x, cy + h * 0.25f), strokeWidth = 2.dp.toPx())
-                }
-                drawLine(scribbleColor, start = Offset(cx - w * 0.2f, cy), end = Offset(cx + w * 0.2f, cy), strokeWidth = 2.5.dp.toPx())
-            }
-            "Classics of Literature" -> {
+            cat.contains("poetry") -> {
                 val quillPath = Path().apply {
-                    moveTo(cx - w * 0.1f, cy + h * 0.25f)
-                    cubicTo(cx, cy + h * 0.1f, cx + w * 0.05f, cy - h * 0.1f, cx + w * 0.15f, cy - h * 0.3f)
+                    moveTo(cx - w * 0.2f, cy + h * 0.25f)
+                    cubicTo(cx - w * 0.1f, cy + h * 0.1f, cx, cy - h * 0.05f, cx + w * 0.15f, cy - h * 0.3f)
                 }
-                drawPath(quillPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
-                drawLine(scribbleColor, start = Offset(cx - w * 0.2f, cy - h * 0.05f), end = Offset(cx + w * 0.2f, cy - h * 0.05f), strokeWidth = 1.5.dp.toPx())
-                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy + h * 0.05f), end = Offset(cx + w * 0.15f, cy + h * 0.05f), strokeWidth = 1.5.dp.toPx())
+                drawPath(quillPath, scribbleColor, style = Stroke(width = 3.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.25f, cy + h * 0.05f), end = Offset(cx + w * 0.2f, cy + h * 0.05f), strokeWidth = 2.dp.toPx())
+                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx + w * 0.2f, cy - h * 0.15f))
+            }
+            cat.contains("biography") || cat.contains("biographies") -> {
+                drawArc(scribbleColor, startAngle = 0f, sweepAngle = 360f, useCenter = false, topLeft = Offset(cx - w * 0.15f, cy - h * 0.3f), size = Size(w * 0.3f, h * 0.3f), style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy - h * 0.15f), end = Offset(cx, cy + h * 0.0f), strokeWidth = 2.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx - w * 0.08f, cy + h * 0.05f), end = Offset(cx + w * 0.08f, cy + h * 0.05f), strokeWidth = 1.5.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx - w * 0.06f, cy + h * 0.12f), end = Offset(cx + w * 0.06f, cy + h * 0.12f), strokeWidth = 1.5.dp.toPx())
+                for (i in 0..1) {
+                    val x = cx - w * 0.2f + i * w * 0.4f
+                    drawLine(scribbleColor, start = Offset(x, cy + h * 0.2f), end = Offset(x, cy + h * 0.3f), strokeWidth = 2.dp.toPx())
+                }
+            }
+            cat.contains("philosophy") -> {
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.15f, center = Offset(cx, cy - h * 0.05f), style = Stroke(width = 2.dp.toPx()))
+                val questionPath = Path().apply {
+                    moveTo(cx - w * 0.02f, cy - h * 0.15f)
+                    cubicTo(cx - w * 0.1f, cy - h * 0.2f, cx - w * 0.1f, cy - h * 0.05f, cx, cy - h * 0.02f)
+                    lineTo(cx, cy + h * 0.02f)
+                }
+                drawPath(questionPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx, cy + h * 0.1f))
+                drawLine(scribbleColor, start = Offset(cx + w * 0.1f, cy - h * 0.05f), end = Offset(cx + w * 0.2f, cy + h * 0.15f), strokeWidth = 2.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx + w * 0.2f, cy + h * 0.15f), end = Offset(cx + w * 0.15f, cy + h * 0.15f), strokeWidth = 2.dp.toPx())
+            }
+            cat.contains("british") -> {
+                val crownPath = Path().apply {
+                    moveTo(cx - w * 0.18f, cy + h * 0.05f)
+                    lineTo(cx - w * 0.2f, cy - h * 0.15f)
+                    lineTo(cx - w * 0.1f, cy - h * 0.05f)
+                    lineTo(cx, cy - h * 0.2f)
+                    lineTo(cx + w * 0.1f, cy - h * 0.05f)
+                    lineTo(cx + w * 0.2f, cy - h * 0.15f)
+                    lineTo(cx + w * 0.18f, cy + h * 0.05f)
+                    close()
+                }
+                drawPath(crownPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.18f, cy + h * 0.05f), end = Offset(cx + w * 0.18f, cy + h * 0.05f), strokeWidth = 2.5.dp.toPx())
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx, cy - h * 0.2f))
+            }
+            cat.contains("american") -> {
+                val eaglePath = Path().apply {
+                    moveTo(cx, cy - h * 0.25f)
+                    cubicTo(cx + w * 0.15f, cy - h * 0.15f, cx + w * 0.3f, cy, cx + w * 0.2f, cy + h * 0.1f)
+                    lineTo(cx, cy + h * 0.05f)
+                    lineTo(cx - w * 0.2f, cy + h * 0.1f)
+                    cubicTo(cx - w * 0.3f, cy, cx - w * 0.15f, cy - h * 0.15f, cx, cy - h * 0.25f)
+                }
+                drawPath(eaglePath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.06f, center = Offset(cx, cy - h * 0.1f), style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy + h * 0.05f), end = Offset(cx, cy + h * 0.2f), strokeWidth = 2.dp.toPx())
+            }
+            cat.contains("french") -> {
+                val eiffelPath = Path().apply {
+                    moveTo(cx, cy - h * 0.3f)
+                    lineTo(cx - w * 0.05f, cy - h * 0.1f)
+                    lineTo(cx - w * 0.15f, cy + h * 0.25f)
+                    moveTo(cx, cy - h * 0.3f)
+                    lineTo(cx + w * 0.05f, cy - h * 0.1f)
+                    lineTo(cx + w * 0.15f, cy + h * 0.25f)
+                    moveTo(cx - w * 0.1f, cy + h * 0.0f)
+                    lineTo(cx + w * 0.1f, cy + h * 0.0f)
+                }
+                drawPath(eiffelPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawArc(scribbleColor, startAngle = 0f, sweepAngle = 360f, useCenter = false, topLeft = Offset(cx + w * 0.15f, cy + h * 0.1f), size = Size(w * 0.08f, h * 0.08f), style = Stroke(width = 1.5.dp.toPx()))
+            }
+            cat.contains("religion") || cat.contains("spiritual") -> {
+                drawLine(scribbleColor, start = Offset(cx, cy - h * 0.15f), end = Offset(cx, cy + h * 0.2f), strokeWidth = 3.dp.toPx())
+                val flamePath = Path().apply {
+                    moveTo(cx, cy - h * 0.3f)
+                    cubicTo(cx + w * 0.08f, cy - h * 0.2f, cx + w * 0.06f, cy - h * 0.1f, cx, cy - h * 0.15f)
+                    cubicTo(cx - w * 0.06f, cy - h * 0.1f, cx - w * 0.08f, cy - h * 0.2f, cx, cy - h * 0.3f)
+                }
+                drawPath(flamePath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.25f, center = Offset(cx, cy - h * 0.1f), style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 6f))))
+            }
+            cat.contains("travel") -> {
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.2f, center = Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx, cy - h * 0.2f), end = Offset(cx, cy + h * 0.2f), strokeWidth = 1.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx - w * 0.2f, cy), end = Offset(cx + w * 0.2f, cy), strokeWidth = 1.dp.toPx())
+                val needlePath = Path().apply {
+                    moveTo(cx, cy)
+                    lineTo(cx + w * 0.12f, cy - h * 0.08f)
+                    lineTo(cx + w * 0.08f, cy + h * 0.06f)
+                    close()
+                }
+                drawPath(needlePath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx, cy))
+            }
+            cat.contains("science") && !cat.contains("fiction") -> {
+                drawOval(scribbleColor, topLeft = Offset(cx - w * 0.25f, cy - h * 0.1f), size = Size(w * 0.5f, h * 0.2f), style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.18f, center = Offset(cx, cy), style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))))
+                drawCircle(scribbleColor, radius = 3.dp.toPx(), center = Offset(cx, cy))
+                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx + w * 0.2f, cy - h * 0.05f))
+                drawCircle(scribbleColor, radius = 1.5.dp.toPx(), center = Offset(cx - w * 0.15f, cy + h * 0.08f))
+            }
+            cat.contains("history") && !cat.contains("historical") -> {
+                val hourglassPath = Path().apply {
+                    moveTo(cx - w * 0.1f, cy - h * 0.25f)
+                    lineTo(cx + w * 0.1f, cy - h * 0.25f)
+                    lineTo(cx + w * 0.03f, cy)
+                    lineTo(cx + w * 0.1f, cy + h * 0.25f)
+                    lineTo(cx - w * 0.1f, cy + h * 0.25f)
+                    lineTo(cx - w * 0.03f, cy)
+                    close()
+                }
+                drawPath(hourglassPath, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy - h * 0.25f), end = Offset(cx + w * 0.15f, cy - h * 0.25f), strokeWidth = 2.5.dp.toPx())
+                drawLine(scribbleColor, start = Offset(cx - w * 0.15f, cy + h * 0.25f), end = Offset(cx + w * 0.15f, cy + h * 0.25f), strokeWidth = 2.5.dp.toPx())
+            }
+            cat.contains("nature") -> {
+                val trunkPath = Path().apply {
+                    moveTo(cx - w * 0.03f, cy + h * 0.25f)
+                    lineTo(cx - w * 0.02f, cy)
+                    lineTo(cx + w * 0.02f, cy)
+                    lineTo(cx + w * 0.03f, cy + h * 0.25f)
+                }
+                drawPath(trunkPath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
+                drawCircle(scribbleColor, radius = minOf(w, h) * 0.18f, center = Offset(cx, cy - h * 0.1f), style = Stroke(width = 2.5.dp.toPx()))
+                for (i in 0..2) {
+                    val angle = Math.toRadians((120.0 + i * 60))
+                    val rx = cx + w * 0.12f * kotlin.math.cos(angle).toFloat()
+                    val ry = cy + h * 0.1f * kotlin.math.sin(angle).toFloat()
+                    drawLine(scribbleColor, start = Offset(cx - w * 0.02f, cy + h * 0.2f), end = Offset(rx, ry), strokeWidth = 1.5.dp.toPx())
+                }
+            }
+            cat.contains("classics") -> {
+                val wreathL = Path().apply {
+                    moveTo(cx - w * 0.15f, cy + h * 0.15f)
+                    cubicTo(cx - w * 0.25f, cy, cx - w * 0.25f, cy - h * 0.2f, cx - w * 0.1f, cy - h * 0.25f)
+                }
+                drawPath(wreathL, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                val wreathR = Path().apply {
+                    moveTo(cx + w * 0.15f, cy + h * 0.15f)
+                    cubicTo(cx + w * 0.25f, cy, cx + w * 0.25f, cy - h * 0.2f, cx + w * 0.1f, cy - h * 0.25f)
+                }
+                drawPath(wreathR, scribbleColor, style = Stroke(width = 2.5.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx - w * 0.1f, cy - h * 0.25f), end = Offset(cx + w * 0.1f, cy - h * 0.25f), strokeWidth = 2.dp.toPx())
+                for (i in 0..2) {
+                    val y = cy - h * 0.15f + i * h * 0.1f
+                    drawLine(scribbleColor, start = Offset(cx - w * 0.08f, y), end = Offset(cx + w * 0.08f, y), strokeWidth = 1.5.dp.toPx())
+                }
+            }
+            cat.contains("fiction") || cat.contains("novels") -> {
+                val penPath = Path().apply {
+                    moveTo(cx + w * 0.15f, cy - h * 0.3f)
+                    lineTo(cx + w * 0.08f, cy - h * 0.1f)
+                    lineTo(cx + w * 0.12f, cy - h * 0.05f)
+                    lineTo(cx + w * 0.2f, cy - h * 0.25f)
+                    close()
+                }
+                drawPath(penPath, scribbleColor, style = Stroke(width = 2.dp.toPx()))
+                drawLine(scribbleColor, start = Offset(cx + w * 0.1f, cy - h * 0.08f), end = Offset(cx - w * 0.15f, cy + h * 0.2f), strokeWidth = 2.dp.toPx())
+                drawArc(scribbleColor, startAngle = 180f, sweepAngle = 180f, useCenter = false, topLeft = Offset(cx - w * 0.2f, cy + h * 0.05f), size = Size(w * 0.15f, h * 0.12f), style = Stroke(width = 1.5.dp.toPx()))
+            }
+            cat.contains("humour") -> {
+                drawArc(scribbleColor, startAngle = 0f, sweepAngle = 180f, useCenter = false, topLeft = Offset(cx - w * 0.18f, cy - h * 0.18f), size = Size(w * 0.36f, h * 0.36f), style = Stroke(width = 2.5.dp.toPx()))
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx - w * 0.08f, cy - h * 0.08f))
+                drawCircle(scribbleColor, radius = 2.dp.toPx(), center = Offset(cx + w * 0.08f, cy - h * 0.08f))
+                drawArc(scribbleColor, startAngle = 0f, sweepAngle = 180f, useCenter = false, topLeft = Offset(cx - w * 0.12f, cy + h * 0.0f), size = Size(w * 0.24f, h * 0.12f), style = Stroke(width = 2.dp.toPx()))
             }
             else -> {
                 val flowPath = Path().apply {
@@ -523,18 +794,63 @@ private fun GenreScribble(category: String, color: Color) {
 }
 
 private fun getGenreFont(category: String, context: android.content.Context): FontFamily {
-    val fontPath = when (category) {
-        "Romance", "Classics of Literature" -> "fonts/PlayfairDisplay-Italic.ttf"
-        "Science Fiction & Fantasy", "Science Fiction" -> "fonts/Orbitron-Bold.ttf"
-        "Fantasy" -> "fonts/Cinzel-Regular.ttf"
-        "Adventure" -> "fonts/Bangers-Regular.ttf"
-        "Mystery", "Crime, Thrillers and Mystery" -> "fonts/Creepster-Regular.ttf"
-        "Poetry" -> "fonts/Calligraffitti-Regular.ttf"
-        "Children & Young Adult", "Humour" -> "fonts/FredokaOne-Regular.ttf"
-        "Short Stories", "Fiction", "Novels" -> "fonts/Lora-Regular.ttf"
-        "Historical Novels" -> "fonts/CinzelDecorative-Regular.ttf"
-        "Biography", "Philosophy & Ethics" -> "fonts/EBGaramond-Regular.ttf"
+    val cat = category.lowercase()
+    val fontPath = when {
+        cat.contains("romance") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("science fiction") || cat.contains("scifi") -> "fonts/Orbitron-Bold.ttf"
+        cat.contains("fantasy") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("adventure") -> "fonts/Bangers-Regular.ttf"
+        cat.contains("mystery") || cat.contains("crime") || cat.contains("thriller") -> "fonts/Creepster-Regular.ttf"
+        cat.contains("poetry") -> "fonts/Calligraffitti-Regular.ttf"
+        cat.contains("children") || cat.contains("young adult") -> "fonts/FredokaOne-Regular.ttf"
+        cat.contains("short stor") || cat.contains("fiction") || cat.contains("novels") -> "fonts/Lora-Regular.ttf"
+        cat.contains("historical") -> "fonts/CinzelDecorative-Regular.ttf"
+        cat.contains("biography") || cat.contains("biographies") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("philosophy") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("classics") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("british") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("american") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("french") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("religion") || cat.contains("spiritual") -> "fonts/Calligraffitti-Regular.ttf"
+        cat.contains("travel") -> "fonts/Bangers-Regular.ttf"
+        cat.contains("science") -> "fonts/Orbitron-Bold.ttf"
+        cat.contains("history") -> "fonts/CinzelDecorative-Regular.ttf"
+        cat.contains("nature") -> "fonts/Lora-Regular.ttf"
+        cat.contains("humour") -> "fonts/FredokaOne-Regular.ttf"
         else -> "fonts/Lora-Regular.ttf"
+    }
+    return try {
+        FontFamily(Font(assetManager = context.assets, path = fontPath))
+    } catch (_: Exception) {
+        FontFamily.SansSerif
+    }
+}
+
+private fun getGenreFontSecondary(category: String, context: android.content.Context): FontFamily {
+    val cat = category.lowercase()
+    val fontPath = when {
+        cat.contains("romance") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("science fiction") || cat.contains("scifi") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("fantasy") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("adventure") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("mystery") || cat.contains("crime") || cat.contains("thriller") -> "fonts/Lora-Regular.ttf"
+        cat.contains("poetry") -> "fonts/Lora-Regular.ttf"
+        cat.contains("children") || cat.contains("young adult") -> "fonts/Lora-Regular.ttf"
+        cat.contains("short stor") || cat.contains("fiction") || cat.contains("novels") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("historical") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("biography") || cat.contains("biographies") -> "fonts/Lora-Regular.ttf"
+        cat.contains("philosophy") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("classics") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("british") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("american") -> "fonts/PlayfairDisplay-Italic.ttf"
+        cat.contains("french") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("religion") || cat.contains("spiritual") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("travel") -> "fonts/Lora-Regular.ttf"
+        cat.contains("science") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("history") -> "fonts/EBGaramond-Regular.ttf"
+        cat.contains("nature") -> "fonts/Cinzel-Regular.ttf"
+        cat.contains("humour") -> "fonts/Lora-Regular.ttf"
+        else -> "fonts/PlayfairDisplay-Italic.ttf"
     }
     return try {
         FontFamily(Font(assetManager = context.assets, path = fontPath))
@@ -892,36 +1208,36 @@ fun SearchResultItem(
 }
 
 fun getDrawerColor(cat: String): Color {
-    // Check language prefixes first
+    val category = cat.lowercase()
     return when {
-        cat.startsWith("FR ") -> Color(0xFF0055A4)
-        cat.startsWith("DE ") -> Color(0xFFFFC800)
-        cat.startsWith("IT ") -> Color(0xFF009246)
-        cat.startsWith("PT ") -> Color(0xFF006600)
-        cat.startsWith("ES ") -> Color(0xFFAA0000)
-        else -> when(cat) {
-            "Fiction", "Novels" -> Color(0xFF6366F1)
-            "History of the Americas" -> Color(0xFF8B5CF6)
-            "Science-Fiction & Fantasy" -> Color(0xFF3B82F6)
-            "Romance" -> Color(0xFFEC4899)
-            "Fantasy" -> Color(0xFF6A1B9A)
-            "Mystery" -> Color(0xFF37474F)
-            "Biography", "Biographies" -> Color(0xFF14B8A6)
-            "Adventure" -> Color(0xFF10B981)
-            "Short Stories" -> Color(0xFF06B6D4)
-            "Children & Young Adult" -> Color(0xFFF59E0B)
-            "Poetry" -> Color(0xFFEF4444)
-            "Humour" -> Color(0xFF84CC16)
-            "Crime, Thrillers and Mystery" -> Color(0xFF37474F)
-            "Historical Novels" -> Color(0xFF8B5CF6)
-            "Science Fiction" -> Color(0xFF3B82F6)
-            "Classics of Literature" -> Color(0xFF6366F1)
-            "Children's Fiction" -> Color(0xFFF59E0B)
-            "Philosophy & Ethics" -> Color(0xFF14B8A6)
-            "American Literature" -> Color(0xFF6366F1)
-            "British Literature" -> Color(0xFF6366F1)
-            else -> Color(0xFFE50914)
-        }
+        category.startsWith("fr ") -> Color(0xFF0055A4)
+        category.startsWith("de ") -> Color(0xFFFFC800)
+        category.startsWith("it ") -> Color(0xFF009246)
+        category.startsWith("pt ") -> Color(0xFF006600)
+        category.startsWith("es ") -> Color(0xFFAA0000)
+        category.contains("romance") -> Color(0xFFEC4899)
+        category.contains("science fiction") || category.contains("scifi") -> Color(0xFF3B82F6)
+        category.contains("fantasy") -> Color(0xFF6A1B9A)
+        category.contains("adventure") -> Color(0xFF10B981)
+        category.contains("mystery") || category.contains("crime") || category.contains("thriller") -> Color(0xFF37474F)
+        category.contains("poetry") -> Color(0xFFEF4444)
+        category.contains("children") || category.contains("young adult") -> Color(0xFFF59E0B)
+        category.contains("short stor") -> Color(0xFF06B6D4)
+        category.contains("historical") -> Color(0xFF8B5CF6)
+        category.contains("biography") || category.contains("biographies") -> Color(0xFF14B8A6)
+        category.contains("philosophy") -> Color(0xFF14B8A6)
+        category.contains("british") -> Color(0xFF6366F1)
+        category.contains("american") -> Color(0xFF6366F1)
+        category.contains("french") -> Color(0xFF0055A4)
+        category.contains("religion") || category.contains("spiritual") -> Color(0xFF7C3AED)
+        category.contains("travel") -> Color(0xFF0891B2)
+        category.contains("science") -> Color(0xFF2563EB)
+        category.contains("history") && !category.contains("historical") -> Color(0xFF9333EA)
+        category.contains("nature") -> Color(0xFF16A34A)
+        category.contains("classics") -> Color(0xFF6366F1)
+        category.contains("fiction") || category.contains("novels") -> Color(0xFF6366F1)
+        category.contains("humour") -> Color(0xFF84CC16)
+        else -> Color(0xFFE50914)
     }
 }
 
