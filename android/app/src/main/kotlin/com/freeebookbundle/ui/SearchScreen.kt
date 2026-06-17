@@ -86,6 +86,8 @@ fun SearchScreen(
         } catch (_: Exception) {}
     }
 
+    val isDay = currentTheme == AppThemeMode.DAY
+
     val allCategories = dynamicCategories.ifEmpty {
         listOf("Fiction", "Romance", "Science Fiction & Fantasy", "Adventure", "Short Stories", "Children & Young Adult", "Historical Novels", "Poetry", "Mystery", "Fantasy", "Biography", "Crime, Thrillers and Mystery")
     }
@@ -182,6 +184,7 @@ fun SearchScreen(
                     allCategories = allCategories,
                     viewModel = viewModel,
                     featuredAuthors = featuredAuthors,
+                    isDay = isDay,
                     onBookClick = onBookClick,
                     onAuthorClick = { author -> viewModel.openAuthor(author) },
                     onSeeAllGenres = { showAllGenres = true },
@@ -214,6 +217,7 @@ private fun BrowseContent(
     allCategories: List<String>,
     viewModel: HomeViewModel,
     featuredAuthors: List<Pair<String, Int>>,
+    isDay: Boolean,
     onBookClick: (Book) -> Unit,
     onAuthorClick: (String) -> Unit,
     onSeeAllGenres: () -> Unit,
@@ -264,6 +268,7 @@ private fun BrowseContent(
                         row.forEach { category ->
                             GenreBlock(
                                 category = category,
+                                isDay = isDay,
                                 onClick = { viewModel.openCollection(category) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -359,11 +364,12 @@ private fun BrowseContent(
 @Composable
 private fun GenreBlock(
     category: String,
+    isDay: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val genreColor = getDrawerColor(category)
+    val genreColor = getDrawerColor(category, isDay)
     val genreFont = remember(category) { getGenreFont(category, context) }
     val genreFontSecondary = remember(category) { getGenreFontSecondary(category, context) }
 
@@ -428,6 +434,7 @@ private fun GenreBlock(
             val wordCount = words.size
             val wordSlice = 1f / wordCount.coerceAtLeast(1)
             val staggerDelay = 0.06f / wordCount.coerceAtLeast(1)
+            val textColor = if (isDay) Color(0xFF2C1810) else Color.White
 
             Text(
                 text = buildAnnotatedString {
@@ -439,9 +446,9 @@ private fun GenreBlock(
                             val charNorm = (charIdx + 0.5f) / word.length
 
                             if (wordProgress < 0.30f) {
-                                pushStyle(SpanStyle(fontFamily = genreFont, color = Color.White))
+                                pushStyle(SpanStyle(fontFamily = genreFont, color = textColor))
                             } else if (wordProgress > 0.70f) {
-                                pushStyle(SpanStyle(fontFamily = genreFontSecondary, color = Color.White))
+                                pushStyle(SpanStyle(fontFamily = genreFontSecondary, color = textColor))
                             } else {
                                 val rawT = (wordProgress - 0.30f) / 0.40f
                                 val t = (0.5f - 0.5f * kotlin.math.cos(rawT * Math.PI)).toFloat()
@@ -453,13 +460,13 @@ private fun GenreBlock(
                                     val sineCurve = 0.5f * (1f + kotlin.math.cos(norm * Math.PI)).toFloat()
                                     0.15f + 0.85f * sineCurve
                                 } else 1f
-                                pushStyle(SpanStyle(fontFamily = font, color = Color.White.copy(alpha = alpha)))
+                                pushStyle(SpanStyle(fontFamily = font, color = textColor.copy(alpha = alpha)))
                             }
                             append(char)
                             pop()
                         }
                         if (wordIdx < words.lastIndex) {
-                            pushStyle(SpanStyle(color = Color.White))
+                            pushStyle(SpanStyle(color = textColor))
                             append(" ")
                             pop()
                         }
@@ -1207,9 +1214,38 @@ fun SearchResultItem(
     }
 }
 
-fun getDrawerColor(cat: String): Color {
+fun getDrawerColor(cat: String, isDay: Boolean = false): Color {
     val category = cat.lowercase()
     return when {
+        isDay && category.startsWith("fr ") -> Color(0xFF0A1E3D)
+        isDay && category.startsWith("de ") -> Color(0xFF6B4C00)
+        isDay && category.startsWith("it ") -> Color(0xFF0A3010)
+        isDay && category.startsWith("pt ") -> Color(0xFF0A3010)
+        isDay && category.startsWith("es ") -> Color(0xFF4A0000)
+        isDay && category.contains("romance") -> Color(0xFF6B0A2E)
+        isDay && (category.contains("science fiction") || category.contains("scifi")) -> Color(0xFF0A3270)
+        isDay && category.contains("fantasy") -> Color(0xFF2A0A50)
+        isDay && category.contains("adventure") -> Color(0xFF003D35)
+        isDay && (category.contains("mystery") || category.contains("crime") || category.contains("thriller")) -> Color(0xFF1A1F22)
+        isDay && category.contains("poetry") -> Color(0xFF5A0A0A)
+        isDay && (category.contains("children") || category.contains("young adult")) -> Color(0xFF7A3000)
+        isDay && category.contains("short stor") -> Color(0xFF003338)
+        isDay && category.contains("historical") -> Color(0xFF221250)
+        isDay && (category.contains("biography") || category.contains("biographies")) -> Color(0xFF003028)
+        isDay && category.contains("philosophy") -> Color(0xFF003028)
+        isDay && category.contains("british") -> Color(0xFF141A50)
+        isDay && category.contains("american") -> Color(0xFF141A50)
+        isDay && category.contains("french") -> Color(0xFF0A1E3D)
+        isDay && (category.contains("religion") || category.contains("spiritual")) -> Color(0xFF2A0A50)
+        isDay && category.contains("travel") -> Color(0xFF002830)
+        isDay && category.contains("science") -> Color(0xFF062860)
+        isDay && category.contains("history") && !category.contains("historical") -> Color(0xFF3A0A50)
+        isDay && category.contains("nature") -> Color(0xFF0A3010)
+        isDay && category.contains("classics") -> Color(0xFF141A50)
+        isDay && (category.contains("fiction") || category.contains("novels")) -> Color(0xFF141A50)
+        isDay && category.contains("humour") -> Color(0xFF304A00)
+        isDay -> Color(0xFF5A0A0A)
+
         category.startsWith("fr ") -> Color(0xFF0055A4)
         category.startsWith("de ") -> Color(0xFFFFC800)
         category.startsWith("it ") -> Color(0xFF009246)
