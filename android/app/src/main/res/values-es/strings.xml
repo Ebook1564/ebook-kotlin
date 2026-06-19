@@ -74,7 +74,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">EXPLORAR</string>
-    <string name="search_placeholder">Buscar más de 60,000 libros…</string>
+    <string name="search_placeholder">Buscar más de 1M libros…</string>
     <string name="search_clear">Limpiar</string>
     <string name="search_curated_genre">GÉNERO CURADO</string>
     <string name="search_explore_all">EXPLORAR TODOS LOS LIBROS</string>

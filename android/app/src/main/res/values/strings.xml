@@ -102,7 +102,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">EXPLORE</string>
-    <string name="search_placeholder">Search 60,000+ books…</string>
+    <string name="search_placeholder">Search 1M+ books…</string>
     <string name="search_clear">Clear</string>
     <string name="search_curated_genre">CURATED GENRE</string>
     <string name="search_explore_all">EXPLORE ALL BOOKS</string>

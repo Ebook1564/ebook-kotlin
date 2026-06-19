@@ -96,7 +96,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">استكشف</string>
-    <string name="search_placeholder">ابحث في أكثر من 60,000 كتاب…</string>
+    <string name="search_placeholder">ابحث في أكثر من مليون كتاب…</string>
     <string name="search_clear">مسح</string>
     <string name="search_curated_genre">نوع منقح</string>
     <string name="search_explore_all">استكشف جميع الكتب</string>

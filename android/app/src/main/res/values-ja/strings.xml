@@ -74,7 +74,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">探索</string>
-    <string name="search_placeholder">60,000以上の本を検索…</string>
+    <string name="search_placeholder">100万以上の本を検索…</string>
     <string name="search_clear">クリア</string>
     <string name="search_curated_genre">精选ジャンル</string>
     <string name="search_explore_all">すべての本を検索</string>

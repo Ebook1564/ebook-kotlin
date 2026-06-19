@@ -74,7 +74,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">ERKUNDEN</string>
-    <string name="search_placeholder">Über 60.000 Bücher durchsuchen…</string>
+    <string name="search_placeholder">Über 1M+ Bücher durchsuchen…</string>
     <string name="search_clear">Löschen</string>
     <string name="search_curated_genre">KURATIERTE GENRES</string>
     <string name="search_explore_all">ALLE BÜCHER ERKUNDEN</string>

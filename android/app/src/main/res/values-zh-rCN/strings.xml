@@ -74,7 +74,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">探索</string>
-    <string name="search_placeholder">搜索60,000+图书…</string>
+    <string name="search_placeholder">搜索100万+图书…</string>
     <string name="search_clear">清除</string>
     <string name="search_curated_genre">精选类型</string>
     <string name="search_explore_all">探索全部图书</string>

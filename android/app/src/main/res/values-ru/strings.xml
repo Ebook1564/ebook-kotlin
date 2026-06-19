@@ -74,7 +74,7 @@
 
     <!-- Search Screen -->
     <string name="search_explore">ИССЛЕДОВАТЬ</string>
-    <string name="search_placeholder">Поиск 60 000+ книг…</string>
+    <string name="search_placeholder">Поиск 1M+ книг…</string>
     <string name="search_clear">Очистить</string>
     <string name="search_curated_genre">ПОДОБРАННЫЙ ЖАНР</string>
     <string name="search_explore_all">ВСЕ КНИГИ</string>
