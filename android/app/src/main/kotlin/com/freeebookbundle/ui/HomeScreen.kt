@@ -65,6 +65,7 @@ import com.freeebookbundle.viewmodel.CuratedCollection
 import com.freeebookbundle.viewmodel.HomeViewModel
 import com.freeebookbundle.utils.GenrePreferences
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.sin
 import kotlin.math.cos
 
@@ -639,22 +640,39 @@ fun OrbitalCarousel(
 
     // ── rotation state ──────────────────────
     var rotationStep by remember { mutableIntStateOf(0) }
-    var dragAngle by remember { mutableFloatStateOf(0f) }
+    val animatedRotation = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
     var isDragging by remember { mutableStateOf(false) }
-
-    // single animated value: snap during drag, smooth tween on release
-    val displayedAngle by animateFloatAsState(
-        targetValue = if (isDragging) dragAngle else rotationStep * ORBITAL_STEP_DEGREES,
-        animationSpec = if (isDragging) snap<Float>() else tween(750, easing = OrbitalEasing),
-        label = "orbital_angle"
-    )
+    var frozenCenterIndex by remember { mutableIntStateOf(0) }
 
     // auto-rotate every 8 s
     LaunchedEffect(displayBooks.size) {
         while (true) {
             delay(ORBITAL_AUTO_SCROLL_MS)
-            rotationStep--
+            if (!isDragging) {
+                rotationStep--
+            }
         }
+    }
+
+    // auto-rotate animation
+    LaunchedEffect(rotationStep, displayBooks.size) {
+        if (!isDragging) {
+            animatedRotation.animateTo(
+                targetValue = rotationStep * ORBITAL_STEP_DEGREES,
+                animationSpec = tween(750, easing = OrbitalEasing)
+            )
+        }
+    }
+
+    // centre book: during auto-rotate follows animated angle; during drag stays frozen
+    val centerBookIndex = if (isDragging) {
+        frozenCenterIndex
+    } else {
+        displayBooks.indices.minByOrNull { i ->
+            val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + animatedRotation.value)
+            kotlin.math.abs(norm)
+        } ?: 0
     }
 
     // ── infinite transitions ─────────────────
@@ -681,19 +699,6 @@ fun OrbitalCarousel(
     val arcRadiusYPx: Float = with(localDensity) { 100.dp.roundToPx().toFloat() }
     val arcCenterYPx: Float = with(localDensity) { 30.dp.roundToPx().toFloat() }
 
-    // ── centre book (stable during animation) ─
-    val centerBookIndex = remember(rotationStep, displayBooks.size) {
-        var bestIdx = 0
-        var bestDist = Float.MAX_VALUE
-        val targetAngle = rotationStep * ORBITAL_STEP_DEGREES
-        displayBooks.forEachIndexed { i, _ ->
-            val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + targetAngle)
-            val d = kotlin.math.abs(norm)
-            if (d < bestDist) { bestDist = d; bestIdx = i }
-        }
-        bestIdx
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -702,19 +707,45 @@ fun OrbitalCarousel(
                 detectHorizontalDragGestures(
                     onDragStart = {
                         isDragging = true
-                        dragAngle = displayedAngle
+                        frozenCenterIndex = displayBooks.indices.minByOrNull { i ->
+                            val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + animatedRotation.value)
+                            kotlin.math.abs(norm)
+                        } ?: 0
+                        coroutineScope.launch { animatedRotation.stop() }
                     },
                     onDragEnd = {
-                        rotationStep = Math.round(dragAngle / ORBITAL_STEP_DEGREES)
+                        val target = Math.round(animatedRotation.value / ORBITAL_STEP_DEGREES)
+                        rotationStep = target
                         isDragging = false
+                        coroutineScope.launch {
+                            animatedRotation.animateTo(
+                                targetValue = target * ORBITAL_STEP_DEGREES,
+                                animationSpec = spring(
+                                    dampingRatio = 0.7f,
+                                    stiffness = 200f
+                                )
+                            )
+                        }
                     },
                     onDragCancel = {
-                        rotationStep = Math.round(dragAngle / ORBITAL_STEP_DEGREES)
+                        val target = Math.round(animatedRotation.value / ORBITAL_STEP_DEGREES)
+                        rotationStep = target
                         isDragging = false
+                        coroutineScope.launch {
+                            animatedRotation.animateTo(
+                                targetValue = target * ORBITAL_STEP_DEGREES,
+                                animationSpec = spring(
+                                    dampingRatio = 0.7f,
+                                    stiffness = 200f
+                                )
+                            )
+                        }
                     },
                     onHorizontalDrag = { _, dragAmount ->
                         val degPerPx = 180f / (3.14159265f * arcRadiusXPx)
-                        dragAngle += dragAmount * degPerPx
+                        coroutineScope.launch {
+                            animatedRotation.snapTo(animatedRotation.value + dragAmount * degPerPx)
+                        }
                     }
                 )
             }
@@ -729,7 +760,7 @@ fun OrbitalCarousel(
             val ovalSize = Size(rx * 2, ry * 2)
 
             val bookCanvasAngles = displayBooks.mapIndexed { i, _ ->
-                val ourAngle = orbitalNormalize(i * ORBITAL_STEP_DEGREES + displayedAngle)
+                val ourAngle = orbitalNormalize(i * ORBITAL_STEP_DEGREES + animatedRotation.value)
                 90f - ourAngle
             }.sorted()
 
@@ -767,14 +798,14 @@ fun OrbitalCarousel(
         //    Single pass – smooth continuous scale, no instantaneous swap
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val sortedIndices = displayBooks.indices.sortedBy { i ->
-                val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + displayedAngle)
+                val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + animatedRotation.value)
                 val angleRad = Math.toRadians(norm.toDouble()).toFloat()
                 arcCenterYPx - arcRadiusYPx * (1f - cos(angleRad))
             }
 
             sortedIndices.forEach { i ->
                 val book = displayBooks[i]
-                val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + displayedAngle)
+                val norm = orbitalNormalize(i * ORBITAL_STEP_DEGREES + animatedRotation.value)
                 val dist = kotlin.math.abs(norm)
                 val t = (dist / 180f).coerceIn(0f, 1f)
                 val angleRad = Math.toRadians(norm.toDouble()).toFloat()
